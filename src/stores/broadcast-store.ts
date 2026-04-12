@@ -42,6 +42,16 @@ interface BroadcastState {
   saveDraft: () => void
   discardDraft: () => void
   setSelectedElement: (el: SelectedElement) => void
+
+  // Announcements
+  announcement: {
+    text: string
+    position: "top" | "bottom"
+    style: "info" | "urgent"
+    duration: number | null
+  } | null
+  sendAnnouncement: (announcement: { text: string; position: "top" | "bottom"; style: "info" | "urgent"; duration: number | null }) => void
+  dismissAnnouncement: () => void
 }
 
 function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): Record<string, unknown> {
@@ -211,4 +221,19 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     }
   },
   setSelectedElement: (selectedElement) => set({ selectedElement }),
+
+  // Announcements
+  announcement: null,
+  sendAnnouncement: (announcement) => {
+    set({ announcement })
+    if (announcement.duration) {
+      setTimeout(() => {
+        const current = get().announcement
+        if (current && current.text === announcement.text) {
+          set({ announcement: null })
+        }
+      }, announcement.duration * 1000)
+    }
+  },
+  dismissAnnouncement: () => set({ announcement: null }),
 }))
