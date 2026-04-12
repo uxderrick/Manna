@@ -35,7 +35,7 @@ export function PanelTabs({ tabs, defaultTab, className }: PanelTabsProps) {
       </div>
 
       {/* Content */}
-      <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto">
         {active?.content}
       </div>
     </div>
