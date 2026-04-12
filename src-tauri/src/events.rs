@@ -1,0 +1,16 @@
+pub const EVENT_AUDIO_LEVEL: &str = "audio_level";
+pub const EVENT_TRANSCRIPT_PARTIAL: &str = "transcript_partial";
+pub const EVENT_TRANSCRIPT_FINAL: &str = "transcript_final";
+
+#[derive(Clone, serde::Serialize)]
+pub struct AudioLevelPayload {
+    pub rms: f32,
+    pub peak: f32,
+}
+
+#[derive(Clone, serde::Serialize)]
+pub struct TranscriptPayload {
+    pub text: String,
+    pub is_final: bool,
+    pub confidence: f64,
+}

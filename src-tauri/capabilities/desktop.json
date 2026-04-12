@@ -1,0 +1,16 @@
+{
+  "identifier": "desktop-capability",
+  "platforms": [
+    "macOS",
+    "windows",
+    "linux"
+  ],
+  "windows": [
+    "main",
+    "broadcast",
+    "broadcast-alt"
+  ],
+  "permissions": [
+    "global-shortcut:default"
+  ]
+}

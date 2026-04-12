@@ -1,0 +1,15 @@
+[package]
+name = "rhema-audio"
+version = "0.1.0"
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+thiserror.workspace = true
+cpal = "0.15"
+crossbeam-channel = "0.5"

@@ -1,0 +1,54 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Build artifacts
+build
+data/rhema.db
+data/sources/*.json
+data/cross-refs/cross_references.txt
+data/cross-refs/cross-references.zip
+data/verses-for-embedding.json
+
+# Python virtual environment
+.venv/
+
+# ML models and embeddings (downloaded, not committed)
+models/*
+.env
+.venv/
+.superpowers/
+embeddings/*
+
+.claude/CLAUDE.md
+
+rhema-technical-plan-v3.4.md
+detailed-plan.md
+
+docs/superpowers
+data/bg_temp
+GHS-1-260.md
+
+# GSD planning artifacts
+.planning/
