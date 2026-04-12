@@ -6,8 +6,8 @@ import { PanelTabs } from "./panel-tabs"
 import { TranscriptPanel } from "@/components/panels/transcript-panel"
 import { SearchPanel } from "@/components/panels/search-panel"
 import { DetectionsPanel } from "@/components/panels/detections-panel"
-import { PreviewPanel } from "@/components/panels/preview-panel"
 import { QueuePanel } from "@/components/panels/queue-panel"
+import { BroadcastMonitor } from "@/components/broadcast/broadcast-monitor"
 
 /* -------------------------------------------------------------------------- */
 /*  Resize handles                                                            */
@@ -89,7 +89,6 @@ export function Workspace() {
                 defaultTab="detections"
                 tabs={[
                   { id: "detections", label: "Detections", content: <DetectionsPanel /> },
-                  { id: "broadcast", label: "Broadcast Preview", content: <PreviewPanel /> },
                   { id: "analytics", label: "Analytics", content: <Placeholder label="Analytics" /> },
                 ]}
               />
@@ -134,17 +133,24 @@ export function Workspace() {
 
         <VerticalHandle />
 
-        {/* Right panel */}
+        {/* Right panel — queue + broadcast monitor */}
         <Panel id="right" defaultSize="28%" minSize="15%" maxSize="40%">
-          <PanelTabs
-            className="h-full"
-            defaultTab="queue"
-            tabs={[
-              { id: "queue", label: "Queue", content: <QueuePanel /> },
-              { id: "cross-refs", label: "Cross-refs", content: <Placeholder label="Cross-refs" /> },
-              { id: "planner", label: "Planner", content: <Placeholder label="Planner" /> },
-            ]}
-          />
+          <div className="flex h-full flex-col overflow-hidden">
+            {/* Queue tabs — top section */}
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <PanelTabs
+                className="h-full"
+                defaultTab="queue"
+                tabs={[
+                  { id: "queue", label: "Queue", content: <QueuePanel /> },
+                  { id: "cross-refs", label: "Cross-refs", content: <Placeholder label="Cross-refs" /> },
+                  { id: "planner", label: "Planner", content: <Placeholder label="Planner" /> },
+                ]}
+              />
+            </div>
+            {/* Broadcast monitor — always visible */}
+            <BroadcastMonitor />
+          </div>
         </Panel>
       </Group>
     </div>
