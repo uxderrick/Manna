@@ -639,72 +639,92 @@ export function SearchPanel() {
                 No results found
               </p>
             )}
-            {semanticResults.map((result, idx) => (
-              <div
-                key={`${result.book_number}-${result.chapter}-${result.verse}-${idx}`}
-                onClick={() => {
-                  bibleActions.selectVerse({
-                    id: 0,
-                    translation_id: activeTranslationId,
-                    book_number: result.book_number,
-                    book_name: result.book_name,
-                    book_abbreviation: "",
-                    chapter: result.chapter,
-                    verse: result.verse,
-                    text: result.verse_text,
-                  })
-                }}
-                className="group flex flex-col cursor-pointer gap-1 rounded-lg p-3 transition-colors hover:bg-muted/50 relative"
-              >
-                <div className="flex shrink-0 flex-row items-start gap-2">
-                  <span className="text-xs font-semibold ">
-                    {result.book_name}   {result.chapter}:{result.verse}
-                  </span>
-                  <span
-                    className="mt-0.5 text-[0.5rem] text-muted-foreground"
-                  >
-                    {Math.round(result.similarity * 100)}%
-                  </span>
+            {semanticResults.map((result, idx) => {
+              const resultVerse = {
+                id: 0,
+                translation_id: activeTranslationId,
+                book_number: result.book_number,
+                book_name: result.book_name,
+                book_abbreviation: "",
+                chapter: result.chapter,
+                verse: result.verse,
+                text: result.verse_text,
+              }
+              return (
+                <div
+                  key={`${result.book_number}-${result.chapter}-${result.verse}-${idx}`}
+                  onClick={() => {
+                    bibleActions.selectVerse(resultVerse)
+                    const trans = useBibleStore.getState().translations
+                      .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+                    useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(resultVerse, trans))
+                  }}
+                  className="group flex cursor-pointer items-center gap-3 rounded-lg p-3 transition-colors hover:bg-muted/50"
+                >
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-primary">
+                        {result.book_name} {result.chapter}:{result.verse}
+                      </span>
+                      <span className="text-[0.625rem] text-muted-foreground">
+                        {Math.round(result.similarity * 100)}%
+                      </span>
+                    </div>
+                    <p className="font-serif text-sm leading-relaxed text-foreground/80">
+                      <HighlightedText text={result.verse_text} query={contextQuery} />
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="hover:bg-primary/20 hover:text-primary"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const trans = useBibleStore.getState().translations
+                                .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+                              useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(resultVerse, trans))
+                              useBroadcastStore.getState().goLive()
+                            }}
+                          >
+                            <PlayIcon className="size-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" sideOffset={8} className="pointer-events-none">Go Live</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="hover:bg-primary/20 hover:text-primary"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              useQueueStore.getState().addItem({
+                                id: crypto.randomUUID(),
+                                verse: resultVerse,
+                                reference: `${result.book_name} ${result.chapter}:${result.verse}`,
+                                confidence: result.similarity,
+                                source: "manual",
+                                added_at: Date.now(),
+                              })
+                            }}
+                          >
+                            <PlusIcon className="size-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" sideOffset={8} className="pointer-events-none">Add to Queue</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                 </div>
-                <p className="flex-1 text-xs leading-relaxed text-muted-foreground">
-                  <HighlightedText text={result.verse_text} query={contextQuery} />
-                </p>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity bg-primary text-primary-foreground hover:bg-primary/80"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          useQueueStore.getState().addItem({
-                            id: crypto.randomUUID(),
-                            verse: {
-                              id: 0,
-                              translation_id: activeTranslationId,
-                              book_number: result.book_number,
-                              book_name: result.book_name,
-                              book_abbreviation: "",
-                              chapter: result.chapter,
-                              verse: result.verse,
-                              text: result.verse_text,
-                            },
-                            reference: `${result.book_name} ${result.chapter}:${result.verse}`,
-                            confidence: result.similarity,
-                            source: "manual",
-                            added_at: Date.now(),
-                          })
-                        }}
-                      >
-                        <PlusIcon className="size-3" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" sideOffset={8} className="pointer-events-none">Add to queue</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
