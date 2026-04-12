@@ -60,7 +60,8 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
   }
 
   return (
-    <div className="border-b border-border p-3 last:border-0">
+    <div className="p-1.5">
+    <div className="rounded-xl border border-border bg-surface-elevated p-3">
       <div className="flex items-center gap-2">
         <ConfidenceDot confidence={detection.confidence} />
         <SourceBadge source={detection.source} />
@@ -70,20 +71,20 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
       </div>
 
       {detection.verse_text && (
-        <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+        <p className="mt-1 line-clamp-2 font-serif text-sm leading-relaxed text-muted-foreground">
           {detection.verse_text}
         </p>
       )}
 
       <div className="mt-2 flex gap-2">
-        <Button size="sm" className="gap-1" onClick={handlePresent}>
+        <Button size="sm" className="gap-1 rounded-full" onClick={handlePresent}>
           <PlayIcon className="size-3" />
           Present
         </Button>
         <Button
           variant="outline"
           size="sm"
-          className="gap-1"
+          className="gap-1 rounded-full"
           onClick={() => {
             useQueueStore.getState().addItem({
               id: crypto.randomUUID(),
@@ -108,6 +109,7 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
           Queue
         </Button>
       </div>
+    </div>
     </div>
   )
 }
