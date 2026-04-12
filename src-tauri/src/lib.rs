@@ -1,5 +1,6 @@
 mod commands;
 mod events;
+mod menu;
 mod state;
 
 use rhema_notes::SessionDb;
@@ -182,6 +183,9 @@ pub fn run() {
             } else {
                 log::info!("ONNX model not found. Semantic search disabled. Run 'bun run download:model' to download.");
             }
+
+            let menu = menu::build(app)?;
+            app.set_menu(menu)?;
 
             Ok(())
         })
