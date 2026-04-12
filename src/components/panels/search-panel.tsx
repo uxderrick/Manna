@@ -32,6 +32,7 @@ import {
   CheckIcon,
   SearchIcon,
   PlusIcon,
+  PlayIcon,
 } from "lucide-react"
 import {
   Tooltip,
@@ -569,39 +570,54 @@ export function SearchPanel() {
                   <p className="flex-1 text-sm leading-relaxed text-foreground/80">
                     {verse.text}
                   </p>
-                  {verse.id === effectiveSelectedVerseId && (
-                    <CheckIcon className="size-4 shrink-0 text-ai-direct" />
-                  )}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          className={cn(
-                            "shrink-0 opacity-0 group-hover:opacity-100 transition-opacity",
-                            verse.id === effectiveSelectedVerseId
-                              ? "hover:bg-lime-500/20 hover:text-lime-500"
-                              : "bg-primary/40! text-primary-foreground hover:bg-primary!"
-                          )}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            useQueueStore.getState().addItem({
-                              id: crypto.randomUUID(),
-                              verse,
-                              reference: `${verse.book_name} ${verse.chapter}:${verse.verse}`,
-                              confidence: 1,
-                              source: "manual",
-                              added_at: Date.now(),
-                            })
-                          }}
-                        >
-                          <PlusIcon className="size-3" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="left">Add to queue</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="hover:bg-primary/20 hover:text-primary"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const trans = useBibleStore.getState().translations
+                                .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+                              useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(verse, trans))
+                              useBroadcastStore.getState().goLive()
+                            }}
+                          >
+                            <PlayIcon className="size-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left">Go Live</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="hover:bg-primary/20 hover:text-primary"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              useQueueStore.getState().addItem({
+                                id: crypto.randomUUID(),
+                                verse,
+                                reference: `${verse.book_name} ${verse.chapter}:${verse.verse}`,
+                                confidence: 1,
+                                source: "manual",
+                                added_at: Date.now(),
+                              })
+                            }}
+                          >
+                            <PlusIcon className="size-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left">Add to Queue</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                 </div>
               ))}
             </div>
