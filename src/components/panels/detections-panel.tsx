@@ -79,7 +79,7 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
       <div className="mt-2 flex gap-2">
         <Button size="sm" className="gap-1 rounded-full" onClick={handlePresent}>
           <PlayIcon className="size-3" />
-          Preview
+          Send to Screen
         </Button>
         <Button
           variant="outline"
@@ -106,7 +106,7 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
           }}
         >
           <PlusIcon className="size-3" />
-          Add
+          Add to Queue
         </Button>
       </div>
     </div>
