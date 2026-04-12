@@ -117,9 +117,8 @@ export function ExportNotesDrawer() {
       })
 
       if (filePath) {
-        // Write file content using clipboard as fallback
-        // The actual file write will be handled in Task 11 when FS plugin is installed
-        await navigator.clipboard.writeText(content)
+        const { writeTextFile } = await import("@tauri-apps/plugin-fs")
+        await writeTextFile(filePath, content)
         closeExportNotes()
       }
     } finally {

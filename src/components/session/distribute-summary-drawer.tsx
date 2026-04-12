@@ -94,9 +94,8 @@ export function DistributeSummaryDrawer() {
       })
 
       if (filePath) {
-        // File write will be handled in Task 11 when FS plugin is installed
-        // For now, copy to clipboard as fallback
-        await navigator.clipboard.writeText(summaryText)
+        const { writeTextFile } = await import("@tauri-apps/plugin-fs")
+        await writeTextFile(filePath, summaryText)
         closeDistributeSummary()
       }
     } finally {

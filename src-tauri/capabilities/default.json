@@ -9,6 +9,10 @@
   ],
   "permissions": [
     "core:default",
-    "store:default"
+    "store:default",
+    "opener:default",
+    "dialog:default",
+    "fs:default",
+    "global-shortcut:allow-register"
   ]
 }
