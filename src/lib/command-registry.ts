@@ -76,11 +76,11 @@ export function createCommands(actions: {
     { id: "navigate:search", label: "Search", group: "Navigate", execute: () => actions.navigateTo("search") },
     { id: "navigate:notes", label: "Notes", group: "Navigate", execute: () => actions.navigateTo("notes") },
     { id: "navigate:songs", label: "Songs", group: "Navigate", execute: () => actions.navigateTo("songs") },
+    { id: "navigate:sessions", label: "Sessions", group: "Navigate", execute: () => actions.navigateTo("sessions") },
     { id: "navigate:queue", label: "Queue", group: "Navigate", execute: () => actions.navigateTo("queue") },
     { id: "navigate:cross-refs", label: "Cross-refs", group: "Navigate", execute: () => actions.navigateTo("cross-refs") },
     { id: "navigate:planner", label: "Planner", group: "Navigate", execute: () => actions.navigateTo("planner") },
     { id: "navigate:detections", label: "Detections", group: "Navigate", execute: () => actions.navigateTo("detections") },
-    { id: "navigate:broadcast-preview", label: "Broadcast Preview", group: "Navigate", execute: () => actions.navigateTo("broadcast") },
     { id: "navigate:analytics", label: "Analytics", group: "Navigate", execute: () => actions.navigateTo("analytics") },
 
     // Help

@@ -1,16 +1,34 @@
 import { useState, useMemo } from "react"
-import { Panel, Group, Separator } from "react-resizable-panels"
+import { Panel, Group, Separator, useGroupRef } from "react-resizable-panels"
 import { Toolbar } from "./toolbar"
 import { CommandPalette } from "@/components/command-palette"
 import { createCommands } from "@/lib/command-registry"
 import { useMenuEvents } from "@/hooks/use-menu-events"
 import { useTheme } from "@/components/theme-provider"
+import { useSettingsDialogStore } from "@/lib/settings-dialog"
+import { useBroadcastStore, useTutorialStore } from "@/stores"
+import { getCurrentWindow } from "@tauri-apps/api/window"
+import { openUrl } from "@tauri-apps/plugin-opener"
 import { PanelTabs } from "./panel-tabs"
 import { TranscriptPanel } from "@/components/panels/transcript-panel"
 import { SearchPanel } from "@/components/panels/search-panel"
 import { DetectionsPanel } from "@/components/panels/detections-panel"
 import { QueuePanel } from "@/components/panels/queue-panel"
 import { BroadcastMonitor } from "@/components/broadcast/broadcast-monitor"
+import { AboutDialog } from "@/components/about-dialog"
+import { EndSessionDialog } from "@/components/session/end-session-dialog"
+import { ExportNotesDrawer } from "@/components/session/export-notes-drawer"
+import { DistributeSummaryDrawer } from "@/components/session/distribute-summary-drawer"
+import { AnnouncementDialog } from "@/components/broadcast/announcement-dialog"
+import { SessionsPanel } from "@/components/panels/sessions-panel"
+import { useAboutDialogStore } from "@/lib/about-dialog"
+import { useEndSessionDialogStore } from "@/lib/end-session-dialog"
+import { useExportNotesDrawerStore } from "@/lib/export-notes-drawer"
+import { useDistributeSummaryDrawerStore } from "@/lib/distribute-summary-drawer"
+import { useAnnouncementDialogStore } from "@/lib/announcement-dialog"
+import { usePanelTabsStore } from "@/stores/panel-tabs-store"
+import type { PanelId } from "@/stores/panel-tabs-store"
+import { useSessionStore } from "@/stores"
 
 /* -------------------------------------------------------------------------- */
 /*  Resize handles                                                            */
@@ -45,78 +63,118 @@ function Placeholder({ label }: { label: string }) {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Constants                                                                 */
+/* -------------------------------------------------------------------------- */
+
+const TAB_PANEL_MAP: Record<string, PanelId> = {
+  search: "left",
+  notes: "left",
+  songs: "left",
+  sessions: "left",
+  detections: "center",
+  analytics: "center",
+  queue: "right",
+  "cross-refs": "right",
+  planner: "right",
+}
+
+const DEFAULT_LAYOUT = { left: 22, center: 50, right: 28 }
+
+/* -------------------------------------------------------------------------- */
 /*  Workspace                                                                 */
 /* -------------------------------------------------------------------------- */
 
 export function Workspace() {
   const [transcriptCollapsed, setTranscriptCollapsed] = useState(false)
   const { theme, setTheme } = useTheme()
+  const mainGroupRef = useGroupRef()
+  const panelTabs = usePanelTabsStore()
 
   const commands = useMemo(
     () =>
       createCommands({
         newSession: () => {
-          /* TODO: wire to session creation flow */
+          usePanelTabsStore.getState().setTab("left", "sessions")
+          const layout = mainGroupRef.current?.getLayout()
+          if (layout && (layout.left ?? 0) < 15) {
+            mainGroupRef.current?.setLayout(DEFAULT_LAYOUT)
+          }
         },
         endSession: () => {
-          /* TODO: wire to session end flow */
+          const session = useSessionStore.getState().activeSession
+          if (session) {
+            useEndSessionDialogStore.getState().openEndSession(session.id)
+          }
         },
         importPlan: () => {
-          /* TODO: wire to import flow */
+          // Deferred until Planner feature is built
         },
         exportNotes: () => {
-          /* TODO: wire to export flow */
+          const session = useSessionStore.getState().activeSession
+          if (session) {
+            useExportNotesDrawerStore.getState().openExportNotes(session.id)
+          }
         },
         distributeSummary: () => {
-          /* TODO: wire to distribution flow */
+          const session = useSessionStore.getState().activeSession
+          if (session) {
+            useDistributeSummaryDrawerStore.getState().openDistributeSummary(session.id)
+          }
         },
         goLive: () => {
-          /* TODO: wire to broadcast start */
+          useBroadcastStore.getState().goLive()
         },
         goOffAir: () => {
-          /* TODO: wire to broadcast stop */
+          useBroadcastStore.getState().clearScreen()
         },
         newAnnouncement: () => {
-          /* TODO: wire to announcement flow */
+          useAnnouncementDialogStore.getState().openAnnouncement()
         },
         openThemeDesigner: () => {
-          /* TODO: wire to theme designer */
+          useBroadcastStore.getState().setDesignerOpen(true)
         },
         toggleTranscript: () => {
           setTranscriptCollapsed((prev) => !prev)
         },
         resetLayout: () => {
-          /* TODO: wire to panel reset */
+          mainGroupRef.current?.setLayout(DEFAULT_LAYOUT)
         },
         toggleTheme: () => {
           setTheme(theme === "dark" ? "light" : "dark")
         },
         openAbout: () => {
-          /* TODO: wire to about dialog */
+          useAboutDialogStore.getState().openAbout()
         },
         openPreferences: () => {
-          /* TODO: wire to preferences */
+          useSettingsDialogStore.getState().openSettings()
         },
         quitApp: () => {
-          /* TODO: wire to app quit via Tauri */
+          getCurrentWindow().close()
         },
         openTutorial: () => {
-          /* TODO: wire to tutorial */
+          useTutorialStore.getState().startTutorial()
         },
         showKeyboardShortcuts: () => {
-          /* TODO: wire to shortcuts dialog */
+          useSettingsDialogStore.getState().openSettings("help")
         },
         openDocumentation: () => {
-          /* TODO: wire to docs URL */
+          openUrl("https://github.com/openbezal/rhema#readme")
         },
         reportIssue: () => {
-          /* TODO: wire to issue URL */
+          openUrl("https://github.com/openbezal/rhema/issues/new")
         },
-        navigateTo: (_tab: string) => {
-          /* TODO: wire to panel tab navigation */
+        navigateTo: (tab: string) => {
+          const panel = TAB_PANEL_MAP[tab]
+          if (panel) {
+            usePanelTabsStore.getState().setTab(panel, tab)
+            const layout = mainGroupRef.current?.getLayout()
+            if (layout && (layout[panel] ?? 0) < 15) {
+              mainGroupRef.current?.setLayout(DEFAULT_LAYOUT)
+            }
+          }
         },
       }),
-    [theme, setTheme]
+    [theme, setTheme, mainGroupRef]
   )
 
   // Bridge native menu events to command registry
@@ -127,6 +185,13 @@ export function Workspace() {
       {/* Command palette (Cmd+K) */}
       <CommandPalette commands={commands} />
 
+      {/* Dialogs and drawers */}
+      <AboutDialog />
+      <EndSessionDialog />
+      <ExportNotesDrawer />
+      <DistributeSummaryDrawer />
+      <AnnouncementDialog />
+
       {/* Toolbar */}
       <Toolbar />
 
@@ -134,14 +199,17 @@ export function Workspace() {
       <Group
         orientation="horizontal"
         className="min-h-0 flex-1"
+        groupRef={mainGroupRef}
       >
         {/* Left panel */}
         <Panel id="left" defaultSize="22%" minSize="15%" maxSize="35%">
           <PanelTabs
             className="h-full"
-            defaultTab="search"
+            activeTab={panelTabs.tabs.left}
+            onTabChange={(id) => panelTabs.setTab("left", id)}
             tabs={[
               { id: "search", label: "Search", content: <SearchPanel /> },
+              { id: "sessions", label: "Sessions", content: <SessionsPanel /> },
               { id: "notes", label: "Notes", content: <Placeholder label="Notes" /> },
               { id: "songs", label: "Songs", content: <Placeholder label="Songs" /> },
             ]}
@@ -160,7 +228,8 @@ export function Workspace() {
             <Panel id="content" defaultSize="80%" minSize="30%">
               <PanelTabs
                 className="h-full"
-                defaultTab="detections"
+                activeTab={panelTabs.tabs.center}
+                onTabChange={(id) => panelTabs.setTab("center", id)}
                 tabs={[
                   { id: "detections", label: "Detections", content: <DetectionsPanel /> },
                   { id: "analytics", label: "Analytics", content: <Placeholder label="Analytics" /> },
@@ -214,7 +283,8 @@ export function Workspace() {
             <div className="min-h-0 flex-1 overflow-hidden">
               <PanelTabs
                 className="h-full"
-                defaultTab="queue"
+                activeTab={panelTabs.tabs.right}
+                onTabChange={(id) => panelTabs.setTab("right", id)}
                 tabs={[
                   { id: "queue", label: "Queue", content: <QueuePanel /> },
                   { id: "cross-refs", label: "Cross-refs", content: <Placeholder label="Cross-refs" /> },
