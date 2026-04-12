@@ -58,12 +58,11 @@ export function Workspace() {
 
       {/* Main workspace — horizontal panel group */}
       <Group
-        id="manna-h2"
         orientation="horizontal"
         className="min-h-0 flex-1"
       >
         {/* Left panel */}
-        <Panel id="left" defaultSize={22} minSize={15} maxSize={35}>
+        <Panel defaultSize={22} minSize={15} maxSize={35}>
           <PanelTabs
             className="h-full"
             defaultTab="search"
@@ -78,14 +77,13 @@ export function Workspace() {
         <VerticalHandle />
 
         {/* Center area — vertical split */}
-        <Panel id="center" defaultSize={50} minSize={30}>
+        <Panel defaultSize={50} minSize={30}>
           <Group
-            id="manna-v2"
             orientation="vertical"
             className="h-full"
           >
             {/* Center top: detections / preview / analytics */}
-            <Panel id="center-top" defaultSize={80} minSize={30}>
+            <Panel defaultSize={80} minSize={30}>
               <PanelTabs
                 className="h-full"
                 defaultTab="detections"
@@ -101,7 +99,7 @@ export function Workspace() {
 
             {/* Center bottom: transcript */}
             <Panel
-              id="transcript"
+              defaultSize={20}
               minSize={8}
               maxSize={50}
               collapsible
@@ -136,7 +134,7 @@ export function Workspace() {
         <VerticalHandle />
 
         {/* Right panel */}
-        <Panel id="right" defaultSize={28} minSize={15} maxSize={40}>
+        <Panel defaultSize={28} minSize={15} maxSize={40}>
           <PanelTabs
             className="h-full"
             defaultTab="queue"
