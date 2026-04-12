@@ -1,4 +1,4 @@
-import { Dashboard } from "@/components/layout/dashboard"
+import { Workspace } from "@/components/layout/workspace"
 import { useRemoteControl } from "@/hooks/use-remote-control"
 import { TutorialOverlay } from "@/components/tutorial/tutorial-overlay"
 import { Toaster } from "sonner"
@@ -7,9 +7,9 @@ export function App() {
   useRemoteControl()
   return (
     <>
-      <Dashboard />
+      <Workspace />
       <TutorialOverlay />
-      <Toaster position="bottom-right" />
+      <Toaster position="top-right" />
     </>
   )
 }
