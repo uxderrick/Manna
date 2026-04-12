@@ -113,10 +113,15 @@ export function SearchPanel() {
   }, [selectedBookNumber, chapter, activeTranslationId])
 
   const effectiveSelectedVerseId = useMemo(() => {
-    if (!selectedVerseId || currentChapter.length === 0) return null
-    if (currentChapter.some((v) => v.id === selectedVerseId)) return selectedVerseId
-    if (!selectedVerse) return null
-    return currentChapter.find((v) => v.verse === selectedVerse.verse)?.id ?? null
+    if (currentChapter.length === 0) return null
+    // Prefer the store's selectedVerse (updated by broadcast monitor Prev/Next)
+    if (selectedVerse) {
+      const storeMatch = currentChapter.find((v) => v.verse === selectedVerse.verse && v.book_number === selectedVerse.book_number && v.chapter === selectedVerse.chapter)
+      if (storeMatch) return storeMatch.id
+    }
+    // Fall back to local click state
+    if (selectedVerseId && currentChapter.some((v) => v.id === selectedVerseId)) return selectedVerseId
+    return null
   }, [currentChapter, selectedVerseId, selectedVerse])
 
   // After chapter reloads (e.g., translation change), re-select by verse number
