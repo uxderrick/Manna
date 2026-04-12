@@ -51,6 +51,8 @@ log.workspace = true
 tokio.workspace = true
 tauri = { version = "2.10.3", features = [] }
 tauri-plugin-log = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
 tauri-plugin-store = "2"
 rhema-audio = { path = "crates/audio" }
 rhema-bible = { path = "crates/bible" }

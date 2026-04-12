@@ -19,6 +19,8 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .manage(Mutex::new(state::AppState::new()))
         .manage(Mutex::new(rhema_broadcast::ndi::NdiRuntime::default()))
@@ -188,6 +190,11 @@ pub fn run() {
             app.set_menu(menu)?;
 
             Ok(())
+        })
+        .on_menu_event(|app, event| {
+            use tauri::Emitter;
+            let id = event.id().0.clone();
+            let _ = app.emit("menu-event", id);
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
