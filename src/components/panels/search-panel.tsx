@@ -87,6 +87,8 @@ export function SearchPanel() {
   const [contextQuery, setContextQuery] = useState("")
   const chapterInputRef = useRef<HTMLInputElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const liveVerse = useBroadcastStore((s) => s.liveVerse)
+  const isBroadcastLive = useBroadcastStore((s) => s.isLive)
 
   const {
     translations,
@@ -557,9 +559,13 @@ export function SearchPanel() {
           {/* SCROLLABLE: Verse list only */}
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="flex flex-col gap-1 p-2">
-              {currentChapter.map((verse) => (
+              {currentChapter.map((verse) => {
+                const isVerseLive = isBroadcastLive &&
+                  liveVerse?.reference?.includes(`${verse.book_name} ${verse.chapter}:${verse.verse}`)
+                return (
                 <div
                   key={verse.id}
+                  ref={verse.id === effectiveSelectedVerseId ? (el) => el?.scrollIntoView({ block: "nearest", behavior: "smooth" }) : undefined}
                   id={`verse-${verse.id}`}
                   onClick={() => handleVerseClick(verse)}
                   className={cn(
@@ -579,20 +585,32 @@ export function SearchPanel() {
                   </div>
                   {verse.id === effectiveSelectedVerseId && (
                     <div className="mt-2 flex gap-1.5 pl-7">
-                      <Button
-                        size="xs"
-                        className="gap-1 rounded-full px-2.5 text-[10px]"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          const trans = useBibleStore.getState().translations
-                            .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-                          useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(verse, trans))
-                          useBroadcastStore.getState().goLive()
-                        }}
-                      >
-                        <PlayIcon className="size-2.5" />
-                        Go Live
-                      </Button>
+                      {isVerseLive ? (
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="gap-1 rounded-full border-destructive/30 bg-destructive/10 px-2.5 text-[10px] text-destructive"
+                          disabled
+                        >
+                          <div className="size-1.5 rounded-full bg-destructive" />
+                          Live
+                        </Button>
+                      ) : (
+                        <Button
+                          size="xs"
+                          className="gap-1 rounded-full px-2.5 text-[10px]"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const trans = useBibleStore.getState().translations
+                              .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+                            useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(verse, trans))
+                            useBroadcastStore.getState().goLive()
+                          }}
+                        >
+                          <PlayIcon className="size-2.5" />
+                          Go Live
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="xs"
@@ -621,7 +639,7 @@ export function SearchPanel() {
                     </div>
                   )}
                 </div>
-              ))}
+              )}))}
             </div>
           </div>
         </div>
