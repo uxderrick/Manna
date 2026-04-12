@@ -46,61 +46,52 @@ function QueueItemCard({
     <div
       onClick={handlePreview}
       className={cn(
-        "group cursor-pointer rounded-xl p-3 transition-colors",
+        "group cursor-pointer rounded-lg px-2.5 py-2 transition-colors",
         isActive
           ? "bg-primary text-primary-foreground"
           : "border border-border bg-surface-elevated hover:bg-muted/50"
       )}
     >
-      {/* Header: reference + order number */}
-      <div className="flex items-center justify-between">
-        <span className={cn("text-xs font-semibold", isActive ? "text-primary-foreground" : "text-foreground")}>
-          {item.reference}
+      {/* Reference + verse snippet in one compact row */}
+      <div className="flex items-start gap-2">
+        <span className={cn("text-[9px] tabular-nums pt-0.5", isActive ? "text-primary-foreground/50" : "text-muted-foreground/50")}>
+          {index + 1}
         </span>
-        <div className="flex items-center gap-1">
-          <span className={cn("text-[9px] tabular-nums", isActive ? "text-primary-foreground/60" : "text-muted-foreground")}>
-            {index + 1}
+        <div className="min-w-0 flex-1">
+          <span className={cn("text-[11px] font-semibold", isActive ? "text-primary-foreground" : "text-foreground")}>
+            {item.reference}
           </span>
+          <p className={cn(
+            "line-clamp-1 font-serif text-[10px] leading-snug",
+            isActive ? "text-primary-foreground/70" : "text-muted-foreground"
+          )}>
+            {item.verse.text}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-0.5">
           <Button
             variant="ghost"
             size="icon-xs"
             className={cn(
               "opacity-0 transition-opacity group-hover:opacity-100",
-              isActive ? "hover:bg-primary-foreground/20 text-primary-foreground" : "hover:bg-destructive/10 hover:text-destructive"
+              isActive ? "text-primary-foreground hover:bg-primary-foreground/20" : "hover:text-primary"
+            )}
+            onClick={(e) => { e.stopPropagation(); handlePresent() }}
+          >
+            <PlayIcon className="size-2.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className={cn(
+              "opacity-0 transition-opacity group-hover:opacity-100",
+              isActive ? "text-primary-foreground hover:bg-primary-foreground/20" : "hover:text-destructive"
             )}
             onClick={(e) => { e.stopPropagation(); handleRemove() }}
           >
             <XIcon className="size-2.5" />
           </Button>
         </div>
-      </div>
-
-      {/* Verse text preview */}
-      <p className={cn(
-        "mt-1 line-clamp-2 font-serif text-[11px] leading-relaxed",
-        isActive ? "text-primary-foreground/80" : "text-muted-foreground"
-      )}>
-        {item.verse.text}
-      </p>
-
-      {/* Action buttons — show on hover for non-active, always for active */}
-      <div className={cn(
-        "mt-2 flex gap-1.5 transition-opacity",
-        isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-      )}>
-        <Button
-          size="xs"
-          className={cn(
-            "gap-1 rounded-full px-2.5 text-[10px]",
-            isActive
-              ? "bg-primary-foreground text-primary hover:bg-primary-foreground/90"
-              : ""
-          )}
-          onClick={(e) => { e.stopPropagation(); handlePresent() }}
-        >
-          <PlayIcon className="size-2.5" />
-          Go Live
-        </Button>
       </div>
     </div>
   )
