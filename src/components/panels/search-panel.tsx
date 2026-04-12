@@ -551,73 +551,64 @@ export function SearchPanel() {
 
           {/* SCROLLABLE: Verse list only */}
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="flex flex-col gap-0 p-2">
+            <div className="flex flex-col gap-1 p-2">
               {currentChapter.map((verse) => (
                 <div
                   key={verse.id}
                   id={`verse-${verse.id}`}
                   onClick={() => handleVerseClick(verse)}
                   className={cn(
-                    "group flex cursor-pointer items-center gap-3 rounded-lg p-3 transition-colors",
+                    "group cursor-pointer rounded-lg p-3 transition-colors",
                     verse.id === effectiveSelectedVerseId
                       ? "border border-primary/30 bg-primary/8"
                       : "hover:bg-muted/50"
                   )}
                 >
-                  <span className="w-6 shrink-0 text-right text-sm font-semibold text-primary">
-                    {verse.verse}
-                  </span>
-                  <p className="flex-1 text-sm leading-relaxed text-foreground/80">
-                    {verse.text}
-                  </p>
-                  <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            className="hover:bg-primary/20 hover:text-primary"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              const trans = useBibleStore.getState().translations
-                                .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-                              useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(verse, trans))
-                              useBroadcastStore.getState().goLive()
-                            }}
-                          >
-                            <PlayIcon className="size-3" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" sideOffset={8} className="pointer-events-none">Go Live</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            className="hover:bg-primary/20 hover:text-primary"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              useQueueStore.getState().addItem({
-                                id: crypto.randomUUID(),
-                                verse,
-                                reference: `${verse.book_name} ${verse.chapter}:${verse.verse}`,
-                                confidence: 1,
-                                source: "manual",
-                                added_at: Date.now(),
-                              })
-                            }}
-                          >
-                            <PlusIcon className="size-3" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" sideOffset={8} className="pointer-events-none">Add to Queue</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                  <div className="flex items-start gap-2">
+                    <span className="w-5 shrink-0 pt-0.5 text-right font-serif text-xs font-semibold text-primary">
+                      {verse.verse}
+                    </span>
+                    <p className="flex-1 font-serif text-sm leading-relaxed text-foreground/80">
+                      {verse.text}
+                    </p>
                   </div>
+                  {verse.id === effectiveSelectedVerseId && (
+                    <div className="mt-2 flex gap-1.5 pl-7">
+                      <Button
+                        size="xs"
+                        className="gap-1 rounded-full px-2.5 text-[10px]"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const trans = useBibleStore.getState().translations
+                            .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+                          useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(verse, trans))
+                          useBroadcastStore.getState().goLive()
+                        }}
+                      >
+                        <PlayIcon className="size-2.5" />
+                        Go Live
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        className="gap-1 rounded-full px-2.5 text-[10px]"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          useQueueStore.getState().addItem({
+                            id: crypto.randomUUID(),
+                            verse,
+                            reference: `${verse.book_name} ${verse.chapter}:${verse.verse}`,
+                            confidence: 1,
+                            source: "manual",
+                            added_at: Date.now(),
+                          })
+                        }}
+                      >
+                        <PlusIcon className="size-2.5" />
+                        Add to Queue
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
