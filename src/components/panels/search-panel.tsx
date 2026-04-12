@@ -589,7 +589,7 @@ export function SearchPanel() {
                             <PlayIcon className="size-3" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="left">Go Live</TooltipContent>
+                        <TooltipContent side="top" sideOffset={8} className="pointer-events-none">Go Live</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                     <TooltipProvider>
@@ -614,7 +614,7 @@ export function SearchPanel() {
                             <PlusIcon className="size-3" />
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="left">Add to Queue</TooltipContent>
+                        <TooltipContent side="top" sideOffset={8} className="pointer-events-none">Add to Queue</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
@@ -700,7 +700,7 @@ export function SearchPanel() {
                         <PlusIcon className="size-3" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="left">Add to queue</TooltipContent>
+                    <TooltipContent side="top" sideOffset={8} className="pointer-events-none">Add to queue</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </div>

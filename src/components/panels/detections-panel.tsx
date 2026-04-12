@@ -65,9 +65,6 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
       )}
 
       <div className="mt-2 flex gap-2">
-        <Button size="sm" className="gap-1 rounded-full" onClick={handleSendToScreen}>
-          Preview
-        </Button>
         <Button size="sm" className="gap-1 rounded-full" onClick={() => { handleSendToScreen(); useBroadcastStore.getState().goLive() }}>
           <PlayIcon className="size-3" />
           Go Live
