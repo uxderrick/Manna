@@ -60,6 +60,22 @@ export function BroadcastMonitor() {
 
       if (isLive) {
         useBroadcastStore.getState().setLiveVerse(verseData)
+        // Load the next verse into preview so it's ready
+        try {
+          const nextVerse = await invoke<Verse | null>("get_verse", {
+            translationId,
+            bookNumber: book.book_number,
+            chapter: parsed.chapter,
+            verse: targetVerse + delta, // one more step ahead
+          })
+          if (nextVerse) {
+            useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(nextVerse, trans))
+          } else {
+            useBroadcastStore.getState().setPreviewVerse(null)
+          }
+        } catch {
+          useBroadcastStore.getState().setPreviewVerse(null)
+        }
       } else {
         useBroadcastStore.getState().setPreviewVerse(verseData)
       }
