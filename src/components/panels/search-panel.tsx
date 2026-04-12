@@ -516,7 +516,7 @@ export function SearchPanel() {
 
       {/* Book search tab */}
       {activeTab === "book" && (
-        <>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {/* STICKY: Chapter header */}
 
           <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2 min-h-9">
@@ -624,7 +624,7 @@ export function SearchPanel() {
               ))}
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Context search tab — semantic AI search */}
