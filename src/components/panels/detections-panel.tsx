@@ -64,15 +64,15 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
         </p>
       )}
 
-      <div className="mt-2 flex gap-2">
-        <Button size="sm" className="gap-1 rounded-full" onClick={() => { handleSendToScreen(); useBroadcastStore.getState().goLive() }}>
-          <PlayIcon className="size-3" />
+      <div className="mt-2 flex gap-1.5">
+        <Button size="xs" className="gap-1 rounded-full px-2.5 text-[10px]" onClick={() => { handleSendToScreen(); useBroadcastStore.getState().goLive() }}>
+          <PlayIcon className="size-2.5" />
           Go Live
         </Button>
         <Button
           variant="outline"
-          size="sm"
-          className="gap-1 rounded-full"
+          size="xs"
+          className="gap-1 rounded-full px-2.5 text-[10px]"
           onClick={() => {
             useQueueStore.getState().addItem({
               id: crypto.randomUUID(),
@@ -93,7 +93,7 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
             })
           }}
         >
-          <PlusIcon className="size-3" />
+          <PlusIcon className="size-2.5" />
           Add to Queue
         </Button>
       </div>
