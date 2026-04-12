@@ -60,9 +60,10 @@ export function Workspace() {
       <Group
         orientation="horizontal"
         className="min-h-0 flex-1"
+        defaultLayout={{ left: 22, center: 50, right: 28 }}
       >
         {/* Left panel */}
-        <Panel defaultSize={22} minSize={15} maxSize={35}>
+        <Panel id="left" minSize={15} maxSize={35}>
           <PanelTabs
             className="h-full"
             defaultTab="search"
@@ -77,13 +78,14 @@ export function Workspace() {
         <VerticalHandle />
 
         {/* Center area — vertical split */}
-        <Panel defaultSize={50} minSize={30}>
+        <Panel id="center" minSize={30}>
           <Group
             orientation="vertical"
             className="h-full"
+            defaultLayout={{ content: 80, transcript: 20 }}
           >
             {/* Center top: detections / preview / analytics */}
-            <Panel defaultSize={80} minSize={30}>
+            <Panel id="content" minSize={30}>
               <PanelTabs
                 className="h-full"
                 defaultTab="detections"
@@ -99,7 +101,7 @@ export function Workspace() {
 
             {/* Center bottom: transcript */}
             <Panel
-              defaultSize={20}
+              id="transcript"
               minSize={8}
               maxSize={50}
               collapsible
@@ -134,7 +136,7 @@ export function Workspace() {
         <VerticalHandle />
 
         {/* Right panel */}
-        <Panel defaultSize={28} minSize={15} maxSize={40}>
+        <Panel id="right" minSize={15} maxSize={40}>
           <PanelTabs
             className="h-full"
             defaultTab="queue"
