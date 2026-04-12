@@ -17,3 +17,7 @@ export type {
   NdiSessionInfo,
   NdiStartRequest,
 } from "./ndi"
+export type {
+  SessionStatus, PlannedScripture, SermonSession, CreateSessionRequest,
+  SessionDetection, SessionTranscriptSegment, SessionNote,
+} from "./session"
