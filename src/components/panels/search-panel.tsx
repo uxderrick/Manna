@@ -560,7 +560,7 @@ export function SearchPanel() {
                   className={cn(
                     "group flex cursor-pointer items-center gap-3 rounded-lg p-3 transition-colors",
                     verse.id === effectiveSelectedVerseId
-                      ? "border border-lime-500/50 bg-lime-500/10"
+                      ? "border border-primary/30 bg-primary/8"
                       : "hover:bg-muted/50"
                   )}
                 >
@@ -650,6 +650,10 @@ export function SearchPanel() {
                 verse: result.verse,
                 text: result.verse_text,
               }
+              const isSelected = selectedVerse &&
+                selectedVerse.book_number === result.book_number &&
+                selectedVerse.chapter === result.chapter &&
+                selectedVerse.verse === result.verse
               return (
                 <div
                   key={`${result.book_number}-${result.chapter}-${result.verse}-${idx}`}
@@ -659,7 +663,12 @@ export function SearchPanel() {
                       .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
                     useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(resultVerse, trans))
                   }}
-                  className="group flex cursor-pointer items-center gap-3 rounded-lg p-3 transition-colors hover:bg-muted/50"
+                  className={cn(
+                    "group flex cursor-pointer items-center gap-3 rounded-lg p-3 transition-colors",
+                    isSelected
+                      ? "border border-primary/30 bg-primary/8"
+                      : "hover:bg-muted/50"
+                  )}
                 >
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex items-center gap-2">
