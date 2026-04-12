@@ -118,7 +118,7 @@ export function DetectionsPanel() {
   return (
     <div
       data-slot="detections-panel"
-      className="flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card"
+      className="flex h-full min-w-0 flex-col overflow-hidden bg-card"
     >
       <PanelHeader title="Recent detections">
         <button

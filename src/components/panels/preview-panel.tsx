@@ -33,7 +33,7 @@ export function PreviewPanel() {
   return (
     <div
       data-slot="preview-panel"
-      className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card"
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-card"
     >
       <PanelHeader title="Program preview" />
       <div className="flex min-h-0 flex-1 items-center justify-center p-3">

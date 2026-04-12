@@ -179,7 +179,7 @@ export function TranscriptPanel() {
   return (
     <div
       data-slot="transcript-panel"
-      className="flex flex-col overflow-hidden rounded-lg border border-border bg-card"
+      className="flex h-full min-w-0 flex-col overflow-hidden bg-card"
     >
       <PanelHeader
         title="Live transcript"

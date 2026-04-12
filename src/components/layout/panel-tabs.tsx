@@ -18,7 +18,7 @@ export function PanelTabs({ tabs, defaultTab, className }: PanelTabsProps) {
   const active = tabs.find((t) => t.id === activeTab) ?? tabs[0]
 
   return (
-    <div className={`flex min-h-0 flex-col overflow-hidden ${className ?? ""}`}>
+    <div className={`flex min-h-0 min-w-0 flex-col overflow-hidden ${className ?? ""}`}>
       {/* Tab bar */}
       <div className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-border bg-muted/30 px-2">
         {tabs.map((tab) => (
@@ -35,7 +35,7 @@ export function PanelTabs({ tabs, defaultTab, className }: PanelTabsProps) {
       </div>
 
       {/* Content */}
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
         {active?.content}
       </div>
     </div>
