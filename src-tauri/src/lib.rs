@@ -130,24 +130,39 @@ pub fn run() {
             }
 
             // Try to load ONNX embedding model and pre-computed verse index
-            // Prefer INT8 quantized model (~571MB) over FP32 (~2.4GB)
+            // Supports multiple models: MiniLM (fast, 80MB) or Qwen3 (quality, 585MB+)
             let base_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
-            let model_path = {
-                let int8 = base_dir.join("models/qwen3-embedding-0.6b-int8/model_quantized.onnx");
-                let fp32 = base_dir.join("models/qwen3-embedding-0.6b/model.onnx");
-                if int8.exists() {
-                    log::info!("Using INT8 quantized ONNX model");
-                    int8
-                } else if fp32.exists() {
-                    log::info!("Using FP32 ONNX model (INT8 not found)");
-                    fp32
+            let (model_path, tokenizer_path, embeddings_path, ids_path) = {
+                // Try MiniLM first (fast, small, pre-built ONNX)
+                let minilm_model = base_dir.join("models/all-MiniLM-L6-v2/onnx/model.onnx");
+                let minilm_tok = base_dir.join("models/all-MiniLM-L6-v2/tokenizer.json");
+                let minilm_emb = base_dir.join("embeddings/kjv-minilm-l6-v2.bin");
+                let minilm_ids = base_dir.join("embeddings/kjv-minilm-l6-v2-ids.bin");
+
+                // Then Qwen3 INT8/FP32
+                let qwen_int8 = base_dir.join("models/qwen3-embedding-0.6b-int8/model_quantized.onnx");
+                let qwen_fp32 = base_dir.join("models/qwen3-embedding-0.6b/model.onnx");
+                let qwen_tok = base_dir.join("models/qwen3-embedding-0.6b/tokenizer.json");
+                let qwen_emb = base_dir.join("embeddings/kjv-qwen3-0.6b.bin");
+                let qwen_ids = base_dir.join("embeddings/kjv-qwen3-0.6b-ids.bin");
+
+                if minilm_model.exists() && minilm_emb.exists() {
+                    log::info!("Using MiniLM-L6-v2 embedding model (fast, 384-dim)");
+                    (minilm_model, minilm_tok, minilm_emb, minilm_ids)
+                } else if qwen_int8.exists() && qwen_emb.exists() {
+                    log::info!("Using Qwen3 INT8 embedding model (quality, 1024-dim)");
+                    (qwen_int8, qwen_tok, qwen_emb, qwen_ids)
+                } else if qwen_fp32.exists() && qwen_emb.exists() {
+                    log::info!("Using Qwen3 FP32 embedding model (quality, 1024-dim)");
+                    (qwen_fp32, qwen_tok, qwen_emb, qwen_ids)
+                } else if minilm_model.exists() {
+                    log::info!("MiniLM model found but embeddings missing. Run precompute.");
+                    (minilm_model, minilm_tok, minilm_emb, minilm_ids)
                 } else {
-                    fp32
+                    // Default to Qwen3 paths (will fail gracefully if missing)
+                    (qwen_fp32, qwen_tok, qwen_emb, qwen_ids)
                 }
             };
-            let tokenizer_path = base_dir.join("models/qwen3-embedding-0.6b/tokenizer.json");
-            let embeddings_path = base_dir.join("embeddings/kjv-qwen3-0.6b.bin");
-            let ids_path = base_dir.join("embeddings/kjv-qwen3-0.6b-ids.bin");
 
             if model_path.exists() && tokenizer_path.exists() {
                 use rhema_detection::semantic::embedder::TextEmbedder;
