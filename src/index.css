@@ -116,7 +116,6 @@
     --live-pulse: oklch(0.6 0.25 25);
     --surface-elevated: oklch(1 0 0);
     --surface-sunken: oklch(0.93 0.008 75);
-    --menu-bar-height: 28px;
     --toolbar-height: 40px;
 }
 

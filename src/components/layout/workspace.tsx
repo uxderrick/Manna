@@ -1,7 +1,10 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Panel, Group, Separator } from "react-resizable-panels"
-import { MenuBar } from "./menu-bar"
 import { Toolbar } from "./toolbar"
+import { CommandPalette } from "@/components/command-palette"
+import { createCommands } from "@/lib/command-registry"
+import { useMenuEvents } from "@/hooks/use-menu-events"
+import { useTheme } from "@/components/theme-provider"
 import { PanelTabs } from "./panel-tabs"
 import { TranscriptPanel } from "@/components/panels/transcript-panel"
 import { SearchPanel } from "@/components/panels/search-panel"
@@ -47,11 +50,82 @@ function Placeholder({ label }: { label: string }) {
 
 export function Workspace() {
   const [transcriptCollapsed, setTranscriptCollapsed] = useState(false)
+  const { theme, setTheme } = useTheme()
+
+  const commands = useMemo(
+    () =>
+      createCommands({
+        newSession: () => {
+          /* TODO: wire to session creation flow */
+        },
+        endSession: () => {
+          /* TODO: wire to session end flow */
+        },
+        importPlan: () => {
+          /* TODO: wire to import flow */
+        },
+        exportNotes: () => {
+          /* TODO: wire to export flow */
+        },
+        distributeSummary: () => {
+          /* TODO: wire to distribution flow */
+        },
+        goLive: () => {
+          /* TODO: wire to broadcast start */
+        },
+        goOffAir: () => {
+          /* TODO: wire to broadcast stop */
+        },
+        newAnnouncement: () => {
+          /* TODO: wire to announcement flow */
+        },
+        openThemeDesigner: () => {
+          /* TODO: wire to theme designer */
+        },
+        toggleTranscript: () => {
+          setTranscriptCollapsed((prev) => !prev)
+        },
+        resetLayout: () => {
+          /* TODO: wire to panel reset */
+        },
+        toggleTheme: () => {
+          setTheme(theme === "dark" ? "light" : "dark")
+        },
+        openAbout: () => {
+          /* TODO: wire to about dialog */
+        },
+        openPreferences: () => {
+          /* TODO: wire to preferences */
+        },
+        quitApp: () => {
+          /* TODO: wire to app quit via Tauri */
+        },
+        openTutorial: () => {
+          /* TODO: wire to tutorial */
+        },
+        showKeyboardShortcuts: () => {
+          /* TODO: wire to shortcuts dialog */
+        },
+        openDocumentation: () => {
+          /* TODO: wire to docs URL */
+        },
+        reportIssue: () => {
+          /* TODO: wire to issue URL */
+        },
+        navigateTo: (_tab: string) => {
+          /* TODO: wire to panel tab navigation */
+        },
+      }),
+    [theme, setTheme]
+  )
+
+  // Bridge native menu events to command registry
+  useMenuEvents(commands)
 
   return (
     <div className="fixed inset-0 flex flex-col bg-background">
-      {/* Menu bar */}
-      <MenuBar />
+      {/* Command palette (Cmd+K) */}
+      <CommandPalette commands={commands} />
 
       {/* Toolbar */}
       <Toolbar />
