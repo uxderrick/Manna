@@ -1,4 +1,7 @@
-import { useBroadcastStore } from "@/stores"
+import { useBroadcastStore, useBibleStore } from "@/stores"
+import { toVerseRenderData } from "@/hooks/use-broadcast"
+import { invoke } from "@tauri-apps/api/core"
+import type { Verse } from "@/types"
 
 export function BroadcastMonitor() {
   const previewVerse = useBroadcastStore((s) => s.previewVerse)
@@ -14,6 +17,55 @@ export function BroadcastMonitor() {
   const liveText = liveVerse
     ? liveVerse.segments.map((seg) => seg.text).join(" ")
     : null
+
+  // Parse book/chapter/verse from the reference string (e.g., "Genesis 1:3 (KJV)")
+  const parseRef = (ref: string) => {
+    const match = ref.match(/^(.+?)\s+(\d+):(\d+)/)
+    if (!match) return null
+    return { bookName: match[1], chapter: parseInt(match[2]), verse: parseInt(match[3]) }
+  }
+
+  const stepVerse = async (delta: number) => {
+    // Use whichever is showing — live verse takes priority, otherwise preview
+    const current = isLive ? liveVerse : previewVerse
+    if (!current) return
+
+    const parsed = parseRef(current.reference)
+    if (!parsed) return
+
+    const targetVerse = parsed.verse + delta
+    if (targetVerse < 1) return
+
+    const translationId = useBibleStore.getState().activeTranslationId
+    const books = useBibleStore.getState().books
+    const book = books.find(b => b.name === parsed.bookName)
+    if (!book) return
+
+    try {
+      const verse = await invoke<Verse | null>("get_verse", {
+        translationId,
+        bookNumber: book.book_number,
+        chapter: parsed.chapter,
+        verse: targetVerse,
+      })
+      if (!verse) return
+
+      const trans = useBibleStore.getState().translations
+        .find(t => t.id === translationId)?.abbreviation ?? "KJV"
+      const verseData = toVerseRenderData(verse, trans)
+
+      if (isLive) {
+        useBroadcastStore.getState().setPreviewVerse(verseData)
+        useBroadcastStore.getState().goLive()
+      } else {
+        useBroadcastStore.getState().setPreviewVerse(verseData)
+      }
+    } catch {
+      // verse doesn't exist (end of chapter)
+    }
+  }
+
+  const hasVerse = previewVerse || liveVerse
 
   return (
     <div className="flex flex-col gap-2 border-t border-border bg-[#0d0d0c] p-2">
@@ -91,11 +143,19 @@ export function BroadcastMonitor() {
       </div>
 
       {/* Controls */}
-      <div className="flex gap-1">
-        <button className="flex-1 rounded border border-white/8 bg-white/4 py-1 text-[9px] text-white/40 transition-colors hover:bg-white/8">
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => stepVerse(-1)}
+          disabled={!hasVerse}
+          className="flex-1 rounded border border-white/8 bg-white/4 py-1 text-[9px] text-white/40 transition-colors hover:bg-white/8 disabled:opacity-25"
+        >
           ◀ Prev
         </button>
-        <button className="flex-1 rounded border border-white/8 bg-white/4 py-1 text-[9px] text-white/40 transition-colors hover:bg-white/8">
+        <button
+          onClick={() => stepVerse(1)}
+          disabled={!hasVerse}
+          className="flex-1 rounded border border-white/8 bg-white/4 py-1 text-[9px] text-white/40 transition-colors hover:bg-white/8 disabled:opacity-25"
+        >
           Next ▶
         </button>
       </div>
