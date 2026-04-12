@@ -1,5 +1,6 @@
 import { useBroadcastStore, useBibleStore } from "@/stores"
 import { toVerseRenderData } from "@/hooks/use-broadcast"
+import { bibleActions } from "@/hooks/use-bible"
 import { invoke } from "@tauri-apps/api/core"
 import type { Verse } from "@/types"
 
@@ -50,12 +51,14 @@ export function BroadcastMonitor() {
       })
       if (!verse) return
 
+      // Sync the search panel selection
+      bibleActions.selectVerse(verse)
+
       const trans = useBibleStore.getState().translations
         .find(t => t.id === translationId)?.abbreviation ?? "KJV"
       const verseData = toVerseRenderData(verse, trans)
 
       if (isLive) {
-        // Step the live verse directly — don't touch preview
         useBroadcastStore.getState().setLiveVerse(verseData)
       } else {
         useBroadcastStore.getState().setPreviewVerse(verseData)
