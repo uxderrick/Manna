@@ -5,14 +5,13 @@ import { cn } from "@/lib/utils"
 import {
   PlayIcon,
   XIcon,
-  GripVerticalIcon,
 } from "lucide-react"
 import { useQueueStore, useBroadcastStore, useBibleStore } from "@/stores"
 import { toVerseRenderData } from "@/hooks/use-broadcast"
 import { bibleActions } from "@/hooks/use-bible"
 import type { QueueItem } from "@/types"
 
-function QueueItemRow({
+function QueueItemCard({
   item,
   index,
   isActive,
@@ -26,52 +25,81 @@ function QueueItemRow({
     bibleActions.selectVerse(item.verse)
     const translation = useBibleStore.getState().translations
       .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-    useBroadcastStore.getState().setLiveVerse(toVerseRenderData(item.verse, translation))
+    const verseData = toVerseRenderData(item.verse, translation)
+    useBroadcastStore.getState().setPreviewVerse(verseData)
+    useBroadcastStore.getState().goLive()
+  }
+
+  const handlePreview = () => {
+    useQueueStore.getState().setActive(index)
+    bibleActions.selectVerse(item.verse)
+    const translation = useBibleStore.getState().translations
+      .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+    useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(item.verse, translation))
   }
 
   const handleRemove = () => {
     useQueueStore.getState().removeItem(item.id)
   }
 
-  const sourceBadge =
-    item.source === "manual" ? (
-      <Badge variant="outline" className="shrink-0 text-[0.625rem]">
-        Manual
-      </Badge>
-    ) : (
-      <Badge
-        variant="default"
-        className="shrink-0 bg-ai-direct/15 text-[0.625rem] text-ai-direct hover:bg-ai-direct/15"
-      >
-        AI
-      </Badge>
-    )
-
   return (
     <div
+      onClick={handlePreview}
       className={cn(
-        "group flex h-11 items-center gap-2 rounded-xl px-3 transition-colors",
+        "group cursor-pointer rounded-xl p-3 transition-colors",
         isActive
           ? "bg-primary text-primary-foreground"
-          : "hover:bg-muted/50"
+          : "border border-border bg-surface-elevated hover:bg-muted/50"
       )}
     >
-      <GripVerticalIcon
-        className="size-3 shrink-0 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100"
-      />
+      {/* Header: reference + order number */}
+      <div className="flex items-center justify-between">
+        <span className={cn("text-xs font-semibold", isActive ? "text-primary-foreground" : "text-foreground")}>
+          {item.reference}
+        </span>
+        <div className="flex items-center gap-1">
+          <span className={cn("text-[9px] tabular-nums", isActive ? "text-primary-foreground/60" : "text-muted-foreground")}>
+            {index + 1}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className={cn(
+              "opacity-0 transition-opacity group-hover:opacity-100",
+              isActive ? "hover:bg-primary-foreground/20 text-primary-foreground" : "hover:bg-destructive/10 hover:text-destructive"
+            )}
+            onClick={(e) => { e.stopPropagation(); handleRemove() }}
+          >
+            <XIcon className="size-2.5" />
+          </Button>
+        </div>
+      </div>
 
-      <span className={cn("flex-1 truncate text-sm font-medium", isActive ? "text-primary-foreground" : "text-foreground")}>
-        {item.reference}
-      </span>
+      {/* Verse text preview */}
+      <p className={cn(
+        "mt-1 line-clamp-2 font-serif text-[11px] leading-relaxed",
+        isActive ? "text-primary-foreground/80" : "text-muted-foreground"
+      )}>
+        {item.verse.text}
+      </p>
 
-      {!isActive && sourceBadge}
-
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-        <Button variant="ghost" size="icon-xs" onClick={handlePresent}>
+      {/* Action buttons — show on hover for non-active, always for active */}
+      <div className={cn(
+        "mt-2 flex gap-1.5 transition-opacity",
+        isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+      )}>
+        <Button
+          size="xs"
+          className={cn(
+            "gap-1 rounded-full px-2.5 text-[10px]",
+            isActive
+              ? "bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+              : ""
+          )}
+          onClick={(e) => { e.stopPropagation(); handlePresent() }}
+        >
           <PlayIcon className="size-2.5" />
-        </Button>
-        <Button variant="ghost" size="icon-xs" onClick={handleRemove}>
-          <XIcon className="size-2.5" />
+          Go Live
         </Button>
       </div>
     </div>
@@ -90,24 +118,26 @@ export function QueuePanel() {
       <PanelHeader title="Queue">
         <div className="flex items-center gap-2">
           <Badge variant="outline">{items.length}</Badge>
-          <button
-            onClick={() => useQueueStore.getState().clearQueue()}
-            className="text-[0.625rem] text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Clear all
-          </button>
+          {items.length > 0 && (
+            <button
+              onClick={() => useQueueStore.getState().clearQueue()}
+              className="text-[0.625rem] text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Clear all
+            </button>
+          )}
         </div>
       </PanelHeader>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-0.5 p-1.5">
+        <div className="flex flex-col gap-1.5 p-2">
           {items.length === 0 && (
             <p className="p-4 text-center text-xs text-muted-foreground">
               Verses will appear here when detected or queued
             </p>
           )}
           {items.map((item, idx) => (
-            <QueueItemRow
+            <QueueItemCard
               key={item.id}
               item={item}
               index={idx}
