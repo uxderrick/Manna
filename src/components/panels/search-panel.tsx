@@ -363,8 +363,8 @@ export function SearchPanel() {
       tabIndex={-1}
     >
       {/* STICKY: Tab row + search input */}
-      <div className="flex shrink-0 items-center gap-0 border-b border-border min-h-11">
-        <div className="flex items-center gap-1 px-3 py-1.5">
+      <div className="flex shrink-0 flex-col gap-1.5 border-b border-border px-3 py-1.5">
+        <div className="flex items-center gap-1">
           <button
             data-tour="book-search"
             onClick={() => setActiveTab("book")}
@@ -397,14 +397,14 @@ export function SearchPanel() {
         </div>
 
         {activeTab === "book" ? (
-          <div className="flex flex-1 items-center gap-2 pr-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             {/* Book combobox */}
             <Popover open={bookOpen} onOpenChange={setBookOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 min-w-[140px] justify-start gap-1.5 text-xs font-normal"
+                  className="h-7 min-w-0 flex-1 justify-start gap-1.5 text-xs font-normal"
                 >
                   <SearchIcon className="size-3 shrink-0 text-muted-foreground" />
                   {selectedBook ? selectedBook.name : "Select book..."}
@@ -471,7 +471,7 @@ export function SearchPanel() {
             </Select>
           </div>
         ) : (
-          <div className="flex flex-1 items-center gap-2 pr-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <Input
               placeholder="Search verse text..."
               value={contextQuery}
