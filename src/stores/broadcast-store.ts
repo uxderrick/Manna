@@ -10,6 +10,7 @@ interface BroadcastState {
   activeThemeId: string
   altActiveThemeId: string
   isLive: boolean
+  previewVerse: VerseRenderData | null
   liveVerse: VerseRenderData | null
 
   // Designer state
@@ -26,7 +27,10 @@ interface BroadcastState {
   setActiveTheme: (id: string) => void
   setAltActiveTheme: (id: string) => void
   setLive: (live: boolean) => void
+  setPreviewVerse: (verse: VerseRenderData | null) => void
   setLiveVerse: (verse: VerseRenderData | null) => void
+  goLive: () => void
+  clearScreen: () => void
   syncBroadcastOutput: () => void
   syncBroadcastOutputFor: (outputId: string) => void
 
@@ -75,6 +79,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   activeThemeId: BUILTIN_THEMES[0].id,
   altActiveThemeId: BUILTIN_THEMES[0].id,
   isLive: false,
+  previewVerse: null,
   liveVerse: null,
   isDesignerOpen: false,
   editingThemeId: null,
@@ -132,9 +137,20 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     get().syncBroadcastOutputFor("alt")
   },
   setLive: (isLive) => set({ isLive }),
+  setPreviewVerse: (previewVerse) => set({ previewVerse }),
   setLiveVerse: (liveVerse) => {
-    set({ liveVerse })
+    set({ liveVerse, isLive: liveVerse !== null })
     get().syncBroadcastOutput()
+  },
+  goLive: () => {
+    const { previewVerse } = get()
+    if (previewVerse) {
+      get().setLiveVerse(previewVerse)
+    }
+  },
+  clearScreen: () => {
+    get().setLiveVerse(null)
+    set({ isLive: false })
   },
 
   // Designer

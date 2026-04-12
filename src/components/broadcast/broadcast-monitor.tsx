@@ -1,38 +1,56 @@
 import { useBroadcastStore } from "@/stores"
 
 export function BroadcastMonitor() {
-  const activeTheme = useBroadcastStore((s) => {
-    const id = s.activeThemeId
-    return s.themes.find((t) => t.id === id) ?? s.themes[0]
-  })
+  const previewVerse = useBroadcastStore((s) => s.previewVerse)
   const liveVerse = useBroadcastStore((s) => s.liveVerse)
   const isLive = useBroadcastStore((s) => s.isLive)
+  const goLive = useBroadcastStore((s) => s.goLive)
+  const clearScreen = useBroadcastStore((s) => s.clearScreen)
 
-  // Join all segments into a single display string
-  const verseText = liveVerse
+  const previewText = previewVerse
+    ? previewVerse.segments.map((seg) => seg.text).join(" ")
+    : null
+
+  const liveText = liveVerse
     ? liveVerse.segments.map((seg) => seg.text).join(" ")
     : null
 
   return (
     <div className="flex flex-col gap-2 border-t border-border bg-[#0d0d0c] p-2">
-      {/* Preview — next verse */}
+      {/* Preview */}
       <div>
         <div className="mb-1 flex items-center justify-between">
           <span className="text-[9px] font-semibold uppercase tracking-widest text-white/35">
             Preview
           </span>
-          <button className="rounded bg-destructive/80 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-destructive">
-            Go Live
-          </button>
+          {previewVerse && (
+            <button
+              onClick={goLive}
+              className="rounded bg-primary px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Go Live
+            </button>
+          )}
         </div>
         <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md border border-white/8 bg-gradient-to-b from-[#0a0a0a] to-[#1a1a2e]">
-          <p className="px-4 text-center font-serif text-[10px] leading-relaxed text-white/50">
-            Select a verse to preview
-          </p>
+          {previewVerse ? (
+            <div className="flex flex-col items-center px-4 text-center">
+              <p className="font-serif text-[10px] leading-relaxed text-white/85">
+                {previewText}
+              </p>
+              <p className="mt-1.5 text-[7px] uppercase tracking-[2px] text-white/40">
+                {previewVerse.reference}
+              </p>
+            </div>
+          ) : (
+            <p className="px-4 text-center text-[10px] text-white/30">
+              Select a verse to preview
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Program — live output */}
+      {/* On Screen */}
       <div>
         <div className="mb-1 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
@@ -46,7 +64,10 @@ export function BroadcastMonitor() {
             </span>
           </div>
           {isLive && (
-            <button className="rounded border border-destructive/25 bg-destructive/12 px-2 py-0.5 text-[9px] font-semibold uppercase text-destructive transition-colors hover:bg-destructive/20">
+            <button
+              onClick={clearScreen}
+              className="rounded border border-destructive/25 bg-destructive/12 px-2 py-0.5 text-[9px] font-semibold uppercase text-destructive transition-colors hover:bg-destructive/20"
+            >
               Clear
             </button>
           )}
@@ -57,7 +78,7 @@ export function BroadcastMonitor() {
           {liveVerse ? (
             <div className="flex flex-col items-center px-4 text-center">
               <p className="font-serif text-[10px] leading-relaxed text-white/85">
-                {verseText}
+                {liveText}
               </p>
               <p className="mt-1.5 text-[7px] uppercase tracking-[2px] text-white/40">
                 {liveVerse.reference}

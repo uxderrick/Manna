@@ -26,9 +26,8 @@ function SourceBadge({ source }: { source: string }) {
 }
 
 function DetectionCard({ detection }: { detection: DetectionResult }) {
-  const handlePresent = () => {
-    // Select this verse for preview
-    bibleActions.selectVerse({
+  const handleSendToScreen = () => {
+    const verse = {
       id: 0,
       translation_id: 1,
       book_number: detection.book_number,
@@ -37,26 +36,15 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
       chapter: detection.chapter,
       verse: detection.verse,
       text: detection.verse_text,
-    })
-    // Navigate book search panel to this verse
-    if (detection.book_number > 0) {
-      bibleActions.navigateToVerse(
-        detection.book_number,
-        detection.chapter,
-        detection.verse
-      )
     }
-    // Set broadcast live verse
+    bibleActions.selectVerse(verse)
+    if (detection.book_number > 0) {
+      bibleActions.navigateToVerse(detection.book_number, detection.chapter, detection.verse)
+    }
+    // Send to preview monitor (not live yet — user clicks "Go Live" to push to screen)
     const translation = useBibleStore.getState().translations
       .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-    useBroadcastStore.getState().setLiveVerse(
-      toVerseRenderData({
-        id: 0, translation_id: 1,
-        book_number: detection.book_number, book_name: detection.book_name,
-        book_abbreviation: "", chapter: detection.chapter,
-        verse: detection.verse, text: detection.verse_text,
-      }, translation)
-    )
+    useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(verse, translation))
   }
 
   return (
@@ -77,7 +65,7 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
       )}
 
       <div className="mt-2 flex gap-2">
-        <Button size="sm" className="gap-1 rounded-full" onClick={handlePresent}>
+        <Button size="sm" className="gap-1 rounded-full" onClick={handleSendToScreen}>
           <PlayIcon className="size-3" />
           Send to Screen
         </Button>

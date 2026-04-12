@@ -40,7 +40,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useBible, bibleActions } from "@/hooks/use-bible"
-import { useBibleStore, useQueueStore } from "@/stores"
+import { toVerseRenderData } from "@/hooks/use-broadcast"
+import { useBibleStore, useBroadcastStore, useQueueStore } from "@/stores"
 import type { Book, Verse } from "@/types"
 import { Input } from "@/components/ui/input"
 import { searchContextWithFuse } from "@/lib/context-search"
@@ -192,6 +193,10 @@ export function SearchPanel() {
   const handleVerseClick = useCallback((verse: Verse) => {
     setSelectedVerseId(verse.id)
     bibleActions.selectVerse(verse)
+    // Send to broadcast preview
+    const translation = useBibleStore.getState().translations
+      .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+    useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(verse, translation))
   }, [])
 
   // Parse chapter:verse from the input field
