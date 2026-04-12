@@ -32,18 +32,18 @@ export function BroadcastMonitor() {
             </button>
           )}
         </div>
-        <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md border border-white/8 bg-gradient-to-b from-[#0a0a0a] to-[#1a1a2e]">
+        <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md border border-blue-500/15 bg-gradient-to-b from-[#0a0c12] to-[#0e1220]">
           {previewVerse ? (
             <div className="flex flex-col items-center px-4 text-center">
-              <p className="font-serif text-[10px] leading-relaxed text-white/85">
+              <p className="font-serif text-[10px] leading-relaxed text-white/80">
                 {previewText}
               </p>
-              <p className="mt-1.5 text-[7px] uppercase tracking-[2px] text-white/40">
+              <p className="mt-1.5 text-[7px] uppercase tracking-[2px] text-blue-300/40">
                 {previewVerse.reference}
               </p>
             </div>
           ) : (
-            <p className="px-4 text-center text-[10px] text-white/30">
+            <p className="px-4 text-center text-[10px] text-white/25">
               Select a verse to preview
             </p>
           )}
@@ -73,7 +73,7 @@ export function BroadcastMonitor() {
           )}
         </div>
         <div
-          className={`flex aspect-video items-center justify-center overflow-hidden rounded-md bg-gradient-to-b from-[#0a0a0a] to-[#1a1a2e] ${isLive ? "border-2 border-destructive/30" : "border border-white/8"}`}
+          className={`flex aspect-video items-center justify-center overflow-hidden rounded-md ${isLive ? "border-2 border-destructive/30 bg-gradient-to-b from-[#1a0808] to-[#120a0a]" : "border border-white/8 bg-gradient-to-b from-[#0a0a0a] to-[#12100e]"}`}
         >
           {liveVerse ? (
             <div className="flex flex-col items-center px-4 text-center">
