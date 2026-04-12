@@ -247,11 +247,22 @@ impl OnnxEmbedder {
             &outputs[0usize]
         };
 
-        let (out_shape, data) = output_value
-            .try_extract_tensor::<f32>()
-            .map_err(|e| DetectionError::Internal(format!("extract tensor: {e}")))?;
+        // Try f32 first, fall back to f16 (some ONNX exports output half-precision)
+        let (out_dims_vec, data_f32);
+        if let Ok((shape, d)) = output_value.try_extract_tensor::<f32>() {
+            out_dims_vec = shape.to_vec();
+            data_f32 = d.to_vec();
+        } else if let Ok((shape, d)) = output_value.try_extract_tensor::<half::f16>() {
+            out_dims_vec = shape.to_vec();
+            data_f32 = d.iter().map(|v| v.to_f32()).collect();
+        } else {
+            return Err(DetectionError::Internal(
+                "cannot extract tensor as f32 or f16".into(),
+            ));
+        }
 
-        let out_dims: &[i64] = out_shape;
+        let out_dims: &[i64] = &out_dims_vec;
+        let data = &data_f32[..];
 
         #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, reason = "ONNX tensor dimensions are small positive values")]
         let pooled = if out_dims.len() == 2 {
