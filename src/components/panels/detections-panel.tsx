@@ -74,23 +74,30 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
           size="xs"
           className="gap-1 rounded-full px-2.5 text-[10px]"
           onClick={() => {
+            const verse = {
+              id: 0,
+              translation_id: 1,
+              book_number: detection.book_number,
+              book_name: detection.book_name,
+              book_abbreviation: "",
+              chapter: detection.chapter,
+              verse: detection.verse,
+              text: detection.verse_text,
+            }
+            const wasEmpty = useQueueStore.getState().items.length === 0
             useQueueStore.getState().addItem({
               id: crypto.randomUUID(),
-              verse: {
-                id: 0,
-                translation_id: 1,
-                book_number: detection.book_number,
-                book_name: detection.book_name,
-                book_abbreviation: "",
-                chapter: detection.chapter,
-                verse: detection.verse,
-                text: detection.verse_text,
-              },
+              verse,
               reference: detection.verse_ref,
               confidence: detection.confidence,
               source: detection.source === "direct" ? "ai-direct" : "ai-semantic",
               added_at: Date.now(),
             })
+            if (wasEmpty) {
+              const trans = useBibleStore.getState().translations
+                .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+              useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(verse, trans))
+            }
           }}
         >
           <PlusIcon className="size-2.5" />

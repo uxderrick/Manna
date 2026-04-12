@@ -594,6 +594,7 @@ export function SearchPanel() {
                         className="gap-1 rounded-full px-2.5 text-[10px]"
                         onClick={(e) => {
                           e.stopPropagation()
+                          const wasEmpty = useQueueStore.getState().items.length === 0
                           useQueueStore.getState().addItem({
                             id: crypto.randomUUID(),
                             verse,
@@ -602,6 +603,11 @@ export function SearchPanel() {
                             source: "manual",
                             added_at: Date.now(),
                           })
+                          if (wasEmpty) {
+                            const trans = useBibleStore.getState().translations
+                              .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+                            useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(verse, trans))
+                          }
                         }}
                       >
                         <PlusIcon className="size-2.5" />
@@ -705,6 +711,7 @@ export function SearchPanel() {
                             className="hover:bg-primary/20 hover:text-primary"
                             onClick={(e) => {
                               e.stopPropagation()
+                              const wasEmpty = useQueueStore.getState().items.length === 0
                               useQueueStore.getState().addItem({
                                 id: crypto.randomUUID(),
                                 verse: resultVerse,
@@ -713,6 +720,11 @@ export function SearchPanel() {
                                 source: "manual",
                                 added_at: Date.now(),
                               })
+                              if (wasEmpty) {
+                                const trans = useBibleStore.getState().translations
+                                  .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+                                useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(resultVerse, trans))
+                              }
                             }}
                           >
                             <PlusIcon className="size-3" />
