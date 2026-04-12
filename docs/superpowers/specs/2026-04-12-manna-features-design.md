@@ -502,3 +502,5 @@ Announcement templates stored in `manna.db`. Live announcements are ephemeral un
 - Multilingual live toggle
 - Cloud hosting (thin client + cloud hybrid)
 - Remote control web UI redesign
+- Precompute semantic embeddings for all translations (NIV, ESV, NASB, NKJV, NLT, AMP, Spanish, French, Portuguese) — currently only KJV
+- Upgrade to Qwen3-0.6B or EmbeddingGemma-300M for higher quality semantic search
