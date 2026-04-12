@@ -19,10 +19,10 @@ export function BroadcastMonitor() {
       <div>
         <div className="mb-1 flex items-center justify-between">
           <span className="text-[9px] font-semibold uppercase tracking-widest text-white/35">
-            Preview — Next
+            Preview
           </span>
           <button className="rounded bg-destructive/80 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-destructive">
-            Take →
+            Go Live
           </button>
         </div>
         <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md border border-white/8 bg-gradient-to-b from-[#0a0a0a] to-[#1a1a2e]">
@@ -42,12 +42,12 @@ export function BroadcastMonitor() {
             <span
               className={`text-[9px] font-semibold uppercase tracking-widest ${isLive ? "text-destructive" : "text-white/35"}`}
             >
-              Program {isLive ? "— Live" : ""}
+              On Screen {isLive ? "— Live" : ""}
             </span>
           </div>
           {isLive && (
             <button className="rounded border border-destructive/25 bg-destructive/12 px-2 py-0.5 text-[9px] font-semibold uppercase text-destructive transition-colors hover:bg-destructive/20">
-              Off Air
+              Clear
             </button>
           )}
         </div>
@@ -64,7 +64,7 @@ export function BroadcastMonitor() {
               </p>
             </div>
           ) : (
-            <p className="text-[10px] text-white/30">No verse on air</p>
+            <p className="text-[10px] text-white/30">No verse on screen</p>
           )}
         </div>
       </div>
