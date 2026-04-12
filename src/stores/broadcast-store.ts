@@ -146,6 +146,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     const { previewVerse } = get()
     if (previewVerse) {
       get().setLiveVerse(previewVerse)
+      set({ previewVerse: null })
     }
   },
   clearScreen: () => {

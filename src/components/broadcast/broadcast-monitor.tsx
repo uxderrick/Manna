@@ -55,8 +55,8 @@ export function BroadcastMonitor() {
       const verseData = toVerseRenderData(verse, trans)
 
       if (isLive) {
-        useBroadcastStore.getState().setPreviewVerse(verseData)
-        useBroadcastStore.getState().goLive()
+        // Step the live verse directly — don't touch preview
+        useBroadcastStore.getState().setLiveVerse(verseData)
       } else {
         useBroadcastStore.getState().setPreviewVerse(verseData)
       }
