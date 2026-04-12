@@ -79,7 +79,7 @@ export function Toolbar() {
             {isLive && activeSession.startedAt && (
               <ElapsedTimer startedAt={activeSession.startedAt} />
             )}
-            <Badge variant="outline" className="capitalize text-[0.5rem]">
+            <Badge variant="outline" className="capitalize text-[0.625rem]">
               {activeSession.status}
             </Badge>
           </>

@@ -180,7 +180,7 @@ export function MenuBar() {
   return (
     <div
       ref={menuBarRef}
-      className="h-[var(--menu-bar-height)] flex items-center bg-card/80 backdrop-blur-sm border-b border-border text-xs select-none shrink-0"
+      className="h-[var(--menu-bar-height)] flex items-center bg-muted backdrop-blur-sm border-b border-border text-xs select-none shrink-0"
       style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
     >
       {menus.map((menu) => {
@@ -200,7 +200,7 @@ export function MenuBar() {
               onClick={() => handleMenuButtonClick(menu.label)}
               onMouseEnter={() => handleMenuButtonMouseEnter(menu.label)}
             >
-              {menu.label}
+              <span className={menu.label === "Manna" ? "text-primary font-semibold" : undefined}>{menu.label}</span>
             </button>
 
             {/* Dropdown */}

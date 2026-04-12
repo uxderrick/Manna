@@ -16,12 +16,12 @@ function PanelHeader({
     <div
       data-slot="panel-header"
       className={cn(
-        "flex min-h-11 items-center justify-between border-b border-border bg-card px-3 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.03)]",
+        "flex min-h-10 items-center justify-between border-b border-border bg-card px-3",
         className
       )}
       {...props}
     >
-      <span className="flex items-center gap-2 text-[0.6875rem] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {icon}
         {title}
       </span>
