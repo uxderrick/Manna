@@ -1,4 +1,9 @@
-//! Sermon notes and export for the Rhema application.
-//!
-//! Planned: Claude API integration, sermon note generation,
-//! and PDF/Markdown export.
+//! Sermon session management, notes, and export for the Rhema application.
+
+pub mod db;
+pub mod error;
+pub mod models;
+
+pub use db::SessionDb;
+pub use error::{Result, SessionError};
+pub use models::*;
