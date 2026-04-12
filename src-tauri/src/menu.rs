@@ -32,6 +32,22 @@ pub fn build(app: &App) -> tauri::Result<Menu<Wry>> {
         ],
     )?;
 
+    // ── Edit (required for Cmd+C/V/X/A to work on macOS) ─────
+    let edit_menu = Submenu::with_items(
+        app,
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::undo(app, None)?,
+            &PredefinedMenuItem::redo(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::cut(app, None)?,
+            &PredefinedMenuItem::copy(app, None)?,
+            &PredefinedMenuItem::paste(app, None)?,
+            &PredefinedMenuItem::select_all(app, None)?,
+        ],
+    )?;
+
     // ── Session ────────────────────────────────────────────────
     let session_menu = Submenu::with_items(
         app,
@@ -184,6 +200,7 @@ pub fn build(app: &App) -> tauri::Result<Menu<Wry>> {
         app,
         &[
             &manna_menu,
+            &edit_menu,
             &session_menu,
             &broadcast_menu,
             &view_menu,
