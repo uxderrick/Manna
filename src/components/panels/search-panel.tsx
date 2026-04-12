@@ -674,6 +674,8 @@ export function SearchPanel() {
                 selectedVerse.book_number === result.book_number &&
                 selectedVerse.chapter === result.chapter &&
                 selectedVerse.verse === result.verse
+              const isVerseLive = isBroadcastLive &&
+                liveVerse?.reference?.includes(`${result.book_name} ${result.chapter}:${result.verse}`)
               return (
                 <div
                   key={`${result.book_number}-${result.chapter}-${result.verse}-${idx}`}
@@ -684,79 +686,82 @@ export function SearchPanel() {
                     useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(resultVerse, trans))
                   }}
                   className={cn(
-                    "group flex cursor-pointer items-center gap-3 rounded-lg p-3 transition-colors",
+                    "group cursor-pointer rounded-lg p-3 transition-colors",
                     isSelected
                       ? "border border-primary/30 bg-primary/8"
                       : "hover:bg-muted/50"
                   )}
                 >
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-primary">
-                        {result.book_name} {result.chapter}:{result.verse}
-                      </span>
-                      <span className="text-[0.625rem] text-muted-foreground">
-                        {Math.round(result.similarity * 100)}%
-                      </span>
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-primary">
+                          {result.book_name} {result.chapter}:{result.verse}
+                        </span>
+                        <span className="text-[0.625rem] text-muted-foreground">
+                          {Math.round(result.similarity * 100)}%
+                        </span>
+                      </div>
+                      <p className="mt-0.5 font-serif text-sm leading-relaxed text-foreground/80">
+                        <HighlightedText text={result.verse_text} query={contextQuery} />
+                      </p>
                     </div>
-                    <p className="font-serif text-sm leading-relaxed text-foreground/80">
-                      <HighlightedText text={result.verse_text} query={contextQuery} />
-                    </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            className="hover:bg-primary/20 hover:text-primary"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              const trans = useBibleStore.getState().translations
-                                .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-                              useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(resultVerse, trans))
-                              useBroadcastStore.getState().goLive()
-                            }}
-                          >
-                            <PlayIcon className="size-3" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" sideOffset={8} className="pointer-events-none">Go Live</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            className="hover:bg-primary/20 hover:text-primary"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              const wasEmpty = useQueueStore.getState().items.length === 0
-                              useQueueStore.getState().addItem({
-                                id: crypto.randomUUID(),
-                                verse: resultVerse,
-                                reference: `${result.book_name} ${result.chapter}:${result.verse}`,
-                                confidence: result.similarity,
-                                source: "manual",
-                                added_at: Date.now(),
-                              })
-                              if (wasEmpty) {
-                                const trans = useBibleStore.getState().translations
-                                  .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-                                useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(resultVerse, trans))
-                              }
-                            }}
-                          >
-                            <PlusIcon className="size-3" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" sideOffset={8} className="pointer-events-none">Add to Queue</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
+                  {isSelected && (
+                    <div className="mt-2 flex gap-1.5">
+                      {isVerseLive ? (
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="gap-1 rounded-full border-destructive/30 bg-destructive/10 px-2.5 text-[10px] text-destructive"
+                          disabled
+                        >
+                          <div className="size-1.5 rounded-full bg-destructive" />
+                          Live
+                        </Button>
+                      ) : (
+                        <Button
+                          size="xs"
+                          className="gap-1 rounded-full px-2.5 text-[10px]"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const trans = useBibleStore.getState().translations
+                              .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+                            useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(resultVerse, trans))
+                            useBroadcastStore.getState().goLive()
+                          }}
+                        >
+                          <PlayIcon className="size-2.5" />
+                          Go Live
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        className="gap-1 rounded-full px-2.5 text-[10px]"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const wasEmpty = useQueueStore.getState().items.length === 0
+                          useQueueStore.getState().addItem({
+                            id: crypto.randomUUID(),
+                            verse: resultVerse,
+                            reference: `${result.book_name} ${result.chapter}:${result.verse}`,
+                            confidence: result.similarity,
+                            source: "manual",
+                            added_at: Date.now(),
+                          })
+                          if (wasEmpty) {
+                            const trans = useBibleStore.getState().translations
+                              .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+                            useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(resultVerse, trans))
+                          }
+                        }}
+                      >
+                        <PlusIcon className="size-2.5" />
+                        Add to Queue
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )
             })}
