@@ -35,13 +35,13 @@ function QueueItemRow({
 
   const sourceBadge =
     item.source === "manual" ? (
-      <Badge variant="outline" className="shrink-0 text-[0.5rem]">
+      <Badge variant="outline" className="shrink-0 text-[0.625rem]">
         Manual
       </Badge>
     ) : (
       <Badge
         variant="default"
-        className="shrink-0 bg-ai-direct/15 text-[0.5rem] text-ai-direct hover:bg-ai-direct/15"
+        className="shrink-0 bg-ai-direct/15 text-[0.625rem] text-ai-direct hover:bg-ai-direct/15"
       >
         AI
       </Badge>
@@ -50,9 +50,9 @@ function QueueItemRow({
   return (
     <div
       className={cn(
-        "group flex h-10 items-center gap-2 rounded-md px-2.5 transition-colors",
+        "group flex h-11 items-center gap-2 rounded-xl px-3 transition-colors",
         isActive
-          ? "border border-primary/30 bg-primary/10"
+          ? "bg-primary text-primary-foreground"
           : "hover:bg-muted/50"
       )}
     >
@@ -60,11 +60,11 @@ function QueueItemRow({
         className="size-3 shrink-0 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100"
       />
 
-      <span className="flex-1 truncate text-sm font-medium text-foreground">
+      <span className={cn("flex-1 truncate text-sm font-medium", isActive ? "text-primary-foreground" : "text-foreground")}>
         {item.reference}
       </span>
 
-      {sourceBadge}
+      {!isActive && sourceBadge}
 
       <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
         <Button variant="ghost" size="icon-xs" onClick={handlePresent}>
