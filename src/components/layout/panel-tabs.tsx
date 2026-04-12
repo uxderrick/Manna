@@ -20,12 +20,12 @@ export function PanelTabs({ tabs, defaultTab, className }: PanelTabsProps) {
   return (
     <div className={`flex min-h-0 min-w-0 flex-col overflow-hidden ${className ?? ""}`}>
       {/* Tab bar */}
-      <div className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-border bg-muted/30 px-2">
+      <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-muted/30 px-2 py-1.5">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             data-active={tab.id === activeTab || undefined}
-            className="flex shrink-0 items-center gap-1.5 border-b-2 border-transparent px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground data-[active]:border-primary data-[active]:text-foreground"
+            className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-primary/8 hover:text-primary data-[active]:bg-primary data-[active]:text-primary-foreground"
             onClick={() => setActiveTab(tab.id)}
           >
             {tab.icon}
