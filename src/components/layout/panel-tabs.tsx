@@ -18,14 +18,14 @@ export function PanelTabs({ tabs, defaultTab, className }: PanelTabsProps) {
   const active = tabs.find((t) => t.id === activeTab) ?? tabs[0]
 
   return (
-    <div className={`flex min-h-0 flex-col ${className ?? ""}`}>
+    <div className={`flex min-h-0 flex-col overflow-hidden ${className ?? ""}`}>
       {/* Tab bar */}
-      <div className="flex shrink-0 items-center gap-0.5 border-b border-border bg-muted/30 px-2">
+      <div className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-border bg-muted/30 px-2">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             data-active={tab.id === activeTab || undefined}
-            className="flex items-center gap-1.5 border-b-2 border-transparent px-2.5 py-1.5 text-xs text-muted-foreground transition-colors duration-[var(--duration-fast)] hover:text-foreground data-[active]:border-primary data-[active]:text-foreground"
+            className="flex shrink-0 items-center gap-1.5 border-b-2 border-transparent px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground data-[active]:border-primary data-[active]:text-foreground"
             onClick={() => setActiveTab(tab.id)}
           >
             {tab.icon}
@@ -35,7 +35,7 @@ export function PanelTabs({ tabs, defaultTab, className }: PanelTabsProps) {
       </div>
 
       {/* Content */}
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {active?.content}
       </div>
     </div>

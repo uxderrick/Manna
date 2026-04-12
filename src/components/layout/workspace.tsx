@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels"
+import { Panel, Group, Separator } from "react-resizable-panels"
 import { MenuBar } from "./menu-bar"
 import { Toolbar } from "./toolbar"
 import { PanelTabs } from "./panel-tabs"
@@ -13,19 +13,19 @@ import { QueuePanel } from "@/components/panels/queue-panel"
 /*  Resize handles                                                            */
 /* -------------------------------------------------------------------------- */
 
-function VerticalResizeHandle() {
+function VerticalHandle() {
   return (
-    <PanelResizeHandle className="group relative w-px bg-border transition-colors duration-[var(--duration-fast)] hover:bg-transparent">
-      <div className="absolute inset-y-0 left-1/2 w-1 -translate-x-1/2 rounded-full bg-transparent transition-colors duration-[var(--duration-fast)] group-hover:bg-primary/40 group-data-[resize-handle-active]:bg-primary/60" />
-    </PanelResizeHandle>
+    <Separator className="group relative w-1 shrink-0 bg-transparent transition-colors hover:bg-primary/10">
+      <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border transition-colors group-hover:bg-primary/50" />
+    </Separator>
   )
 }
 
-function HorizontalResizeHandle() {
+function HorizontalHandle() {
   return (
-    <PanelResizeHandle className="group relative h-px bg-border transition-colors duration-[var(--duration-fast)] hover:bg-transparent">
-      <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-transparent transition-colors duration-[var(--duration-fast)] group-hover:bg-primary/40 group-data-[resize-handle-active]:bg-primary/60" />
-    </PanelResizeHandle>
+    <Separator className="group relative h-1 shrink-0 bg-transparent transition-colors hover:bg-primary/10">
+      <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border transition-colors group-hover:bg-primary/50" />
+    </Separator>
   )
 }
 
@@ -33,42 +33,10 @@ function HorizontalResizeHandle() {
 /*  Placeholder tab content                                                   */
 /* -------------------------------------------------------------------------- */
 
-function NotesPlaceholder() {
+function Placeholder({ label }: { label: string }) {
   return (
-    <div className="p-3 text-sm text-muted-foreground">
-      Notes — coming in Wave 2
-    </div>
-  )
-}
-
-function SongsPlaceholder() {
-  return (
-    <div className="p-3 text-sm text-muted-foreground">
-      Songs — coming in Wave 2
-    </div>
-  )
-}
-
-function AnalyticsPlaceholder() {
-  return (
-    <div className="p-3 text-sm text-muted-foreground">
-      Analytics — coming in Wave 2
-    </div>
-  )
-}
-
-function CrossRefsPlaceholder() {
-  return (
-    <div className="p-3 text-sm text-muted-foreground">
-      Cross-refs — coming in Wave 2
-    </div>
-  )
-}
-
-function PlannerPlaceholder() {
-  return (
-    <div className="p-3 text-sm text-muted-foreground">
-      Planner — coming in Wave 2
+    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+      {label} — coming in Wave 2
     </div>
   )
 }
@@ -89,94 +57,66 @@ export function Workspace() {
       <Toolbar />
 
       {/* Main workspace — horizontal panel group */}
-      <PanelGroup
-        autoSaveId="manna-workspace-h"
-        direction="horizontal"
+      <Group
+        id="manna-h2"
+        orientation="horizontal"
         className="min-h-0 flex-1"
       >
         {/* Left panel */}
-        <Panel defaultSize={22} minSize={15} maxSize={35}>
+        <Panel id="left" defaultSize={22} minSize={15} maxSize={35}>
           <PanelTabs
             className="h-full"
             defaultTab="search"
             tabs={[
-              {
-                id: "search",
-                label: "Search",
-                content: <SearchPanel />,
-              },
-              {
-                id: "notes",
-                label: "Notes",
-                content: <NotesPlaceholder />,
-              },
-              {
-                id: "songs",
-                label: "Songs",
-                content: <SongsPlaceholder />,
-              },
+              { id: "search", label: "Search", content: <SearchPanel /> },
+              { id: "notes", label: "Notes", content: <Placeholder label="Notes" /> },
+              { id: "songs", label: "Songs", content: <Placeholder label="Songs" /> },
             ]}
           />
         </Panel>
 
-        <VerticalResizeHandle />
+        <VerticalHandle />
 
         {/* Center area — vertical split */}
-        <Panel defaultSize={50} minSize={30}>
-          <PanelGroup
-            autoSaveId="manna-workspace-v"
-            direction="vertical"
+        <Panel id="center" defaultSize={50} minSize={30}>
+          <Group
+            id="manna-v2"
+            orientation="vertical"
             className="h-full"
           >
             {/* Center top: detections / preview / analytics */}
-            <Panel minSize={30}>
+            <Panel id="center-top" defaultSize={80} minSize={30}>
               <PanelTabs
                 className="h-full"
                 defaultTab="detections"
                 tabs={[
-                  {
-                    id: "detections",
-                    label: "Detections",
-                    content: <DetectionsPanel />,
-                  },
-                  {
-                    id: "broadcast",
-                    label: "Broadcast Preview",
-                    content: <PreviewPanel />,
-                  },
-                  {
-                    id: "analytics",
-                    label: "Analytics",
-                    content: <AnalyticsPlaceholder />,
-                  },
+                  { id: "detections", label: "Detections", content: <DetectionsPanel /> },
+                  { id: "broadcast", label: "Broadcast Preview", content: <PreviewPanel /> },
+                  { id: "analytics", label: "Analytics", content: <Placeholder label="Analytics" /> },
                 ]}
               />
             </Panel>
 
-            <HorizontalResizeHandle />
+            <HorizontalHandle />
 
-            {/* Center bottom: collapsible transcript bar */}
+            {/* Center bottom: transcript */}
             <Panel
-              defaultSize={15}
-              minSize={transcriptCollapsed ? 8 : 8}
+              id="transcript"
+              minSize={8}
               maxSize={50}
               collapsible
-              collapsedSize={8}
-              onCollapse={() => setTranscriptCollapsed(true)}
-              onExpand={() => setTranscriptCollapsed(false)}
+              collapsedSize={0}
             >
-              <div className="flex h-full flex-col">
-                {/* Transcript header / toggle */}
+              <div className="flex h-full flex-col overflow-hidden border-t border-border">
+                {/* Transcript header */}
                 <button
-                  className="flex h-7 shrink-0 cursor-default items-center gap-1.5 border-b border-border bg-muted/30 px-3 text-xs text-muted-foreground transition-colors duration-[var(--duration-fast)] hover:bg-muted/60 hover:text-foreground"
+                  className="flex h-7 shrink-0 items-center gap-1.5 bg-muted/30 px-3 text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
                   onClick={() => setTranscriptCollapsed((prev) => !prev)}
                 >
                   <span
-                    className="transition-transform duration-[var(--duration-fast)]"
+                    className="text-[10px] transition-transform"
                     style={{
-                      transform: transcriptCollapsed
-                        ? "rotate(-90deg)"
-                        : "rotate(0deg)",
+                      transform: transcriptCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
                     }}
                   >
                     ▼
@@ -185,43 +125,29 @@ export function Workspace() {
                 </button>
 
                 {/* Transcript content */}
-                {!transcriptCollapsed && (
-                  <div className="min-h-0 flex-1 overflow-auto">
-                    <TranscriptPanel />
-                  </div>
-                )}
+                <div className="min-h-0 flex-1 overflow-auto">
+                  <TranscriptPanel />
+                </div>
               </div>
             </Panel>
-          </PanelGroup>
+          </Group>
         </Panel>
 
-        <VerticalResizeHandle />
+        <VerticalHandle />
 
         {/* Right panel */}
-        <Panel defaultSize={28} minSize={15} maxSize={40}>
+        <Panel id="right" defaultSize={28} minSize={15} maxSize={40}>
           <PanelTabs
             className="h-full"
             defaultTab="queue"
             tabs={[
-              {
-                id: "queue",
-                label: "Queue",
-                content: <QueuePanel />,
-              },
-              {
-                id: "cross-refs",
-                label: "Cross-refs",
-                content: <CrossRefsPlaceholder />,
-              },
-              {
-                id: "planner",
-                label: "Planner",
-                content: <PlannerPlaceholder />,
-              },
+              { id: "queue", label: "Queue", content: <QueuePanel /> },
+              { id: "cross-refs", label: "Cross-refs", content: <Placeholder label="Cross-refs" /> },
+              { id: "planner", label: "Planner", content: <Placeholder label="Planner" /> },
             ]}
           />
         </Panel>
-      </PanelGroup>
+      </Group>
     </div>
   )
 }
