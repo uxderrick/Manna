@@ -58,7 +58,9 @@ rhema-stt = { path = "crates/stt" }
 rhema-broadcast = { path = "crates/broadcast" }
 rhema-detection = { path = "crates/detection", features = ["onnx", "vector-search"] }
 rhema-api = { path = "crates/api" }
+rhema-notes = { path = "crates/notes" }
 crossbeam-channel = "0.5"
+dirs = "6"
 dotenvy = "0.15"
 base64 = "0.22"
 

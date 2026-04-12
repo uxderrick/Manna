@@ -2,6 +2,7 @@ mod commands;
 mod events;
 mod state;
 
+use rhema_notes::SessionDb;
 use std::sync::Mutex;
 
 #[expect(clippy::too_many_lines, reason = "app setup is inherently complex")]
@@ -25,6 +26,14 @@ pub fn run() {
         .manage(Mutex::new(rhema_detection::ReadingMode::new()))
         .manage(Mutex::new(commands::remote::OscRuntime::new()))
         .manage(Mutex::new(commands::remote::HttpRuntime::new()))
+        .manage(Mutex::new({
+            let app_data = dirs::data_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+                .join("com.manna.app");
+            std::fs::create_dir_all(&app_data).ok();
+            SessionDb::open(&app_data.join("manna.db"))
+                .expect("Failed to open manna.db")
+        }))
         .invoke_handler(tauri::generate_handler![
             commands::bible::list_translations,
             commands::bible::list_books,
@@ -60,6 +69,19 @@ pub fn run() {
             commands::remote::stop_http,
             commands::remote::get_http_status,
             commands::remote::update_remote_status,
+            commands::session::create_session,
+            commands::session::get_session,
+            commands::session::list_sessions,
+            commands::session::start_session,
+            commands::session::end_session,
+            commands::session::delete_session,
+            commands::session::update_session_summary,
+            commands::session::add_session_detection,
+            commands::session::get_session_detections,
+            commands::session::add_session_transcript,
+            commands::session::get_session_transcript,
+            commands::session::add_session_note,
+            commands::session::get_session_notes,
         ])
         .setup(|app| {
             use tauri::Manager;
