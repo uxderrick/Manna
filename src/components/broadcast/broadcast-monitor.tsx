@@ -1,7 +1,9 @@
-import { useBroadcastStore, useBibleStore } from "@/stores"
+import { useState, useEffect } from "react"
+import { useBroadcastStore, useBibleStore, useSessionStore } from "@/stores"
 import { toVerseRenderData } from "@/hooks/use-broadcast"
 import { bibleActions } from "@/hooks/use-bible"
 import { invoke } from "@tauri-apps/api/core"
+import { Megaphone } from "lucide-react"
 import type { Verse } from "@/types"
 
 export function BroadcastMonitor() {
@@ -10,6 +12,12 @@ export function BroadcastMonitor() {
   const isLive = useBroadcastStore((s) => s.isLive)
   const goLive = useBroadcastStore((s) => s.goLive)
   const clearScreen = useBroadcastStore((s) => s.clearScreen)
+  const themes = useBroadcastStore((s) => s.themes)
+  const activeThemeId = useBroadcastStore((s) => s.activeThemeId)
+  const setActiveTheme = useBroadcastStore((s) => s.setActiveTheme)
+  const translations = useBibleStore((s) => s.translations)
+  const activeTranslationId = useBibleStore((s) => s.activeTranslationId)
+  const activeSession = useSessionStore((s) => s.activeSession)
 
   const previewText = previewVerse
     ? previewVerse.segments.map((seg) => seg.text).join(" ")
@@ -18,6 +26,26 @@ export function BroadcastMonitor() {
   const liveText = liveVerse
     ? liveVerse.segments.map((seg) => seg.text).join(" ")
     : null
+
+  // Session timer
+  const [elapsed, setElapsed] = useState("00:00:00")
+  useEffect(() => {
+    if (!activeSession?.startedAt || activeSession.status !== "live") {
+      setElapsed("00:00:00")
+      return
+    }
+    const start = new Date(activeSession.startedAt).getTime()
+    const tick = () => {
+      const diff = Date.now() - start
+      const h = Math.floor(diff / 3600000).toString().padStart(2, "0")
+      const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, "0")
+      const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, "0")
+      setElapsed(`${h}:${m}:${s}`)
+    }
+    tick()
+    const interval = setInterval(tick, 1000)
+    return () => clearInterval(interval)
+  }, [activeSession?.startedAt, activeSession?.status])
 
   const parseRef = (ref: string) => {
     const match = ref.match(/^(.+?)\s+(\d+):(\d+)/)
@@ -76,15 +104,15 @@ export function BroadcastMonitor() {
         useBroadcastStore.getState().setPreviewVerse(verseData)
       }
     } catch {
-      // verse doesn't exist (end of chapter)
+      // verse doesn't exist
     }
   }
 
   const hasVerse = previewVerse || liveVerse
 
   return (
-    <div className="flex h-full flex-col gap-3 bg-[#0d0d0c] p-3">
-      {/* On Screen — top (primary, what's live) */}
+    <div className="flex h-full flex-col gap-3 overflow-y-auto bg-[#0d0d0c] p-3">
+      {/* On Screen — top */}
       <div>
         <div className="mb-1 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
@@ -142,7 +170,7 @@ export function BroadcastMonitor() {
         </button>
       </div>
 
-      {/* Preview — bottom (what's coming next) */}
+      {/* Preview — bottom */}
       <div>
         <div className="mb-1 flex items-center justify-between">
           <span className="text-[9px] font-semibold uppercase tracking-widest text-white/35">
@@ -173,6 +201,86 @@ export function BroadcastMonitor() {
             </p>
           )}
         </div>
+      </div>
+
+      {/* ── Quick Controls ─────────────────────────── */}
+      <div className="flex flex-col gap-2 border-t border-white/6 pt-3">
+        {/* Theme selector */}
+        <div>
+          <span className="text-[8px] font-semibold uppercase tracking-widest text-white/25">Theme</span>
+          <select
+            value={activeThemeId}
+            onChange={(e) => setActiveTheme(e.target.value)}
+            className="mt-1 w-full rounded border border-white/10 bg-white/5 px-2 py-1.5 text-[10px] text-white/70 outline-none focus:border-primary/50"
+          >
+            {themes.map((t) => (
+              <option key={t.id} value={t.id} className="bg-[#1a1a1a]">
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Translation toggle */}
+        <div>
+          <span className="text-[8px] font-semibold uppercase tracking-widest text-white/25">Translation</span>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {translations.slice(0, 7).map((t) => (
+              <button
+                key={t.id}
+                onClick={async () => {
+                  try {
+                    await invoke("set_active_translation", { translationId: t.id })
+                    useBibleStore.getState().setActiveTranslation(t.id)
+                  } catch {}
+                }}
+                className={`rounded px-1.5 py-0.5 text-[9px] font-medium transition-colors ${
+                  t.id === activeTranslationId
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60"
+                }`}
+              >
+                {t.abbreviation}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Announcement button */}
+        <button
+          onClick={() => {
+            const { sendAnnouncement } = useBroadcastStore.getState()
+            sendAnnouncement({
+              text: "",
+              position: "bottom",
+              style: "info",
+              duration: null,
+            })
+          }}
+          className="flex items-center justify-center gap-1.5 rounded border border-white/10 bg-white/5 py-1.5 text-[10px] font-medium text-white/40 transition-colors hover:bg-white/10 hover:text-white/60"
+        >
+          <Megaphone className="size-3" />
+          New Announcement
+        </button>
+
+        {/* Session info */}
+        {activeSession && (
+          <div className="flex items-center justify-between rounded bg-white/3 px-2 py-1.5">
+            <div className="flex flex-col">
+              <span className="text-[9px] font-medium text-white/50 truncate max-w-[120px]">
+                {activeSession.title}
+              </span>
+              <span className="text-[8px] text-white/25">
+                {activeSession.status === "live" ? "Live" : activeSession.status}
+              </span>
+            </div>
+            {activeSession.status === "live" && (
+              <span className="font-mono text-[10px] tabular-nums text-white/40">
+                {elapsed}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
