@@ -65,6 +65,15 @@ export interface BroadcastTheme {
     letterSpacing: number
     shadow: { color: string; blur: number; x: number; y: number } | null
     outline: { color: string; width: number } | null
+    lineBreakMode: "flow" | "centered-lines"
+  }
+  divider: {
+    style: "none" | "line" | "dots"
+    color: string
+    width: number
+    opacity: number
+    dotCount: number
+    dotSize: number
   }
   verseNumbers: {
     visible: boolean
