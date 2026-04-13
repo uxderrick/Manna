@@ -13,7 +13,9 @@ use crate::types::{Detection, DetectionSource, VerseRef};
 const DEFAULT_CACHE_CAPACITY: usize = 256;
 
 /// Default cosine-similarity threshold below which results are discarded.
-const DEFAULT_CONFIDENCE_THRESHOLD: f64 = 0.50;
+/// Lowered from 0.50 to 0.35 to support smaller embedding models (MiniLM-L6-v2)
+/// which produce lower similarity scores than larger models like Qwen3.
+const DEFAULT_CONFIDENCE_THRESHOLD: f64 = 0.35;
 
 /// Orchestrator that combines text chunking, embedding, vector search,
 /// and caching to detect Bible verses from transcript text using
