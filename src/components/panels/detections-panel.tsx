@@ -1,7 +1,7 @@
 import { PanelHeader } from "@/components/ui/panel-header"
 import { ConfidenceDot } from "@/components/ui/confidence-dot"
 import { Button } from "@/components/ui/button"
-import { PlayIcon, PlusIcon, RadioIcon } from "lucide-react"
+import { PlayIcon, PlusIcon, RadioIcon, ScanSearchIcon } from "lucide-react"
 import { useDetection, detectionActions } from "@/hooks/use-detection"
 import { bibleActions } from "@/hooks/use-bible"
 import { useQueueStore, useBroadcastStore, useBibleStore } from "@/stores"
@@ -80,7 +80,24 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
         <Button
           size="xs"
           className={`gap-1 rounded-full px-2.5 text-[10px] ${isThisLive ? "bg-red-600 text-white hover:bg-red-700" : ""}`}
-          onClick={() => { if (!isThisLive) { handleSendToScreen(); useBroadcastStore.getState().goLive() } }}
+          onClick={() => {
+            if (!isThisLive) {
+              const verse = {
+                id: 0, translation_id: 1,
+                book_number: detection.book_number, book_name: detection.book_name,
+                book_abbreviation: "", chapter: detection.chapter,
+                verse: detection.verse, text: detection.verse_text,
+              }
+              bibleActions.selectVerse(verse)
+              if (detection.book_number > 0) {
+                bibleActions.navigateToVerse(detection.book_number, detection.chapter, detection.verse)
+              }
+              const translation = useBibleStore.getState().translations
+                .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+              // Go directly to live — skip preview to avoid race condition
+              useBroadcastStore.getState().setLiveVerse(toVerseRenderData(verse, translation))
+            }
+          }}
         >
           {isThisLive ? (
             <>
@@ -154,9 +171,17 @@ export function DetectionsPanel() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex flex-col gap-0">
           {detections.length === 0 && (
-            <p className="p-4 text-center text-xs text-muted-foreground">
-              Verse detections will appear here during transcription
-            </p>
+            <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+              <div className="flex size-10 items-center justify-center rounded-full bg-muted/50">
+                <ScanSearchIcon className="size-5 text-muted-foreground/60" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-muted-foreground">No detections yet</p>
+                <p className="text-[0.625rem] leading-relaxed text-muted-foreground/60">
+                  Start transcribing and verse references will be detected automatically as the sermon plays.
+                </p>
+              </div>
+            </div>
           )}
           {detections.map((detection, i) => (
             <DetectionCard key={`${detection.verse_ref}-${i}`} detection={detection} />
