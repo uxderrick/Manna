@@ -219,7 +219,7 @@ export function Workspace() {
         <VerticalHandle />
 
         {/* Center area — vertical split */}
-        <Panel id="center" defaultSize="50%" minSize="30%">
+        <Panel id="center" defaultSize="38%" minSize="20%">
           <Group
             orientation="vertical"
             className="h-full"

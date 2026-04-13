@@ -19,7 +19,6 @@ export function BroadcastMonitor() {
     ? liveVerse.segments.map((seg) => seg.text).join(" ")
     : null
 
-  // Parse book/chapter/verse from the reference string (e.g., "Genesis 1:3 (KJV)")
   const parseRef = (ref: string) => {
     const match = ref.match(/^(.+?)\s+(\d+):(\d+)/)
     if (!match) return null
@@ -27,7 +26,6 @@ export function BroadcastMonitor() {
   }
 
   const stepVerse = async (delta: number) => {
-    // Use whichever is showing — live verse takes priority, otherwise preview
     const current = isLive ? liveVerse : previewVerse
     if (!current) return
 
@@ -51,7 +49,6 @@ export function BroadcastMonitor() {
       })
       if (!verse) return
 
-      // Sync the search panel selection
       bibleActions.selectVerse(verse)
 
       const trans = useBibleStore.getState().translations
@@ -60,13 +57,12 @@ export function BroadcastMonitor() {
 
       if (isLive) {
         useBroadcastStore.getState().setLiveVerse(verseData)
-        // Load the next verse into preview so it's ready
         try {
           const nextVerse = await invoke<Verse | null>("get_verse", {
             translationId,
             bookNumber: book.book_number,
             chapter: parsed.chapter,
-            verse: targetVerse + delta, // one more step ahead
+            verse: targetVerse + delta,
           })
           if (nextVerse) {
             useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(nextVerse, trans))
@@ -88,40 +84,7 @@ export function BroadcastMonitor() {
 
   return (
     <div className="flex h-full flex-col gap-3 bg-[#0d0d0c] p-3">
-      {/* Preview */}
-      <div>
-        <div className="mb-1 flex items-center justify-between">
-          <span className="text-[9px] font-semibold uppercase tracking-widest text-white/35">
-            Preview
-          </span>
-          {previewVerse && (
-            <button
-              onClick={goLive}
-              className="rounded bg-primary px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              Go Live
-            </button>
-          )}
-        </div>
-        <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md border border-blue-500/15 bg-gradient-to-b from-[#0a0c12] to-[#0e1220]">
-          {previewVerse ? (
-            <div className="flex flex-col items-center px-4 text-center">
-              <p className="font-serif text-[10px] leading-relaxed text-white/80">
-                {previewText}
-              </p>
-              <p className="mt-1.5 text-[7px] uppercase tracking-[2px] text-blue-300/40">
-                {previewVerse.reference}
-              </p>
-            </div>
-          ) : (
-            <p className="px-4 text-center text-[10px] text-white/25">
-              Select a verse to preview
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* On Screen */}
+      {/* On Screen — top (primary, what's live) */}
       <div>
         <div className="mb-1 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
@@ -166,17 +129,50 @@ export function BroadcastMonitor() {
         <button
           onClick={() => stepVerse(-1)}
           disabled={!hasVerse}
-          className="flex-1 rounded border border-white/8 bg-white/4 py-1 text-[9px] text-white/40 transition-colors hover:bg-white/8 disabled:opacity-25"
+          className="flex-1 rounded border border-white/8 bg-white/4 py-2 text-[10px] font-medium text-white/40 transition-colors hover:bg-white/8 disabled:opacity-25"
         >
           ◀ Prev
         </button>
         <button
           onClick={() => stepVerse(1)}
           disabled={!hasVerse}
-          className="flex-1 rounded border border-white/8 bg-white/4 py-1 text-[9px] text-white/40 transition-colors hover:bg-white/8 disabled:opacity-25"
+          className="flex-1 rounded border border-white/8 bg-white/4 py-2 text-[10px] font-medium text-white/40 transition-colors hover:bg-white/8 disabled:opacity-25"
         >
           Next ▶
         </button>
+      </div>
+
+      {/* Preview — bottom (what's coming next) */}
+      <div>
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-[9px] font-semibold uppercase tracking-widest text-white/35">
+            Preview
+          </span>
+          {previewVerse && (
+            <button
+              onClick={goLive}
+              className="rounded bg-primary px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Go Live
+            </button>
+          )}
+        </div>
+        <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md border border-blue-500/15 bg-gradient-to-b from-[#0a0c12] to-[#0e1220]">
+          {previewVerse ? (
+            <div className="flex flex-col items-center px-4 text-center">
+              <p className="font-serif text-[10px] leading-relaxed text-white/80">
+                {previewText}
+              </p>
+              <p className="mt-1.5 text-[7px] uppercase tracking-[2px] text-blue-300/40">
+                {previewVerse.reference}
+              </p>
+            </div>
+          ) : (
+            <p className="px-4 text-center text-[10px] text-white/25">
+              Select a verse to preview
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
