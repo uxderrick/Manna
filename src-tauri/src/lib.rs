@@ -92,6 +92,9 @@ pub fn run() {
             commands::session::get_session_transcript,
             commands::session::add_session_note,
             commands::session::get_session_notes,
+            commands::themes::list_custom_themes,
+            commands::themes::save_custom_theme,
+            commands::themes::delete_custom_theme,
         ])
         .setup(|app| {
             use tauri::Manager;

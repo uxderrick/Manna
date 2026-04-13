@@ -88,6 +88,14 @@ impl SessionDb {
                 status      TEXT    NOT NULL DEFAULT 'pending'
             );
             CREATE INDEX IF NOT EXISTS idx_distributions_session ON session_distributions(session_id);
+
+            CREATE TABLE IF NOT EXISTS themes (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                data TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
             ",
         )?;
 
@@ -328,6 +336,38 @@ impl SessionDb {
             notes.push(r?);
         }
         Ok(notes)
+    }
+
+    // ── Themes ────────────────────────────────────────────────
+
+    pub fn list_custom_themes(&self) -> Result<Vec<(String, String, String)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, data FROM themes ORDER BY updated_at DESC"
+        )?;
+        let themes = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(themes)
+    }
+
+    pub fn save_custom_theme(&self, id: &str, name: &str, data: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO themes (id, name, data) VALUES (?1, ?2, ?3)
+             ON CONFLICT(id) DO UPDATE SET name = ?2, data = ?3, updated_at = datetime('now')",
+            params![id, name, data],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_custom_theme(&self, id: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM themes WHERE id = ?1", params![id])?;
+        Ok(())
     }
 }
 
