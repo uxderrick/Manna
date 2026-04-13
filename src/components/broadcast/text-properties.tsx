@@ -572,7 +572,13 @@ function VerseProperties() {
       <CollapsibleSection title="Divider" defaultOpen={false}>
         <Select
           value={draftTheme.divider?.style ?? "none"}
-          onValueChange={(v) => update("divider.style", v)}
+          onValueChange={(v) => {
+            if (v !== "none" && (!draftTheme.divider || !draftTheme.divider.color)) {
+              update("divider", { style: v, color: "#ffffff", width: 60, opacity: 0.5, dotCount: 4, dotSize: 4 })
+            } else {
+              update("divider.style", v)
+            }
+          }}
         >
           <SelectTrigger className="w-full">
             <SelectValue />
@@ -591,12 +597,12 @@ function VerseProperties() {
               <div className="flex items-center gap-2">
                 <input
                   type="color"
-                  value={draftTheme.divider.color}
+                  value={draftTheme.divider.color ?? "#ffffff"}
                   onChange={(e) => update("divider.color", e.target.value)}
                   className="h-7 w-8 cursor-pointer rounded border border-input bg-transparent p-0.5"
                 />
                 <Input
-                  value={draftTheme.divider.color}
+                  value={draftTheme.divider.color ?? "#ffffff"}
                   onChange={(e) => {
                     if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
                       update("divider.color", e.target.value)
@@ -611,13 +617,13 @@ function VerseProperties() {
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-muted-foreground">Width</label>
-                <span className="text-xs tabular-nums text-muted-foreground">{draftTheme.divider.width}px</span>
+                <span className="text-xs tabular-nums text-muted-foreground">{draftTheme.divider.width ?? 60}px</span>
               </div>
               <Slider
                 min={10}
                 max={200}
                 step={5}
-                value={[draftTheme.divider.width]}
+                value={[draftTheme.divider.width ?? 60]}
                 onValueChange={([v]) => update("divider.width", v)}
               />
             </div>
@@ -626,13 +632,13 @@ function VerseProperties() {
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-muted-foreground">Opacity</label>
-                <span className="text-xs tabular-nums text-muted-foreground">{Math.round(draftTheme.divider.opacity * 100)}%</span>
+                <span className="text-xs tabular-nums text-muted-foreground">{Math.round((draftTheme.divider.opacity ?? 0.5) * 100)}%</span>
               </div>
               <Slider
                 min={0}
                 max={1}
                 step={0.05}
-                value={[draftTheme.divider.opacity]}
+                value={[draftTheme.divider.opacity ?? 0.5]}
                 onValueChange={([v]) => update("divider.opacity", v)}
               />
             </div>
@@ -643,26 +649,26 @@ function VerseProperties() {
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-medium text-muted-foreground">Dot Count</label>
-                    <span className="text-xs tabular-nums text-muted-foreground">{draftTheme.divider.dotCount}</span>
+                    <span className="text-xs tabular-nums text-muted-foreground">{draftTheme.divider.dotCount ?? 4}</span>
                   </div>
                   <Slider
                     min={2}
                     max={8}
                     step={1}
-                    value={[draftTheme.divider.dotCount]}
+                    value={[draftTheme.divider.dotCount ?? 4]}
                     onValueChange={([v]) => update("divider.dotCount", v)}
                   />
                 </div>
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-medium text-muted-foreground">Dot Size</label>
-                    <span className="text-xs tabular-nums text-muted-foreground">{draftTheme.divider.dotSize}px</span>
+                    <span className="text-xs tabular-nums text-muted-foreground">{draftTheme.divider.dotSize ?? 4}px</span>
                   </div>
                   <Slider
                     min={2}
                     max={10}
                     step={1}
-                    value={[draftTheme.divider.dotSize]}
+                    value={[draftTheme.divider.dotSize ?? 4]}
                     onValueChange={([v]) => update("divider.dotSize", v)}
                   />
                 </div>

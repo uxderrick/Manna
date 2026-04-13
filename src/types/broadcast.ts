@@ -100,6 +100,8 @@ export interface BroadcastTheme {
       | "top-left"
       | "top-center"
       | "top-right"
+      | "center-left"
+      | "center-right"
       | "bottom-left"
       | "bottom-center"
       | "bottom-right"

@@ -1,6 +1,7 @@
 import { useBroadcastStore } from "@/stores/broadcast-store"
 import { Slider } from "@/components/ui/slider"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import {
   Select,
   SelectContent,
@@ -8,6 +9,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+
+const ANCHOR_POSITIONS = [
+  ["top-left", "top-center", "top-right"],
+  ["center-left", "center", "center-right"],
+  ["bottom-left", "bottom-center", "bottom-right"],
+] as const
 
 export function LayoutProperties() {
   const draftTheme = useBroadcastStore((s) => s.draftTheme)
@@ -225,6 +232,91 @@ export function LayoutProperties() {
           />
         </div>
       )}
+
+      {/* Verse Numbers Visible */}
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-medium text-muted-foreground">Verse Numbers Visible</label>
+        <Switch
+          checked={verseNumbers.visible}
+          onCheckedChange={(checked) => update("verseNumbers.visible", checked)}
+        />
+      </div>
+
+      {/* Verse Numbers Color */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-muted-foreground">Verse Numbers Color</label>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={verseNumbers.color}
+            onChange={(e) => update("verseNumbers.color", e.target.value)}
+            className="h-7 w-8 cursor-pointer rounded border border-input bg-transparent p-0.5"
+          />
+          <Input
+            value={verseNumbers.color}
+            onChange={(e) => {
+              if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
+                update("verseNumbers.color", e.target.value)
+              }
+            }}
+            className="w-[72px] font-mono"
+          />
+        </div>
+      </div>
+
+      {/* Anchor Position */}
+      <div className="flex flex-col gap-0.5 border-t pt-3 pb-1">
+        <h4 className="text-xs font-semibold">Anchor Position</h4>
+      </div>
+
+      <div className="grid grid-cols-3 gap-1">
+        {ANCHOR_POSITIONS.flat().map((pos) => (
+          <button
+            key={pos}
+            onClick={() => update("layout.anchor", pos)}
+            className={`h-7 rounded border text-[10px] font-medium transition-colors ${
+              layout.anchor === pos
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-input bg-background text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            {pos.replace("-", " ")}
+          </button>
+        ))}
+      </div>
+
+      {/* Offset X / Y */}
+      <div className="flex flex-col gap-0.5 border-t pt-3 pb-1">
+        <h4 className="text-xs font-semibold">Offset</h4>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-medium text-muted-foreground">Offset X</label>
+          <span className="text-xs tabular-nums text-muted-foreground">{layout.offsetX}px</span>
+        </div>
+        <Slider
+          min={-200}
+          max={200}
+          step={1}
+          value={[layout.offsetX]}
+          onValueChange={([v]) => update("layout.offsetX", v)}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-medium text-muted-foreground">Offset Y</label>
+          <span className="text-xs tabular-nums text-muted-foreground">{layout.offsetY}px</span>
+        </div>
+        <Slider
+          min={-200}
+          max={200}
+          step={1}
+          value={[layout.offsetY]}
+          onValueChange={([v]) => update("layout.offsetY", v)}
+        />
+      </div>
     </div>
   )
 }

@@ -164,16 +164,16 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     get().syncBroadcastOutput()
   },
   goLive: () => {
+    // Always ensure broadcast window is open
+    invoke("ensure_broadcast_window", { outputId: "main" }).catch(() => {})
+    invoke("list_monitors").then((monitors) => {
+      const monitorList = monitors as Array<{ name: string; width: number; height: number }>
+      const targetIdx = monitorList.length > 1 ? 1 : 0
+      invoke("open_broadcast_window", { outputId: "main", monitorIndex: targetIdx }).catch(() => {})
+    }).catch(() => {})
+
     const { previewVerse } = get()
     if (previewVerse) {
-      // Ensure broadcast window exists, then open on external monitor
-      invoke("ensure_broadcast_window", { outputId: "main" }).catch(() => {})
-      invoke("list_monitors").then((monitors) => {
-        const monitorList = monitors as Array<{ name: string; width: number; height: number }>
-        // Use second monitor if available (index 1 = external), otherwise primary (index 0)
-        const targetIdx = monitorList.length > 1 ? 1 : 0
-        invoke("open_broadcast_window", { outputId: "main", monitorIndex: targetIdx }).catch(() => {})
-      }).catch(() => {})
       get().setLiveVerse(previewVerse)
       set({ previewVerse: null })
     }
@@ -208,7 +208,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   updateDraftNested: (path, value) =>
     set((s) => ({
       draftTheme: s.draftTheme
-        ? (setNestedValue(s.draftTheme as unknown as Record<string, unknown>, path, value) as unknown as BroadcastTheme)
+        ? { ...(setNestedValue(s.draftTheme as unknown as Record<string, unknown>, path, value) as unknown as BroadcastTheme), updatedAt: Date.now() }
         : null,
     })),
   saveDraft: () => {
