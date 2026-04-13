@@ -1,7 +1,7 @@
 import { PanelHeader } from "@/components/ui/panel-header"
 import { ConfidenceDot } from "@/components/ui/confidence-dot"
 import { Button } from "@/components/ui/button"
-import { PlayIcon, PlusIcon } from "lucide-react"
+import { PlayIcon, PlusIcon, RadioIcon } from "lucide-react"
 import { useDetection, detectionActions } from "@/hooks/use-detection"
 import { bibleActions } from "@/hooks/use-bible"
 import { useQueueStore, useBroadcastStore, useBibleStore } from "@/stores"
@@ -26,6 +26,9 @@ function SourceBadge({ source }: { source: string }) {
 }
 
 function DetectionCard({ detection }: { detection: DetectionResult }) {
+  const liveVerse = useBroadcastStore((s) => s.liveVerse)
+  const isThisLive = liveVerse?.reference?.startsWith(detection.verse_ref) ?? false
+
   const handleSendToScreen = () => {
     const verse = {
       id: 0,
@@ -49,13 +52,22 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
 
   return (
     <div className="p-1.5">
-    <div className="rounded-xl border border-border bg-surface-elevated p-3">
+    <div className={`rounded-xl border p-3 ${isThisLive ? "border-red-500/50 bg-red-500/5" : "border-border bg-surface-elevated"}`}>
       <div className="flex items-center gap-2">
         <ConfidenceDot confidence={detection.confidence} />
         <SourceBadge source={detection.source} />
         <span className="text-sm font-semibold text-foreground">
           {detection.verse_ref}
         </span>
+        <span className="text-[0.625rem] tabular-nums text-muted-foreground">
+          {Math.round(detection.confidence * 100)}%
+        </span>
+        {isThisLive && (
+          <span className="ml-auto flex items-center gap-1 rounded-full bg-red-600 px-1.5 py-0.5 text-[0.5625rem] font-semibold uppercase tracking-wider text-white">
+            <RadioIcon className="size-2.5 animate-pulse" />
+            Live
+          </span>
+        )}
       </div>
 
       {detection.verse_text && (
@@ -65,9 +77,22 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
       )}
 
       <div className="mt-2 flex gap-1.5">
-        <Button size="xs" className="gap-1 rounded-full px-2.5 text-[10px]" onClick={() => { handleSendToScreen(); useBroadcastStore.getState().goLive() }}>
-          <PlayIcon className="size-2.5" />
-          Go Live
+        <Button
+          size="xs"
+          className={`gap-1 rounded-full px-2.5 text-[10px] ${isThisLive ? "bg-red-600 text-white hover:bg-red-700" : ""}`}
+          onClick={() => { if (!isThisLive) { handleSendToScreen(); useBroadcastStore.getState().goLive() } }}
+        >
+          {isThisLive ? (
+            <>
+              <RadioIcon className="size-2.5 animate-pulse" />
+              Live
+            </>
+          ) : (
+            <>
+              <PlayIcon className="size-2.5" />
+              Go Live
+            </>
+          )}
         </Button>
         <Button
           variant="outline"
