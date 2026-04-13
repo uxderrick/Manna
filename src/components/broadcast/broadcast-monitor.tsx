@@ -295,7 +295,7 @@ export function BroadcastMonitor() {
         <div className="flex flex-col gap-1.5">
           <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">Translation</span>
           <div className="flex flex-wrap gap-1.5">
-            {translations.slice(0, 7).map((t) => (
+            {translations.filter((t) => t.abbreviation !== "AMP").slice(0, 7).map((t) => (
               <button
                 key={t.id}
                 onClick={async () => {

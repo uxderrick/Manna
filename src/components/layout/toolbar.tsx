@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
+import { ask } from "@tauri-apps/plugin-dialog"
 import {
   useAudioStore,
   useTranscriptStore,
@@ -82,7 +83,7 @@ export function Toolbar() {
   }
 
   const handleStop = async () => {
-    const confirmed = window.confirm("Stop transcribing? This will end live audio capture.")
+    const confirmed = await ask("Stop transcribing? This will end live audio capture.", { title: "Stop Transcription", kind: "warning" })
     if (!confirmed) return
     try {
       await invoke("stop_transcription")
