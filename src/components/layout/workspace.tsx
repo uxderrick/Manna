@@ -6,7 +6,7 @@ import { createCommands } from "@/lib/command-registry"
 import { useMenuEvents } from "@/hooks/use-menu-events"
 import { useTheme } from "@/components/theme-provider"
 import { useSettingsDialogStore } from "@/lib/settings-dialog"
-import { useBroadcastStore, useTutorialStore } from "@/stores"
+import { useBroadcastStore, useTutorialStore, useTranscriptStore } from "@/stores"
 import { invoke } from "@tauri-apps/api/core"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { PanelTabs } from "./panel-tabs"
@@ -20,6 +20,7 @@ import { EndSessionDialog } from "@/components/session/end-session-dialog"
 import { ExportNotesDrawer } from "@/components/session/export-notes-drawer"
 import { DistributeSummaryDrawer } from "@/components/session/distribute-summary-drawer"
 import { AnnouncementDialog } from "@/components/broadcast/announcement-dialog"
+import { ThemeDesigner } from "@/components/broadcast/theme-designer"
 import { SessionsPanel } from "@/components/panels/sessions-panel"
 import { useAboutDialogStore } from "@/lib/about-dialog"
 import { useEndSessionDialogStore } from "@/lib/end-session-dialog"
@@ -89,6 +90,7 @@ export function Workspace() {
   const { theme, setTheme } = useTheme()
   const mainGroupRef = useGroupRef()
   const panelTabs = usePanelTabsStore()
+  const isTranscribing = useTranscriptStore((s) => s.isTranscribing)
 
   const commands = useMemo(
     () =>
@@ -191,6 +193,7 @@ export function Workspace() {
       <ExportNotesDrawer />
       <DistributeSummaryDrawer />
       <AnnouncementDialog />
+      <ThemeDesigner />
 
       {/* Toolbar */}
       <Toolbar />
@@ -250,6 +253,15 @@ export function Workspace() {
                   ▼
                 </span>
                 <span className="font-medium">Transcript</span>
+                {isTranscribing && (
+                  <span className="ml-auto flex items-center gap-1.5 text-[10px] font-medium text-red-500">
+                    <span className="relative flex size-2">
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-red-400 opacity-75" />
+                      <span className="relative inline-flex size-2 rounded-full bg-red-500" />
+                    </span>
+                    Listening
+                  </span>
+                )}
               </button>
 
               {/* Content — hidden when collapsed */}
@@ -281,7 +293,7 @@ export function Workspace() {
         <VerticalHandle />
 
         {/* Broadcast panel — Preview + On Screen (output) */}
-        <Panel id="broadcast" defaultSize="17%" minSize="12%" maxSize="30%">
+        <Panel id="broadcast" defaultSize="25%" minSize="15%" maxSize="40%">
           <div className="flex h-full flex-col overflow-hidden">
             <BroadcastMonitor />
           </div>
