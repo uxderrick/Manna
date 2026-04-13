@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { emitTo } from "@tauri-apps/api/event"
+import { invoke } from "@tauri-apps/api/core"
 import type { BroadcastTheme, VerseRenderData } from "@/types"
 import { BUILTIN_THEMES } from "@/lib/builtin-themes"
 
@@ -155,6 +156,14 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   goLive: () => {
     const { previewVerse } = get()
     if (previewVerse) {
+      // Ensure broadcast window exists, then open on external monitor
+      invoke("ensure_broadcast_window", { outputId: "main" }).catch(() => {})
+      invoke("list_monitors").then((monitors) => {
+        const monitorList = monitors as Array<{ name: string; width: number; height: number }>
+        // Use second monitor if available (index 1 = external), otherwise primary (index 0)
+        const targetIdx = monitorList.length > 1 ? 1 : 0
+        invoke("open_broadcast_window", { outputId: "main", monitorIndex: targetIdx }).catch(() => {})
+      }).catch(() => {})
       get().setLiveVerse(previewVerse)
       set({ previewVerse: null })
     }
@@ -162,6 +171,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   clearScreen: () => {
     get().setLiveVerse(null)
     set({ isLive: false })
+    invoke("close_broadcast_window", { outputId: "main" }).catch(() => {})
   },
 
   // Designer
