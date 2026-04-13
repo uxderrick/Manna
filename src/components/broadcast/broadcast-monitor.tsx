@@ -3,7 +3,6 @@ import { useBroadcastStore, useBibleStore, useSessionStore } from "@/stores"
 import { toVerseRenderData } from "@/hooks/use-broadcast"
 import { bibleActions } from "@/hooks/use-bible"
 import { invoke } from "@tauri-apps/api/core"
-import { Megaphone } from "lucide-react"
 import type { Verse } from "@/types"
 
 export function BroadcastMonitor() {
@@ -349,23 +348,6 @@ export function BroadcastMonitor() {
             ))}
           </div>
         </div>
-
-        {/* Announcement button */}
-        <button
-          onClick={() => {
-            const { sendAnnouncement } = useBroadcastStore.getState()
-            sendAnnouncement({
-              text: "",
-              position: "bottom",
-              style: "info",
-              duration: null,
-            })
-          }}
-          className="group flex items-center justify-center gap-2 rounded-lg bg-white/[0.04] py-2.5 text-[11px] font-medium text-white/40 ring-1 ring-white/[0.06] transition-all hover:bg-white/[0.07] hover:text-white/70 hover:ring-white/[0.1]"
-        >
-          <Megaphone className="size-3.5 transition-transform group-hover:scale-110" />
-          New Announcement
-        </button>
       </div>
     </div>
   )
