@@ -210,9 +210,8 @@ export function BroadcastMonitor() {
           </div>
         )}
 
-        {/* Theme selector — visual grid */}
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">Theme</span>
+        {/* Theme selector — accordion */}
+        <AccordionSection title="Theme" subtitle={activeTheme?.name}>
           <div className="grid grid-cols-3 gap-2">
             {themes.map((t) => {
               const isActive = t.id === activeThemeId
@@ -235,30 +234,21 @@ export function BroadcastMonitor() {
                   }`}
                   style={bgStyle}
                 >
-                  {/* Mini verse preview */}
                   <span
                     className="px-1 text-center text-[5px] leading-tight"
-                    style={{
-                      fontFamily: t.verseText.fontFamily,
-                      color: t.verseText.color,
-                    }}
+                    style={{ fontFamily: t.verseText.fontFamily, color: t.verseText.color }}
                   >
                     The Lord is my shepherd
                   </span>
                   <span
                     className="mt-0.5 text-[3px] uppercase tracking-widest"
-                    style={{
-                      fontFamily: t.reference.fontFamily,
-                      color: t.reference.color,
-                    }}
+                    style={{ fontFamily: t.reference.fontFamily, color: t.reference.color }}
                   >
                     Psalm 23:1
                   </span>
-                  {/* Theme name overlay */}
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1 pb-0.5 pt-2">
                     <span className="text-[5px] font-medium text-white/80">{t.name}</span>
                   </div>
-                  {/* Active check */}
                   {isActive && (
                     <div className="absolute right-0.5 top-0.5 flex size-3 items-center justify-center rounded-full bg-primary text-[6px] text-primary-foreground">✓</div>
                   )}
@@ -266,11 +256,10 @@ export function BroadcastMonitor() {
               )
             })}
           </div>
-        </div>
+        </AccordionSection>
 
-        {/* Translation toggle */}
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">Translation</span>
+        {/* Translation toggle — accordion */}
+        <AccordionSection title="Translation" subtitle={translations.find(t => t.id === activeTranslationId)?.abbreviation}>
           <div className="flex flex-wrap gap-1.5">
             {translations.filter((t) => t.abbreviation !== "AMP").slice(0, 7).map((t) => (
               <button
@@ -324,8 +313,38 @@ export function BroadcastMonitor() {
               </button>
             ))}
           </div>
-        </div>
+        </AccordionSection>
       </div>
+    </div>
+  )
+}
+
+function AccordionSection({ title, subtitle, children, defaultOpen = false }: {
+  title: string
+  subtitle?: string
+  children: React.ReactNode
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="overflow-hidden rounded-lg bg-white/[0.02] ring-1 ring-white/[0.06]">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between px-3 py-2 transition-colors hover:bg-white/[0.04]"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-white/40">{title}</span>
+          {subtitle && !open && (
+            <span className="text-[10px] font-medium text-white/60">{subtitle}</span>
+          )}
+        </div>
+        <span className={`text-[8px] text-white/25 transition-transform ${open ? "" : "-rotate-90"}`}>▼</span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3">
+          {children}
+        </div>
+      )}
     </div>
   )
 }
