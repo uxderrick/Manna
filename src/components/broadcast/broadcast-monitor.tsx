@@ -303,6 +303,39 @@ export function BroadcastMonitor() {
                   try {
                     await invoke("set_active_translation", { translationId: t.id })
                     useBibleStore.getState().setActiveTranslation(t.id)
+                    const abbr = t.abbreviation
+                    // Re-fetch live verse in new translation
+                    const currentLive = useBroadcastStore.getState().liveVerse
+                    if (currentLive) {
+                      const parsed = parseRef(currentLive.reference)
+                      if (parsed) {
+                        const books = useBibleStore.getState().books
+                        const book = books.find(b => b.name === parsed.bookName)
+                        if (book) {
+                          const v = await invoke<Verse | null>("get_verse", {
+                            translationId: t.id, bookNumber: book.book_number,
+                            chapter: parsed.chapter, verse: parsed.verse,
+                          })
+                          if (v) useBroadcastStore.getState().setLiveVerse(toVerseRenderData(v, abbr))
+                        }
+                      }
+                    }
+                    // Re-fetch preview verse in new translation
+                    const currentPreview = useBroadcastStore.getState().previewVerse
+                    if (currentPreview) {
+                      const parsed = parseRef(currentPreview.reference)
+                      if (parsed) {
+                        const books = useBibleStore.getState().books
+                        const book = books.find(b => b.name === parsed.bookName)
+                        if (book) {
+                          const v = await invoke<Verse | null>("get_verse", {
+                            translationId: t.id, bookNumber: book.book_number,
+                            chapter: parsed.chapter, verse: parsed.verse,
+                          })
+                          if (v) useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(v, abbr))
+                        }
+                      }
+                    }
                   } catch {}
                 }}
                 className={`rounded-full px-3 py-1.5 text-[10px] font-semibold transition-all ${
