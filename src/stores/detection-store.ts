@@ -74,7 +74,7 @@ export const useDetectionStore = create<DetectionState>((set) => ({
       if (state.detections.some((d) => d.verse_ref === detection.verse_ref)) {
         return state // existing has higher confidence, keep it
       }
-      return { detections: [detection, ...state.detections].slice(0, 50) }
+      return { detections: [detection, ...state.detections].sort((a, b) => b.confidence - a.confidence).slice(0, 50) }
     }),
   addDetections: (incoming) =>
     set((state) => {
@@ -92,7 +92,7 @@ export const useDetectionStore = create<DetectionState>((set) => ({
           map.set(d.verse_ref, d)
         }
       }
-      return { detections: [...map.values()].slice(0, 50) }
+      return { detections: [...map.values()].sort((a, b) => b.confidence - a.confidence).slice(0, 50) }
     }),
   setDetections: (detections) => set({ detections }),
   removeDetection: (verseRef) =>
