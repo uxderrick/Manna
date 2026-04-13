@@ -410,10 +410,14 @@ function drawVerseText(
   }
   fullText = applyTextTransform(fullText.trim(), resolveTextTransform(vt.textTransform))
 
-  const wrappedLines = wrapText(ctx, fullText, textRectWidth)
+  const useCenteredLines = (theme.verseText as Record<string, unknown>).lineBreakMode === "centered-lines"
+  const wrappedLines = useCenteredLines
+    ? breakIntoCenteredLines(fullText)
+    : wrapText(ctx, fullText, textRectWidth)
 
   let currentY = startY
-  const x = alignX(verseAlign === "justify" ? "left" : verseAlign, textRectX, textRectWidth)
+  const effectiveAlign = useCenteredLines ? "center" as const : (verseAlign === "justify" ? "left" as const : verseAlign)
+  const x = alignX(effectiveAlign, textRectX, textRectWidth)
 
   const drawStyledLine = (line: string, drawX: number, drawY: number) => {
     if (vt.shadow) {
@@ -558,7 +562,10 @@ function measureVerseHeight(
     fullText += `${segment.text} `
   }
   const transformed = applyTextTransform(fullText.trim(), resolveTextTransform(vt.textTransform))
-  const lines = wrapText(ctx, transformed, textRectWidth)
+  const useCenteredLines = (theme.verseText as Record<string, unknown>).lineBreakMode === "centered-lines"
+  const lines = useCenteredLines
+    ? breakIntoCenteredLines(transformed)
+    : wrapText(ctx, transformed, textRectWidth)
   let maxLineWidth = 0
   for (const [index, line] of lines.entries()) {
     const isJustifiedLine = verseAlign === "justify" && index < lines.length - 1 && /\s+/.test(line)
@@ -738,6 +745,71 @@ export function computeVerseLayoutMetrics(
   return { scaledTheme, textAreaRect, textRect, referenceRect, verseRect }
 }
 
+function breakIntoCenteredLines(text: string): string[] {
+  const parts = text.split(/([,;:.!?])\s*/g)
+  const lines: string[] = []
+  let current = ""
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]
+    if (/^[,;:.!?]$/.test(part)) {
+      current += part
+      lines.push(current.trim())
+      current = ""
+    } else {
+      const words = part.trim().split(/\s+/)
+      for (const word of words) {
+        if (current.split(/\s+/).filter(Boolean).length >= 6) {
+          lines.push(current.trim())
+          current = ""
+        }
+        current += (current ? " " : "") + word
+      }
+    }
+  }
+  if (current.trim()) lines.push(current.trim())
+  return lines.filter(Boolean)
+}
+
+function drawDivider(
+  ctx: CanvasRenderingContext2D,
+  divider: { style: string; color: string; width: number; opacity: number; dotCount: number; dotSize: number },
+  centerX: number,
+  y: number,
+  scale: number,
+): number {
+  if (divider.style === "none") return 0
+
+  ctx.save()
+  ctx.globalAlpha = divider.opacity
+
+  const scaledWidth = divider.width * scale
+
+  if (divider.style === "line") {
+    ctx.strokeStyle = divider.color
+    ctx.lineWidth = 1 * scale
+    ctx.beginPath()
+    ctx.moveTo(centerX - scaledWidth / 2, y)
+    ctx.lineTo(centerX + scaledWidth / 2, y)
+    ctx.stroke()
+  } else if (divider.style === "dots") {
+    ctx.fillStyle = divider.color
+    const dotSize = divider.dotSize * scale
+    const dotGap = 6 * scale
+    const totalWidth = divider.dotCount * dotSize + (divider.dotCount - 1) * dotGap
+    let dotX = centerX - totalWidth / 2
+    for (let i = 0; i < divider.dotCount; i++) {
+      ctx.beginPath()
+      ctx.arc(dotX + dotSize / 2, y, dotSize / 2, 0, Math.PI * 2)
+      ctx.fill()
+      dotX += dotSize + dotGap
+    }
+  }
+
+  ctx.restore()
+  return 20 * scale
+}
+
 export function renderVerse(
   ctx: CanvasRenderingContext2D,
   theme: BroadcastTheme,
@@ -796,8 +868,15 @@ function renderVerseImpl(
 
   const referenceRect = metrics.referenceRect
   const verseRect = metrics.verseRect
+  const scale = options?.scale ?? 1
+  const divider = (scaledTheme as Record<string, unknown>).divider as
+    | { style: string; color: string; width: number; opacity: number; dotCount: number; dotSize: number }
+    | undefined
+  const resolvedDivider = divider ?? { style: "none" as const, color: "#fff", width: 0, opacity: 0, dotCount: 0, dotSize: 0 }
+
+  let dividerOffset = 0
   if (verseRect) {
-    drawVerseText(
+    const verseH = drawVerseText(
       ctx,
       scaledTheme,
       verse,
@@ -805,6 +884,11 @@ function renderVerseImpl(
       metrics.textRect.width,
       verseRect.y,
     )
+    if (referenceRect && resolvedDivider.style !== "none") {
+      const dividerY = verseRect.y + verseH + 10 * scale
+      const centerX = metrics.textRect.x + metrics.textRect.width / 2
+      dividerOffset = drawDivider(ctx, resolvedDivider, centerX, dividerY, scale)
+    }
   }
   if (referenceRect) {
     drawReference(
@@ -813,7 +897,7 @@ function renderVerseImpl(
       verse.reference,
       metrics.textRect.x,
       metrics.textRect.width,
-      referenceRect.y,
+      referenceRect.y + dividerOffset,
     )
   }
 
