@@ -491,18 +491,27 @@ fn run_semantic_detection(app: &AppHandle, transcript: &str) {
         );
     }
 
+    // Only emit the top result, and only if confidence >= 50%
+    // This reduces noise from low-confidence semantic matches
     let results: Vec<super::detection::DetectionResult> = detections
         .iter()
+        .take(1)
+        .filter(|m| m.detection.confidence >= 0.50)
         .map(|m| super::detection::to_result(&app_state, m))
         .collect();
     for r in &results {
         log::info!(
-            "[DET-SEMANTIC] Found: {} ({:.0}% {}) auto_q={}",
-            r.verse_ref, r.confidence * 100.0, r.source, r.auto_queued
+            "[DET-SEMANTIC] Emitting: {} ({:.0}% {})",
+            r.verse_ref, r.confidence * 100.0, r.source
         );
     }
+    if results.is_empty() {
+        log::info!("[DET-SEMANTIC] Top result below 50% threshold, suppressed");
+    }
     drop(app_state);
-    let _ = app.emit("verse_detections", &results);
+    if !results.is_empty() {
+        let _ = app.emit("verse_detections", &results);
+    }
 }
 
 /// Check reading mode: if active, test transcript against expected verse.
