@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select"
 
 const FONT_FAMILIES = [
+  "Inter Variable",
   "Geist Variable",
   "Source Serif 4 Variable",
   "Georgia",
@@ -557,6 +558,129 @@ function VerseProperties() {
                 />
               </div>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Line Break Mode */}
+      <div className="flex flex-col gap-3 border-t pt-3">
+        <label className="text-xs font-semibold">Line Break Mode</label>
+        <Select
+          value={draftTheme.verseText.lineBreakMode ?? "flow"}
+          onValueChange={(v) => update("verseText.lineBreakMode", v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="flow">Flow (paragraph)</SelectItem>
+            <SelectItem value="centered-lines">Centered Lines (one phrase per line)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Divider */}
+      <div className="flex flex-col gap-3 border-t pt-3">
+        <label className="text-xs font-semibold">Divider</label>
+        <Select
+          value={draftTheme.divider?.style ?? "none"}
+          onValueChange={(v) => update("divider.style", v)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">None</SelectItem>
+            <SelectItem value="line">Line</SelectItem>
+            <SelectItem value="dots">Dots</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {draftTheme.divider?.style && draftTheme.divider.style !== "none" && (
+          <div className="flex flex-col gap-3">
+            {/* Divider Color */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Divider Color</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={draftTheme.divider.color}
+                  onChange={(e) => update("divider.color", e.target.value)}
+                  className="h-7 w-8 cursor-pointer rounded border border-input bg-transparent p-0.5"
+                />
+                <Input
+                  value={draftTheme.divider.color}
+                  onChange={(e) => {
+                    if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
+                      update("divider.color", e.target.value)
+                    }
+                  }}
+                  className="w-20 font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Divider Width */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground">Width</label>
+                <span className="text-xs tabular-nums text-muted-foreground">{draftTheme.divider.width}px</span>
+              </div>
+              <Slider
+                min={10}
+                max={200}
+                step={5}
+                value={[draftTheme.divider.width]}
+                onValueChange={([v]) => update("divider.width", v)}
+              />
+            </div>
+
+            {/* Divider Opacity */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground">Opacity</label>
+                <span className="text-xs tabular-nums text-muted-foreground">{Math.round(draftTheme.divider.opacity * 100)}%</span>
+              </div>
+              <Slider
+                min={0}
+                max={1}
+                step={0.05}
+                value={[draftTheme.divider.opacity]}
+                onValueChange={([v]) => update("divider.opacity", v)}
+              />
+            </div>
+
+            {/* Dot-specific controls */}
+            {draftTheme.divider.style === "dots" && (
+              <>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-muted-foreground">Dot Count</label>
+                    <span className="text-xs tabular-nums text-muted-foreground">{draftTheme.divider.dotCount}</span>
+                  </div>
+                  <Slider
+                    min={2}
+                    max={8}
+                    step={1}
+                    value={[draftTheme.divider.dotCount]}
+                    onValueChange={([v]) => update("divider.dotCount", v)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-muted-foreground">Dot Size</label>
+                    <span className="text-xs tabular-nums text-muted-foreground">{draftTheme.divider.dotSize}px</span>
+                  </div>
+                  <Slider
+                    min={2}
+                    max={10}
+                    step={1}
+                    value={[draftTheme.divider.dotSize]}
+                    onValueChange={([v]) => update("divider.dotSize", v)}
+                  />
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
