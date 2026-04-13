@@ -1,16 +1,10 @@
-import { useEffect, useRef, useState } from "react"
-import { PanelHeader } from "@/components/ui/panel-header"
-import { LevelMeter } from "@/components/ui/level-meter"
-import { Button } from "@/components/ui/button"
-import { ApiKeyPrompt } from "@/components/ui/api-key-prompt"
-import { MicIcon, MicOffIcon, AudioLinesIcon } from "lucide-react"
+import { useEffect, useRef } from "react"
+import { AudioLinesIcon } from "lucide-react"
 import { invoke } from "@tauri-apps/api/core"
 import {
   useTranscriptStore,
   useAudioStore,
-  useSettingsStore,
   useDetectionStore,
-  useQueueStore,
   useBibleStore,
 } from "@/stores"
 import { useTauriEvent } from "@/hooks/use-tauri-event"
@@ -22,11 +16,7 @@ export function TranscriptPanel() {
   const segments = useTranscriptStore((s) => s.segments)
   const currentPartial = useTranscriptStore((s) => s.currentPartial)
   const isTranscribing = useTranscriptStore((s) => s.isTranscribing)
-  const connectionStatus = useTranscriptStore((s) => s.connectionStatus)
-  const audioLevel = useAudioStore((s) => s.level)
-  const deepgramApiKey = useSettingsStore((s) => s.deepgramApiKey)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [showKeyPrompt, setShowKeyPrompt] = useState(false)
 
   // Listen for Tauri events
   useTauriEvent<{ rms: number; peak: number }>("audio_level", (payload) => {
@@ -109,33 +99,13 @@ export function TranscriptPanel() {
           verse: directHit.verse,
         })
     }
-
-    // Auto-queue disabled — user manually clicks "Add to Queue" or "Go Live"
-    // on each detection card. Keeps the queue intentional, not noisy.
-    /*
-    for (const d of detections) {
-      if (d.auto_queued) {
-        useQueueStore.getState().addItem({
-          id: crypto.randomUUID(),
-          verse: {
-            id: 0,
-            translation_id: 1,
-            book_number: d.book_number,
-            book_name: d.book_name,
-            book_abbreviation: "",
-            chapter: d.chapter,
-            verse: d.verse,
-            text: d.verse_text,
-          },
-          reference: d.verse_ref,
-          confidence: d.confidence,
-          source: d.source === "direct" ? "ai-direct" : "ai-semantic",
-          added_at: Date.now(),
-        })
-      }
-    }
-    */
   })
+
+  // On mount (including hot reload), reset backend transcription state
+  // so stale stt_active flags don't block "Start transcribing"
+  useEffect(() => {
+    invoke("stop_transcription").catch(() => {})
+  }, [])
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -144,73 +114,11 @@ export function TranscriptPanel() {
     }
   }, [segments, currentPartial])
 
-  const handleStart = async () => {
-    try {
-      useTranscriptStore.getState().setConnectionStatus("connecting")
-      const { useSettingsStore } = await import("@/stores")
-      const settings = useSettingsStore.getState()
-      const params = {
-        apiKey: settings.sttProvider === "deepgram" ? (deepgramApiKey ?? "") : "",
-        deviceId: settings.audioDeviceId,
-        gain: settings.gain,
-        provider: settings.sttProvider,
-      }
-      console.log("[AUDIO] Starting transcription:", params)
-      await invoke("start_transcription", params)
-      console.log("[AUDIO] Transcription started successfully")
-      useTranscriptStore.getState().setTranscribing(true)
-    } catch (e) {
-      const errorMsg = String(e)
-      console.error("[AUDIO] Failed to start transcription:", errorMsg)
-      useTranscriptStore.getState().setConnectionStatus("error")
-
-      if (errorMsg.includes("No Deepgram API key")) {
-        setShowKeyPrompt(true)
-      } else {
-        alert(errorMsg)
-      }
-    }
-  }
-
-  const handleStop = async () => {
-    try {
-      await invoke("stop_transcription")
-      useTranscriptStore.getState().setTranscribing(false)
-      useTranscriptStore.getState().setPartial("")
-      useTranscriptStore.getState().setConnectionStatus("disconnected")
-    } catch (e) {
-      console.error("Failed to stop transcription:", e)
-    }
-  }
-
   return (
     <div
       data-slot="transcript-panel"
       className="flex h-full min-w-0 flex-col overflow-hidden bg-card"
     >
-      <PanelHeader
-        title="Live transcript"
-        icon={<MicIcon className="size-3" />}
-      >
-        <div className="flex items-center gap-2">
-          {isTranscribing && (
-            <span
-              className={`size-2 rounded-full ${
-                connectionStatus === "connected"
-                  ? "bg-emerald-500"
-                  : connectionStatus === "connecting"
-                    ? "animate-pulse bg-amber-500"
-                    : connectionStatus === "error"
-                      ? "bg-red-500"
-                      : "bg-muted-foreground/40"
-              }`}
-              title={connectionStatus}
-            />
-          )}
-          <LevelMeter level={audioLevel.rms} bars={5} />
-        </div>
-      </PanelHeader>
-
       <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto">
         <div className="flex flex-col gap-2 p-3">
           {/* Faded top gradient */}
@@ -224,7 +132,7 @@ export function TranscriptPanel() {
               <div className="flex flex-col gap-1">
                 <p className="text-xs font-medium text-muted-foreground">No transcript yet</p>
                 <p className="text-[0.625rem] leading-relaxed text-muted-foreground/60">
-                  Click &ldquo;Start transcribing&rdquo; below to begin capturing the sermon.
+                  Click &ldquo;Start transcribing&rdquo; in the toolbar to begin capturing the sermon.
                 </p>
               </div>
             </div>
@@ -260,33 +168,6 @@ export function TranscriptPanel() {
           )}
         </div>
       </div>
-
-      {/* Bottom control */}
-      <div className="flex gap-2 border-t border-border px-3 py-2">
-        {isTranscribing ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-destructive hover:text-destructive"
-            onClick={handleStop}
-          >
-            <MicOffIcon className="size-3" />
-            Stop transcribing
-          </Button>
-        ) : (
-          <Button variant="ghost" size="sm" onClick={handleStart}>
-              <MicIcon className="size-3" />
-            Start transcribing
-          </Button>
-        )}
-      </div>
-
-      <ApiKeyPrompt
-        open={showKeyPrompt}
-        onOpenChange={setShowKeyPrompt}
-        service="Deepgram"
-        description="Live transcription needs a Deepgram API key. Add it in settings so the app can start listening."
-      />
     </div>
   )
 }

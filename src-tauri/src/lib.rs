@@ -6,6 +6,11 @@ mod state;
 use rhema_notes::SessionDb;
 use std::sync::Mutex;
 
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 #[expect(clippy::too_many_lines, reason = "app setup is inherently complex")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -39,6 +44,7 @@ pub fn run() {
                 .expect("Failed to open manna.db")
         }))
         .invoke_handler(tauri::generate_handler![
+            quit_app,
             commands::bible::list_translations,
             commands::bible::list_books,
             commands::bible::get_chapter,
@@ -209,8 +215,13 @@ pub fn run() {
             Ok(())
         })
         .on_menu_event(|app, event| {
-            use tauri::Emitter;
             let id = event.id().0.clone();
+            // Handle quit natively — closing via JS only hides the window on macOS
+            if id == "manna:quit" {
+                app.exit(0);
+                return;
+            }
+            use tauri::Emitter;
             let _ = app.emit("menu-event", id);
         })
         .run(tauri::generate_context!())

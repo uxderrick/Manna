@@ -110,7 +110,7 @@ export function BroadcastMonitor() {
   const hasVerse = previewVerse || liveVerse
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto bg-[#0d0d0c] p-3">
+    <div className="flex h-full flex-col gap-2 overflow-y-auto bg-[#0d0d0c] p-2">
       {/* On Screen — top */}
       <div>
         <div className="mb-1 flex items-center justify-between">
@@ -134,19 +134,19 @@ export function BroadcastMonitor() {
           )}
         </div>
         <div
-          className={`flex aspect-video items-center justify-center overflow-hidden rounded-md ${isLive ? "border-2 border-destructive/30 bg-gradient-to-b from-[#1a0808] to-[#120a0a]" : "border border-white/8 bg-gradient-to-b from-[#0a0a0a] to-[#12100e]"}`}
+          className={`flex aspect-video items-center justify-center overflow-hidden rounded ${isLive ? "border-2 border-destructive/30 bg-linear-to-b from-[#1a0808] to-[#120a0a]" : "border border-white/8 bg-linear-to-b from-[#0a0a0a] to-[#12100e]"}`}
         >
           {liveVerse ? (
-            <div className="flex flex-col items-center px-4 text-center">
-              <p className="font-serif text-[10px] leading-relaxed text-white/85">
+            <div className="flex flex-col items-center px-3 text-center">
+              <p className="font-serif text-[9px] leading-relaxed text-white/85">
                 {liveText}
               </p>
-              <p className="mt-1.5 text-[7px] uppercase tracking-[2px] text-white/40">
+              <p className="mt-1 text-[6px] uppercase tracking-[2px] text-white/40">
                 {liveVerse.reference}
               </p>
             </div>
           ) : (
-            <p className="text-[10px] text-white/30">No verse on screen</p>
+            <p className="text-[9px] text-white/30">No verse on screen</p>
           )}
         </div>
       </div>
@@ -156,14 +156,14 @@ export function BroadcastMonitor() {
         <button
           onClick={() => stepVerse(-1)}
           disabled={!hasVerse}
-          className="flex-1 rounded border border-white/8 bg-white/4 py-2 text-[10px] font-medium text-white/40 transition-colors hover:bg-white/8 disabled:opacity-25"
+          className="flex-1 rounded border border-white/8 bg-white/4 py-1 text-[9px] font-medium text-white/40 transition-colors hover:bg-white/8 disabled:opacity-25"
         >
           ◀ Prev
         </button>
         <button
           onClick={() => stepVerse(1)}
           disabled={!hasVerse}
-          className="flex-1 rounded border border-white/8 bg-white/4 py-2 text-[10px] font-medium text-white/40 transition-colors hover:bg-white/8 disabled:opacity-25"
+          className="flex-1 rounded border border-white/8 bg-white/4 py-1 text-[9px] font-medium text-white/40 transition-colors hover:bg-white/8 disabled:opacity-25"
         >
           Next ▶
         </button>
@@ -184,18 +184,18 @@ export function BroadcastMonitor() {
             </button>
           )}
         </div>
-        <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md border border-blue-500/15 bg-gradient-to-b from-[#0a0c12] to-[#0e1220]">
+        <div className="flex aspect-video items-center justify-center overflow-hidden rounded border border-blue-500/15 bg-linear-to-b from-[#0a0c12] to-[#0e1220]">
           {previewVerse ? (
-            <div className="flex flex-col items-center px-4 text-center">
-              <p className="font-serif text-[10px] leading-relaxed text-white/80">
+            <div className="flex flex-col items-center px-3 text-center">
+              <p className="font-serif text-[9px] leading-relaxed text-white/80">
                 {previewText}
               </p>
-              <p className="mt-1.5 text-[7px] uppercase tracking-[2px] text-blue-300/40">
+              <p className="mt-1 text-[6px] uppercase tracking-[2px] text-blue-300/40">
                 {previewVerse.reference}
               </p>
             </div>
           ) : (
-            <p className="px-4 text-center text-[10px] text-white/25">
+            <p className="px-3 text-center text-[9px] text-white/25">
               Select a verse to preview
             </p>
           )}
@@ -203,7 +203,7 @@ export function BroadcastMonitor() {
       </div>
 
       {/* ── Quick Controls ─────────────────────────── */}
-      <div className="flex flex-col gap-3 border-t border-white/6 pt-3">
+      <div className="flex flex-col gap-2 border-t border-white/6 pt-2">
 
         {/* Session info card */}
         {activeSession && (

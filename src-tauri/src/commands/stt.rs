@@ -435,22 +435,27 @@ fn run_direct_detection(app: &AppHandle, transcript: &str) -> bool {
     let results: Vec<super::detection::DetectionResult> = merged
         .iter()
         .map(|m| super::detection::to_result(&app_state, m))
+        // Filter out detections where the verse doesn't exist in the DB
+        // (e.g., "Isaiah 4:13" — Isaiah 4 only has 6 verses)
+        .filter(|r| !r.verse_text.is_empty())
         .collect();
 
-    // Update sermon context with direct detection results
+    // Update sermon context only for validated detections
     for m in &merged {
-        app_state.sermon_context.update(
-            &m.detection.verse_ref,
-            m.detection.confidence,
-            "direct",
-        );
+        let vr = &m.detection.verse_ref;
+        let ref_str = format!("{} {}:{}", vr.book_name, vr.chapter, vr.verse_start);
+        if results.iter().any(|r| r.verse_ref == ref_str) {
+            app_state.sermon_context.update(vr, m.detection.confidence, "direct");
+        }
     }
 
     for r in &results {
         log::info!("[DET-DIRECT] Found: {} ({:.0}%)", r.verse_ref, r.confidence * 100.0);
     }
     drop(app_state);
-    let _ = app.emit("verse_detections", &results);
+    if !results.is_empty() {
+        let _ = app.emit("verse_detections", &results);
+    }
     has_high_confidence
 }
 
@@ -829,11 +834,8 @@ pub fn stop_transcription(
 ) -> Result<(), String> {
     let app_state = state.lock().map_err(|e| e.to_string())?;
 
-    if !app_state.stt_active.load(Ordering::Relaxed) {
-        return Err("Transcription is not running".into());
-    }
-
-    // Setting these flags causes the background threads/tasks to exit.
+    // Always reset flags — idempotent stop handles cases where the frontend
+    // reloaded (e.g., hot reload during dev) while transcription was running.
     app_state.stt_active.store(false, Ordering::SeqCst);
     app_state.audio_active.store(false, Ordering::SeqCst);
 

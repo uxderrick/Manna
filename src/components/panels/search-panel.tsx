@@ -650,14 +650,30 @@ export function SearchPanel() {
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="flex flex-col gap-0 p-2">
             {contextQuery.length < 5 && (
-              <p className="p-4 text-center text-xs text-muted-foreground">
-                Search by meaning — type a phrase, paraphrase, or topic...
-              </p>
+              <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+                <div className="flex size-10 items-center justify-center rounded-full bg-muted/50">
+                  <SparklesIcon className="size-5 text-muted-foreground/60" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs font-medium text-muted-foreground">Search by meaning</p>
+                  <p className="text-[0.625rem] leading-relaxed text-muted-foreground/60">
+                    Type a phrase, paraphrase, or topic to find matching verses across all translations.
+                  </p>
+                </div>
+              </div>
             )}
             {contextQuery.length >= 5 && semanticResults.length === 0 && (
-              <p className="p-4 text-center text-xs text-muted-foreground">
-                No results found
-              </p>
+              <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+                <div className="flex size-10 items-center justify-center rounded-full bg-muted/50">
+                  <SearchIcon className="size-5 text-muted-foreground/60" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <p className="text-xs font-medium text-muted-foreground">No results found</p>
+                  <p className="text-[0.625rem] leading-relaxed text-muted-foreground/60">
+                    Try a different phrase or keyword.
+                  </p>
+                </div>
+              </div>
             )}
             {semanticResults.map((result, idx) => {
               const resultVerse = {

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import { PanelHeader } from "@/components/ui/panel-header"
 import { ConfidenceDot } from "@/components/ui/confidence-dot"
 import { Button } from "@/components/ui/button"
@@ -6,6 +7,7 @@ import { useDetection, detectionActions } from "@/hooks/use-detection"
 import { bibleActions } from "@/hooks/use-bible"
 import { useQueueStore, useBroadcastStore, useBibleStore } from "@/stores"
 import { toVerseRenderData } from "@/hooks/use-broadcast"
+import { invoke } from "@tauri-apps/api/core"
 import type { DetectionResult } from "@/types"
 
 const SOURCE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -28,6 +30,30 @@ function SourceBadge({ source }: { source: string }) {
 function DetectionCard({ detection }: { detection: DetectionResult }) {
   const liveVerse = useBroadcastStore((s) => s.liveVerse)
   const isThisLive = liveVerse?.reference?.startsWith(detection.verse_ref) ?? false
+  const [verseText, setVerseText] = useState(detection.verse_text)
+  const [verseInvalid, setVerseInvalid] = useState(false)
+
+  // Fetch verse text from DB if it arrived empty (lock contention on Rust side)
+  // If the verse doesn't exist in the DB, mark it as invalid to hide the card
+  useEffect(() => {
+    if (detection.verse_text || verseText) return
+    if (detection.book_number <= 0) return
+    const translationId = useBibleStore.getState().activeTranslationId
+    invoke<{ text: string } | null>("get_verse", {
+      translationId,
+      bookNumber: detection.book_number,
+      chapter: detection.chapter,
+      verse: detection.verse,
+    }).then((v) => {
+      if (v?.text) {
+        setVerseText(v.text)
+      } else {
+        setVerseInvalid(true)
+      }
+    }).catch(() => setVerseInvalid(true))
+  }, [detection])
+
+  if (verseInvalid) return null
 
   const handleSendToScreen = () => {
     const verse = {
@@ -38,7 +64,7 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
       book_abbreviation: "",
       chapter: detection.chapter,
       verse: detection.verse,
-      text: detection.verse_text,
+      text: verseText,
     }
     bibleActions.selectVerse(verse)
     if (detection.book_number > 0) {
@@ -70,9 +96,9 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
         )}
       </div>
 
-      {detection.verse_text && (
+      {verseText && (
         <p className="mt-1 line-clamp-2 font-serif text-sm leading-relaxed text-muted-foreground">
-          {detection.verse_text}
+          {verseText}
         </p>
       )}
 
@@ -124,7 +150,7 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
               book_abbreviation: "",
               chapter: detection.chapter,
               verse: detection.verse,
-              text: detection.verse_text,
+              text: verseText,
             }
             const wasEmpty = useQueueStore.getState().items.length === 0
             useQueueStore.getState().addItem({

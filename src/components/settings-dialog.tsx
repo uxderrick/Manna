@@ -42,7 +42,7 @@ import {
   GraduationCapIcon,
   BrainCircuitIcon,
 } from "lucide-react"
-import { useSettingsStore } from "@/stores"
+import { useSettingsStore, persistDeepgramApiKey } from "@/stores"
 import { useTutorialStore } from "@/stores/tutorial-store"
 import { useSettingsDialogStore } from "@/lib/settings-dialog"
 import type { DeviceInfo } from "@/types/audio"
@@ -201,7 +201,7 @@ function SpeechSection() {
   const [saved, setSaved] = useState(false)
 
   const handleSaveKey = () => {
-    setDeepgramApiKey(keyValue || null)
+    persistDeepgramApiKey(keyValue || null)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }

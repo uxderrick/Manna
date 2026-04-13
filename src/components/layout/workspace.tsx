@@ -7,7 +7,7 @@ import { useMenuEvents } from "@/hooks/use-menu-events"
 import { useTheme } from "@/components/theme-provider"
 import { useSettingsDialogStore } from "@/lib/settings-dialog"
 import { useBroadcastStore, useTutorialStore } from "@/stores"
-import { getCurrentWindow } from "@tauri-apps/api/window"
+import { invoke } from "@tauri-apps/api/core"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { PanelTabs } from "./panel-tabs"
 import { TranscriptPanel } from "@/components/panels/transcript-panel"
@@ -78,7 +78,7 @@ const TAB_PANEL_MAP: Record<string, PanelId> = {
   planner: "right",
 }
 
-const DEFAULT_LAYOUT = { left: 20, center: 38, broadcast: 17, right: 25 }
+const DEFAULT_LAYOUT = { left: 25, center: 25, right: 25, broadcast: 25 }
 
 /* -------------------------------------------------------------------------- */
 /*  Workspace                                                                 */
@@ -149,7 +149,7 @@ export function Workspace() {
           useSettingsDialogStore.getState().openSettings()
         },
         quitApp: () => {
-          getCurrentWindow().close()
+          invoke("quit_app")
         },
         openTutorial: () => {
           useTutorialStore.getState().startTutorial()
@@ -202,7 +202,7 @@ export function Workspace() {
         groupRef={mainGroupRef}
       >
         {/* Left panel */}
-        <Panel id="left" defaultSize="22%" minSize="15%" maxSize="35%">
+        <Panel id="left" defaultSize="25%" minSize="15%" maxSize="40%">
           <PanelTabs
             className="h-full"
             activeTab={panelTabs.tabs.left}
@@ -218,14 +218,11 @@ export function Workspace() {
 
         <VerticalHandle />
 
-        {/* Center area — vertical split */}
-        <Panel id="center" defaultSize="38%" minSize="20%">
-          <Group
-            orientation="vertical"
-            className="h-full"
-          >
-            {/* Center top: detections / preview / analytics */}
-            <Panel id="content" defaultSize="80%" minSize="30%">
+        {/* Center area — detections + transcript accordion */}
+        <Panel id="center" defaultSize="25%" minSize="15%">
+          <div className="flex h-full flex-col overflow-hidden">
+            {/* Detections / analytics — takes remaining space */}
+            <div className="min-h-0 flex-1 overflow-hidden">
               <PanelTabs
                 className="h-full"
                 activeTab={panelTabs.tabs.center}
@@ -235,58 +232,40 @@ export function Workspace() {
                   { id: "analytics", label: "Analytics", content: <Placeholder label="Analytics" /> },
                 ]}
               />
-            </Panel>
+            </div>
 
-            <HorizontalHandle />
-
-            {/* Center bottom: transcript */}
-            <Panel
-              id="transcript"
-              defaultSize="20%"
-              minSize="5%"
-              maxSize="50%"
-              collapsible
-              collapsedSize="0%"
-            >
-              <div className="flex h-full flex-col overflow-hidden border-t border-border">
-                {/* Transcript header */}
-                <button
-                  className="flex h-7 shrink-0 items-center gap-1.5 bg-muted/30 px-3 text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-                  onClick={() => setTranscriptCollapsed((prev) => !prev)}
+            {/* Transcript accordion */}
+            <div className={`flex shrink-0 flex-col border-t border-border ${transcriptCollapsed ? "" : "h-[40%] min-h-[120px]"}`}>
+              {/* Header — always visible */}
+              <button
+                className="flex h-7 shrink-0 items-center gap-1.5 bg-muted/30 px-3 text-xs text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                onClick={() => setTranscriptCollapsed((prev) => !prev)}
+              >
+                <span
+                  className="text-[10px] transition-transform"
+                  style={{
+                    transform: transcriptCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+                  }}
                 >
-                  <span
-                    className="text-[10px] transition-transform"
-                    style={{
-                      transform: transcriptCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
-                    }}
-                  >
-                    ▼
-                  </span>
-                  <span className="font-medium">Transcript</span>
-                </button>
+                  ▼
+                </span>
+                <span className="font-medium">Transcript</span>
+              </button>
 
-                {/* Transcript content */}
+              {/* Content — hidden when collapsed */}
+              {!transcriptCollapsed && (
                 <div className="min-h-0 flex-1 overflow-auto">
                   <TranscriptPanel />
                 </div>
-              </div>
-            </Panel>
-          </Group>
-        </Panel>
-
-        <VerticalHandle />
-
-        {/* Broadcast panel — Preview + On Screen */}
-        <Panel id="broadcast" defaultSize="17%" minSize="12%" maxSize="30%">
-          <div className="flex h-full flex-col overflow-hidden">
-            <BroadcastMonitor />
+              )}
+            </div>
           </div>
         </Panel>
 
         <VerticalHandle />
 
-        {/* Right panel — queue */}
-        <Panel id="right" defaultSize="25%" minSize="12%" maxSize="35%">
+        {/* Right panel — queue / staging */}
+        <Panel id="right" defaultSize="25%" minSize="15%" maxSize="40%">
           <PanelTabs
             className="h-full"
             activeTab={panelTabs.tabs.right}
@@ -297,6 +276,15 @@ export function Workspace() {
               { id: "planner", label: "Planner", content: <Placeholder label="Planner" /> },
             ]}
           />
+        </Panel>
+
+        <VerticalHandle />
+
+        {/* Broadcast panel — Preview + On Screen (output) */}
+        <Panel id="broadcast" defaultSize="17%" minSize="12%" maxSize="30%">
+          <div className="flex h-full flex-col overflow-hidden">
+            <BroadcastMonitor />
+          </div>
         </Panel>
       </Group>
     </div>

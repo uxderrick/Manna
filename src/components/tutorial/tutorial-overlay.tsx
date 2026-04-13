@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { Joyride, STATUS, type EventData } from "react-joyride"
 import { toast } from "sonner"
-import { useSettingsStore } from "@/stores/settings-store"
+import { useSettingsStore, hydrateSettings } from "@/stores/settings-store"
 import {
   useTutorialStore,
   hydrateOnboardingState,
@@ -38,7 +38,7 @@ export function TutorialOverlay() {
   )
 
   useEffect(() => {
-    hydrateOnboardingState().then(() => {
+    Promise.all([hydrateOnboardingState(), hydrateSettings()]).then(() => {
       setIsHydrated(true)
     })
   }, [])
