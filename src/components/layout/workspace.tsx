@@ -14,6 +14,7 @@ import { TranscriptPanel } from "@/components/panels/transcript-panel"
 import { SearchPanel } from "@/components/panels/search-panel"
 import { DetectionsPanel } from "@/components/panels/detections-panel"
 import { QueuePanel } from "@/components/panels/queue-panel"
+import { CrossRefPanel } from "@/components/panels/crossref-panel"
 import { BroadcastMonitor } from "@/components/broadcast/broadcast-monitor"
 import { AboutDialog } from "@/components/about-dialog"
 import { EndSessionDialog } from "@/components/session/end-session-dialog"
@@ -284,7 +285,7 @@ export function Workspace() {
             onTabChange={(id) => panelTabs.setTab("right", id)}
             tabs={[
               { id: "queue", label: "Queue", content: <QueuePanel /> },
-              { id: "cross-refs", label: "Cross-refs", content: <Placeholder label="Cross-refs" /> },
+              { id: "cross-refs", label: "Cross-refs", content: <CrossRefPanel /> },
               { id: "planner", label: "Planner", content: <Placeholder label="Planner" /> },
             ]}
           />
