@@ -100,14 +100,24 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   loadThemes: () => {
     set({ themes: [...BUILTIN_THEMES] })
   },
-  saveTheme: (theme) =>
+  saveTheme: (theme) => {
     set((s) => ({
       themes: s.themes.some((t) => t.id === theme.id)
         ? s.themes.map((t) => (t.id === theme.id ? theme : t))
         : [...s.themes, theme],
-    })),
-  deleteTheme: (id) =>
-    set((s) => ({ themes: s.themes.filter((t) => t.id !== id || t.builtin) })),
+    }))
+    if (!theme.builtin) {
+      invoke("save_custom_theme", {
+        id: theme.id,
+        name: theme.name,
+        themeJson: JSON.stringify(theme),
+      }).catch(() => {})
+    }
+  },
+  deleteTheme: (id) => {
+    set((s) => ({ themes: s.themes.filter((t) => t.id !== id || t.builtin) }))
+    invoke("delete_custom_theme", { id }).catch(() => {})
+  },
   duplicateTheme: (id) => {
     const s = get()
     const source = s.themes.find((t) => t.id === id)
@@ -247,3 +257,23 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   },
   dismissAnnouncement: () => set({ announcement: null }),
 }))
+
+export async function hydrateCustomThemes(): Promise<void> {
+  try {
+    const rows = await invoke<Array<[string, string, string]>>("list_custom_themes")
+    const customThemes: BroadcastTheme[] = rows.map(([_id, _name, json]) => {
+      return JSON.parse(json) as BroadcastTheme
+    })
+    if (customThemes.length > 0) {
+      const { themes } = useBroadcastStore.getState()
+      const builtinIds = new Set(themes.filter(t => t.builtin).map(t => t.id))
+      const merged = [
+        ...themes.filter(t => t.builtin),
+        ...customThemes.filter(t => !builtinIds.has(t.id)),
+      ]
+      useBroadcastStore.setState({ themes: merged })
+    }
+  } catch {
+    console.warn("[themes] Failed to load custom themes")
+  }
+}
