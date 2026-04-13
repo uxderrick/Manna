@@ -491,11 +491,11 @@ fn run_semantic_detection(app: &AppHandle, transcript: &str) {
         );
     }
 
-    // Only emit the top result, and only if confidence >= 50%
-    // This reduces noise from low-confidence semantic matches
+    // Only emit top 3 results above 50% confidence
+    // This reduces noise while still showing alternatives
     let results: Vec<super::detection::DetectionResult> = detections
         .iter()
-        .take(1)
+        .take(3)
         .filter(|m| m.detection.confidence >= 0.50)
         .map(|m| super::detection::to_result(&app_state, m))
         .collect();
