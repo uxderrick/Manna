@@ -78,7 +78,7 @@ const TAB_PANEL_MAP: Record<string, PanelId> = {
   planner: "right",
 }
 
-const DEFAULT_LAYOUT = { left: 22, center: 50, right: 28 }
+const DEFAULT_LAYOUT = { left: 20, center: 38, broadcast: 17, right: 25 }
 
 /* -------------------------------------------------------------------------- */
 /*  Workspace                                                                 */
@@ -276,25 +276,27 @@ export function Workspace() {
 
         <VerticalHandle />
 
-        {/* Right panel — queue + broadcast monitor */}
-        <Panel id="right" defaultSize="28%" minSize="15%" maxSize="40%">
+        {/* Broadcast panel — Preview + On Screen */}
+        <Panel id="broadcast" defaultSize="17%" minSize="12%" maxSize="30%">
           <div className="flex h-full flex-col overflow-hidden">
-            {/* Queue tabs — top section */}
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <PanelTabs
-                className="h-full"
-                activeTab={panelTabs.tabs.right}
-                onTabChange={(id) => panelTabs.setTab("right", id)}
-                tabs={[
-                  { id: "queue", label: "Queue", content: <QueuePanel /> },
-                  { id: "cross-refs", label: "Cross-refs", content: <Placeholder label="Cross-refs" /> },
-                  { id: "planner", label: "Planner", content: <Placeholder label="Planner" /> },
-                ]}
-              />
-            </div>
-            {/* Broadcast monitor — always visible */}
             <BroadcastMonitor />
           </div>
+        </Panel>
+
+        <VerticalHandle />
+
+        {/* Right panel — queue */}
+        <Panel id="right" defaultSize="25%" minSize="12%" maxSize="35%">
+          <PanelTabs
+            className="h-full"
+            activeTab={panelTabs.tabs.right}
+            onTabChange={(id) => panelTabs.setTab("right", id)}
+            tabs={[
+              { id: "queue", label: "Queue", content: <QueuePanel /> },
+              { id: "cross-refs", label: "Cross-refs", content: <Placeholder label="Cross-refs" /> },
+              { id: "planner", label: "Planner", content: <Placeholder label="Planner" /> },
+            ]}
+          />
         </Panel>
       </Group>
     </div>

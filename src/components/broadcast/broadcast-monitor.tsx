@@ -87,7 +87,7 @@ export function BroadcastMonitor() {
   const hasVerse = previewVerse || liveVerse
 
   return (
-    <div className="flex flex-col gap-2 border-t border-border bg-[#0d0d0c] p-2">
+    <div className="flex h-full flex-col gap-3 bg-[#0d0d0c] p-3">
       {/* Preview */}
       <div>
         <div className="mb-1 flex items-center justify-between">
