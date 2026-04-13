@@ -4,6 +4,7 @@ import { toVerseRenderData } from "@/hooks/use-broadcast"
 import { bibleActions } from "@/hooks/use-bible"
 import { invoke } from "@tauri-apps/api/core"
 import type { Verse } from "@/types"
+import { CanvasVerse } from "@/components/ui/canvas-verse"
 
 export function BroadcastMonitor() {
   const previewVerse = useBroadcastStore((s) => s.previewVerse)
@@ -18,13 +19,7 @@ export function BroadcastMonitor() {
   const activeTranslationId = useBibleStore((s) => s.activeTranslationId)
   const activeSession = useSessionStore((s) => s.activeSession)
 
-  const previewText = previewVerse
-    ? previewVerse.segments.map((seg) => seg.text).join(" ")
-    : null
-
-  const liveText = liveVerse
-    ? liveVerse.segments.map((seg) => seg.text).join(" ")
-    : null
+  const activeTheme = themes.find((t) => t.id === activeThemeId) ?? themes[0]
 
   // Session timer
   const [elapsed, setElapsed] = useState("00:00:00")
@@ -133,21 +128,12 @@ export function BroadcastMonitor() {
             </button>
           )}
         </div>
-        <div
-          className={`flex aspect-video items-center justify-center overflow-hidden rounded ${isLive ? "border-2 border-destructive/30 bg-linear-to-b from-[#1a0808] to-[#120a0a]" : "border border-white/8 bg-linear-to-b from-[#0a0a0a] to-[#12100e]"}`}
-        >
-          {liveVerse ? (
-            <div className="flex flex-col items-center px-3 text-center">
-              <p className="font-serif text-[9px] leading-relaxed text-white/85">
-                {liveText}
-              </p>
-              <p className="mt-1 text-[6px] uppercase tracking-[2px] text-white/40">
-                {liveVerse.reference}
-              </p>
-            </div>
-          ) : (
-            <p className="text-[9px] text-white/30">No verse on screen</p>
-          )}
+        <div className={`overflow-hidden rounded ${isLive ? "ring-2 ring-destructive/40" : "ring-1 ring-white/[0.08]"}`}>
+          <CanvasVerse
+            theme={activeTheme}
+            verse={liveVerse}
+            className="w-full"
+          />
         </div>
       </div>
 
@@ -184,21 +170,12 @@ export function BroadcastMonitor() {
             </button>
           )}
         </div>
-        <div className="flex aspect-video items-center justify-center overflow-hidden rounded border border-blue-500/15 bg-linear-to-b from-[#0a0c12] to-[#0e1220]">
-          {previewVerse ? (
-            <div className="flex flex-col items-center px-3 text-center">
-              <p className="font-serif text-[9px] leading-relaxed text-white/80">
-                {previewText}
-              </p>
-              <p className="mt-1 text-[6px] uppercase tracking-[2px] text-blue-300/40">
-                {previewVerse.reference}
-              </p>
-            </div>
-          ) : (
-            <p className="px-3 text-center text-[9px] text-white/25">
-              Select a verse to preview
-            </p>
-          )}
+        <div className="overflow-hidden rounded ring-1 ring-blue-500/15">
+          <CanvasVerse
+            theme={activeTheme}
+            verse={previewVerse}
+            className="w-full"
+          />
         </div>
       </div>
 
