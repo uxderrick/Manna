@@ -3,7 +3,7 @@ import { PanelHeader } from "@/components/ui/panel-header"
 import { LevelMeter } from "@/components/ui/level-meter"
 import { Button } from "@/components/ui/button"
 import { ApiKeyPrompt } from "@/components/ui/api-key-prompt"
-import { MicIcon, MicOffIcon } from "lucide-react"
+import { MicIcon, MicOffIcon, AudioLinesIcon } from "lucide-react"
 import { invoke } from "@tauri-apps/api/core"
 import {
   useTranscriptStore,
@@ -39,9 +39,13 @@ export function TranscriptPanel() {
   })
   useTauriEvent("stt_disconnected", () => {
     useTranscriptStore.getState().setConnectionStatus("disconnected")
+    useTranscriptStore.getState().setTranscribing(false)
+    useTranscriptStore.getState().setPartial("")
   })
   useTauriEvent<string>("stt_error", () => {
     useTranscriptStore.getState().setConnectionStatus("error")
+    useTranscriptStore.getState().setTranscribing(false)
+    useTranscriptStore.getState().setPartial("")
   })
 
   useTauriEvent<{ text: string; is_final: boolean; confidence: number }>(
@@ -106,7 +110,9 @@ export function TranscriptPanel() {
         })
     }
 
-    // Auto-queue high-confidence detections
+    // Auto-queue disabled — user manually clicks "Add to Queue" or "Go Live"
+    // on each detection card. Keeps the queue intentional, not noisy.
+    /*
     for (const d of detections) {
       if (d.auto_queued) {
         useQueueStore.getState().addItem({
@@ -128,6 +134,7 @@ export function TranscriptPanel() {
         })
       }
     }
+    */
   })
 
   // Auto-scroll to bottom
@@ -210,9 +217,17 @@ export function TranscriptPanel() {
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-linear-to-b from-card to-transparent" />
 
           {segments.length === 0 && !currentPartial && !isTranscribing && (
-            <p className="text-sm text-muted-foreground">
-              Click "Start transcribing" to begin
-            </p>
+            <div className="flex flex-col items-center gap-3 px-6 py-8 text-center">
+              <div className="flex size-10 items-center justify-center rounded-full bg-muted/50">
+                <AudioLinesIcon className="size-5 text-muted-foreground/60" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-muted-foreground">No transcript yet</p>
+                <p className="text-[0.625rem] leading-relaxed text-muted-foreground/60">
+                  Click &ldquo;Start transcribing&rdquo; below to begin capturing the sermon.
+                </p>
+              </div>
+            </div>
           )}
 
           {/* Final segments — recent ones brighter, older ones fade */}
