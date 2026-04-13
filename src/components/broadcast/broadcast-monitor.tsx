@@ -237,7 +237,7 @@ export function BroadcastMonitor() {
         {/* Theme selector — visual grid */}
         <div className="flex flex-col gap-1.5">
           <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">Theme</span>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-3 gap-2">
             {themes.map((t) => {
               const isActive = t.id === activeThemeId
               const bg = t.background
@@ -295,7 +295,7 @@ export function BroadcastMonitor() {
         {/* Translation toggle */}
         <div className="flex flex-col gap-1.5">
           <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">Translation</span>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1.5">
             {translations.slice(0, 7).map((t) => (
               <button
                 key={t.id}
@@ -305,7 +305,7 @@ export function BroadcastMonitor() {
                     useBibleStore.getState().setActiveTranslation(t.id)
                   } catch {}
                 }}
-                className={`rounded-full px-2.5 py-1 text-[9px] font-semibold transition-all ${
+                className={`rounded-full px-3 py-1.5 text-[10px] font-semibold transition-all ${
                   t.id === activeTranslationId
                     ? "bg-primary text-primary-foreground shadow-[0_0_8px_rgba(61,107,79,0.3)]"
                     : "bg-white/[0.04] text-white/35 ring-1 ring-white/[0.06] hover:bg-white/[0.08] hover:text-white/60"
