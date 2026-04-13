@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useBroadcastStore } from "@/stores/broadcast-store"
 import { Slider } from "@/components/ui/slider"
 import { Input } from "@/components/ui/input"
@@ -79,10 +80,26 @@ function buildColorWithOpacity(hex: string, opacity: number): string {
   return `${hex}${alphaHex}`
 }
 
-function SectionHeader({ title }: { title: string }) {
+function CollapsibleSection({
+  title,
+  defaultOpen = true,
+  children,
+}: {
+  title: string
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="border-b border-border pb-1">
-      <h4 className="text-xs font-bold text-foreground">{title}</h4>
+    <div className="border-b border-border pb-2">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between py-1"
+      >
+        <h4 className="text-xs font-bold text-foreground">{title}</h4>
+        <span className={`text-[10px] text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`}>▼</span>
+      </button>
+      {open && <div className="flex flex-col gap-2 pt-1">{children}</div>}
     </div>
   )
 }
@@ -101,45 +118,45 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
   const textDecoration = data.textDecoration ?? "none"
 
   return (
-    <div className="flex flex-col gap-2">
-      {/* Font Family */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted-foreground">Font Family</label>
-        <Select
-          value={data.fontFamily}
-          onValueChange={(v) => update(`${prefix}.fontFamily`, v)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FONT_FAMILIES.map((f) => (
-              <SelectItem key={f} value={f}>
-                {f}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Font Weight */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted-foreground">Font Weight</label>
-        <Select
-          value={String(data.fontWeight)}
-          onValueChange={(v) => update(`${prefix}.fontWeight`, Number(v))}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FONT_WEIGHTS.map((w) => (
-              <SelectItem key={w.value} value={w.value}>
-                {w.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="flex flex-col gap-1.5">
+      {/* Font Family + Font Weight — side by side */}
+      <div className="grid grid-cols-2 gap-1.5">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-muted-foreground">Font</label>
+          <Select
+            value={data.fontFamily}
+            onValueChange={(v) => update(`${prefix}.fontFamily`, v)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_FAMILIES.map((f) => (
+                <SelectItem key={f} value={f}>
+                  {f}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-muted-foreground">Weight</label>
+          <Select
+            value={String(data.fontWeight)}
+            onValueChange={(v) => update(`${prefix}.fontWeight`, Number(v))}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FONT_WEIGHTS.map((w) => (
+                <SelectItem key={w.value} value={w.value}>
+                  {w.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Font Size */}
@@ -189,91 +206,90 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
         />
       </div>
 
-      {/* Horizontal Alignment */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted-foreground">Horizontal Alignment</label>
-        <Select
-          value={horizontalAlign}
-          onValueChange={(v) => update(`${prefix}.horizontalAlign`, v)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {HORIZONTAL_ALIGN_OPTIONS
-              .filter((option) => prefix === "verseText" || option.value !== "justify")
-              .map((option) => (
+      {/* Horizontal Alignment + Vertical Alignment — side by side */}
+      <div className="grid grid-cols-2 gap-1.5">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-muted-foreground">Horizontal Alignment</label>
+          <Select
+            value={horizontalAlign}
+            onValueChange={(v) => update(`${prefix}.horizontalAlign`, v)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {HORIZONTAL_ALIGN_OPTIONS
+                .filter((option) => prefix === "verseText" || option.value !== "justify")
+                .map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-muted-foreground">Vertical Alignment</label>
+          <Select
+            value={verticalAlign}
+            onValueChange={(v) => update(`${prefix}.verticalAlign`, v)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {VERTICAL_ALIGN_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
               ))}
-          </SelectContent>
-        </Select>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* Vertical Alignment */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted-foreground">Vertical Alignment</label>
-        <Select
-          value={verticalAlign}
-          onValueChange={(v) => update(`${prefix}.verticalAlign`, v)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {VERTICAL_ALIGN_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Text Transform + Text Decoration — side by side */}
+      <div className="grid grid-cols-2 gap-1.5">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-muted-foreground">Text Transform</label>
+          <Select
+            value={textTransform}
+            onValueChange={(v) => update(`${prefix}.textTransform`, v)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TEXT_TRANSFORM_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-muted-foreground">Text Decoration</label>
+          <Select
+            value={textDecoration}
+            onValueChange={(v) => update(`${prefix}.textDecoration`, v)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TEXT_DECORATION_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* Text Transform */}
+      {/* Text Color — compact: swatch + hex + opacity on one row */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted-foreground">Text Transform</label>
-        <Select
-          value={textTransform}
-          onValueChange={(v) => update(`${prefix}.textTransform`, v)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {TEXT_TRANSFORM_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Text Decoration */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted-foreground">Text Decoration</label>
-        <Select
-          value={textDecoration}
-          onValueChange={(v) => update(`${prefix}.textDecoration`, v)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {TEXT_DECORATION_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Text Color */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted-foreground">Text Color</label>
         <div className="flex items-center gap-2">
           <input
             type="color"
@@ -293,10 +309,7 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
             }}
             className="w-[72px] font-mono"
           />
-        </div>
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-medium text-muted-foreground">Opacity</label>
-          <span className="text-xs tabular-nums text-muted-foreground">{colorOpacity}%</span>
+          <span className="ml-auto text-xs tabular-nums text-muted-foreground">{colorOpacity}%</span>
         </div>
         <Slider
           min={0}
@@ -320,35 +333,36 @@ function ReferenceProperties() {
 
   return (
     <div className="flex flex-col gap-2">
-      <SectionHeader title="Reference Text" />
-      <FontControls prefix="reference" />
+      <CollapsibleSection title="Reference Text">
+        <FontControls prefix="reference" />
 
-      {/* Uppercase */}
-      <div className="flex items-center justify-between">
-        <label className="text-xs font-medium text-muted-foreground">Uppercase</label>
-        <Switch
-          checked={draftTheme.reference.uppercase}
-          onCheckedChange={(checked) => update("reference.uppercase", checked)}
-        />
-      </div>
+        {/* Uppercase */}
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-medium text-muted-foreground">Uppercase</label>
+          <Switch
+            checked={draftTheme.reference.uppercase}
+            onCheckedChange={(checked) => update("reference.uppercase", checked)}
+          />
+        </div>
 
-      {/* Reference Position */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-muted-foreground">Reference Position</label>
-        <Select
-          value={draftTheme.reference.position}
-          onValueChange={(v) => update("reference.position", v)}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="above">Above Verse</SelectItem>
-            <SelectItem value="below">Below Verse</SelectItem>
-            <SelectItem value="inline">Inline</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+        {/* Reference Position */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-muted-foreground">Reference Position</label>
+          <Select
+            value={draftTheme.reference.position}
+            onValueChange={(v) => update("reference.position", v)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="above">Above Verse</SelectItem>
+              <SelectItem value="below">Below Verse</SelectItem>
+              <SelectItem value="inline">Inline</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CollapsibleSection>
     </div>
   )
 }
@@ -367,13 +381,14 @@ function VerseProperties() {
 
   return (
     <div className="flex flex-col gap-2">
-      <SectionHeader title="Verse Text" />
-      <FontControls prefix="verseText" />
+      <CollapsibleSection title="Verse Text">
+        <FontControls prefix="verseText" />
+      </CollapsibleSection>
 
       {/* Text Shadow */}
-      <div className="flex flex-col gap-2 border-t pt-2">
+      <CollapsibleSection title="Text Shadow" defaultOpen={false}>
         <div className="flex items-center justify-between">
-          <label className="text-xs font-bold text-foreground">Text Shadow</label>
+          <label className="text-xs font-medium text-muted-foreground">Enabled</label>
           <Switch
             checked={shadow !== null}
             onCheckedChange={(checked) => {
@@ -433,9 +448,8 @@ function VerseProperties() {
               />
             </div>
 
-            {/* Shadow Color */}
+            {/* Shadow Color — compact */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-muted-foreground">Shadow Color</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -461,10 +475,7 @@ function VerseProperties() {
                   }}
                   className="w-[72px] font-mono"
                 />
-              </div>
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-muted-foreground">Opacity</label>
-                <span className="text-xs tabular-nums text-muted-foreground">{shadowColor.opacity}%</span>
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">{shadowColor.opacity}%</span>
               </div>
               <Slider
                 min={0}
@@ -481,12 +492,12 @@ function VerseProperties() {
             </div>
           </div>
         )}
-      </div>
+      </CollapsibleSection>
 
       {/* Text Outline */}
-      <div className="flex flex-col gap-2 border-t pt-2">
+      <CollapsibleSection title="Text Outline" defaultOpen={false}>
         <div className="flex items-center justify-between">
-          <label className="text-xs font-bold text-foreground">Text Outline</label>
+          <label className="text-xs font-medium text-muted-foreground">Enabled</label>
           <Switch
             checked={outline !== null}
             onCheckedChange={(checked) => {
@@ -516,9 +527,8 @@ function VerseProperties() {
               />
             </div>
 
-            {/* Outline Color */}
+            {/* Outline Color — compact */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-muted-foreground">Outline Color</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -540,11 +550,10 @@ function VerseProperties() {
             </div>
           </div>
         )}
-      </div>
+      </CollapsibleSection>
 
       {/* Line Break Mode */}
-      <div className="flex flex-col gap-2 border-t pt-2">
-        <label className="text-xs font-bold text-foreground">Line Break Mode</label>
+      <CollapsibleSection title="Line Break Mode" defaultOpen={false}>
         <Select
           value={draftTheme.verseText.lineBreakMode ?? "flow"}
           onValueChange={(v) => update("verseText.lineBreakMode", v)}
@@ -557,11 +566,10 @@ function VerseProperties() {
             <SelectItem value="centered-lines">Centered Lines (one phrase per line)</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </CollapsibleSection>
 
       {/* Divider */}
-      <div className="flex flex-col gap-2 border-t pt-2">
-        <label className="text-xs font-bold text-foreground">Divider</label>
+      <CollapsibleSection title="Divider" defaultOpen={false}>
         <Select
           value={draftTheme.divider?.style ?? "none"}
           onValueChange={(v) => update("divider.style", v)}
@@ -578,9 +586,8 @@ function VerseProperties() {
 
         {draftTheme.divider?.style && draftTheme.divider.style !== "none" && (
           <div className="flex flex-col gap-2">
-            {/* Divider Color */}
+            {/* Divider Color — compact */}
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-muted-foreground">Divider Color</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -663,7 +670,7 @@ function VerseProperties() {
             )}
           </div>
         )}
-      </div>
+      </CollapsibleSection>
     </div>
   )
 }
