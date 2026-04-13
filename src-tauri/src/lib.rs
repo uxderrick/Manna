@@ -146,15 +146,16 @@ pub fn run() {
                 let qwen_emb = base_dir.join("embeddings/kjv-qwen3-0.6b.bin");
                 let qwen_ids = base_dir.join("embeddings/kjv-qwen3-0.6b-ids.bin");
 
-                if minilm_model.exists() && minilm_emb.exists() {
-                    log::info!("Using MiniLM-L6-v2 embedding model (fast, 384-dim)");
-                    (minilm_model, minilm_tok, minilm_emb, minilm_ids)
+                // Prefer Qwen3 (higher quality) over MiniLM (faster)
+                if qwen_fp32.exists() && qwen_emb.exists() {
+                    log::info!("Using Qwen3 FP32 embedding model (quality, 1024-dim)");
+                    (qwen_fp32, qwen_tok, qwen_emb, qwen_ids)
                 } else if qwen_int8.exists() && qwen_emb.exists() {
                     log::info!("Using Qwen3 INT8 embedding model (quality, 1024-dim)");
                     (qwen_int8, qwen_tok, qwen_emb, qwen_ids)
-                } else if qwen_fp32.exists() && qwen_emb.exists() {
-                    log::info!("Using Qwen3 FP32 embedding model (quality, 1024-dim)");
-                    (qwen_fp32, qwen_tok, qwen_emb, qwen_ids)
+                } else if minilm_model.exists() && minilm_emb.exists() {
+                    log::info!("Using MiniLM-L6-v2 embedding model (fast, 384-dim)");
+                    (minilm_model, minilm_tok, minilm_emb, minilm_ids)
                 } else if minilm_model.exists() {
                     log::info!("MiniLM model found but embeddings missing. Run precompute.");
                     (minilm_model, minilm_tok, minilm_emb, minilm_ids)
