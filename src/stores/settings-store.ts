@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { load } from "@tauri-apps/plugin-store"
 
 type SttProvider = "deepgram" | "whisper"
 
@@ -53,3 +54,52 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setOnboardingComplete: (onboardingComplete) => set({ onboardingComplete }),
   setSttProvider: (sttProvider) => set({ sttProvider }),
 }))
+
+/** Load persisted settings from disk into the Zustand store. */
+export async function hydrateSettings(): Promise<void> {
+  try {
+    const store = await load("settings.json", { autoSave: false })
+    const deepgramApiKey = await store.get<string>("deepgramApiKey")
+    const sttProvider = await store.get<SttProvider>("sttProvider")
+    const onboardingComplete = await store.get<boolean>("onboardingComplete")
+    if (deepgramApiKey) {
+      useSettingsStore.getState().setDeepgramApiKey(deepgramApiKey)
+    }
+    if (sttProvider) {
+      useSettingsStore.getState().setSttProvider(sttProvider)
+    }
+    if (onboardingComplete) {
+      useSettingsStore.getState().setOnboardingComplete(true)
+    }
+  } catch {
+    console.warn("[settings] Failed to load persisted settings, using defaults")
+  }
+}
+
+/** Persist onboarding state to disk. */
+export async function persistOnboardingComplete(): Promise<void> {
+  useSettingsStore.getState().setOnboardingComplete(true)
+  try {
+    const store = await load("settings.json", { autoSave: false })
+    await store.set("onboardingComplete", true)
+    await store.save()
+  } catch {
+    console.warn("[settings] Failed to persist onboarding state")
+  }
+}
+
+/** Persist the Deepgram API key to disk. */
+export async function persistDeepgramApiKey(key: string | null): Promise<void> {
+  useSettingsStore.getState().setDeepgramApiKey(key)
+  try {
+    const store = await load("settings.json", { autoSave: false })
+    if (key) {
+      await store.set("deepgramApiKey", key)
+    } else {
+      await store.delete("deepgramApiKey")
+    }
+    await store.save()
+  } catch {
+    console.warn("[settings] Failed to persist Deepgram API key")
+  }
+}
