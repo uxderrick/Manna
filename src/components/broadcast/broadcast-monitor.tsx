@@ -341,7 +341,7 @@ function AccordionSection({ title, subtitle, children, defaultOpen = false }: {
         <span className={`text-[8px] text-white/25 transition-transform ${open ? "" : "-rotate-90"}`}>▼</span>
       </button>
       {open && (
-        <div className="px-3 pb-3">
+        <div className="px-3 pb-3 pt-1.5">
           {children}
         </div>
       )}
