@@ -234,22 +234,61 @@ export function BroadcastMonitor() {
           </div>
         )}
 
-        {/* Theme selector */}
+        {/* Theme selector — visual grid */}
         <div className="flex flex-col gap-1.5">
           <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">Theme</span>
-          <div className="relative">
-            <select
-              value={activeThemeId}
-              onChange={(e) => setActiveTheme(e.target.value)}
-              className="w-full appearance-none rounded-lg bg-white/[0.04] px-3 py-2 pr-7 text-[11px] font-medium text-white/60 ring-1 ring-white/[0.06] transition-all outline-none hover:bg-white/[0.06] hover:text-white/80 focus:ring-primary/40"
-            >
-              {themes.map((t) => (
-                <option key={t.id} value={t.id} className="bg-[#1a1a1a] text-white/80">
-                  {t.name}
-                </option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] text-white/25">▼</div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {themes.map((t) => {
+              const isActive = t.id === activeThemeId
+              const bg = t.background
+              const bgStyle: React.CSSProperties = bg.type === "gradient" && bg.gradient
+                ? {
+                    background: bg.gradient.type === "radial"
+                      ? `radial-gradient(${bg.gradient.stops.map(s => `${s.color} ${s.position}%`).join(", ")})`
+                      : `linear-gradient(${bg.gradient.angle}deg, ${bg.gradient.stops.map(s => `${s.color} ${s.position}%`).join(", ")})`,
+                  }
+                : { backgroundColor: bg.color }
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTheme(t.id)}
+                  className={`group relative flex aspect-video flex-col items-center justify-center overflow-hidden rounded-md transition-all ${
+                    isActive
+                      ? "ring-2 ring-primary shadow-[0_0_8px_rgba(61,107,79,0.4)]"
+                      : "ring-1 ring-white/[0.08] hover:ring-white/20"
+                  }`}
+                  style={bgStyle}
+                >
+                  {/* Mini verse preview */}
+                  <span
+                    className="px-1 text-center text-[5px] leading-tight"
+                    style={{
+                      fontFamily: t.verseText.fontFamily,
+                      color: t.verseText.color,
+                    }}
+                  >
+                    The Lord is my shepherd
+                  </span>
+                  <span
+                    className="mt-0.5 text-[3px] uppercase tracking-widest"
+                    style={{
+                      fontFamily: t.reference.fontFamily,
+                      color: t.reference.color,
+                    }}
+                  >
+                    Psalm 23:1
+                  </span>
+                  {/* Theme name overlay */}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1 pb-0.5 pt-2">
+                    <span className="text-[5px] font-medium text-white/80">{t.name}</span>
+                  </div>
+                  {/* Active check */}
+                  {isActive && (
+                    <div className="absolute right-0.5 top-0.5 flex size-3 items-center justify-center rounded-full bg-primary text-[6px] text-primary-foreground">✓</div>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
 
