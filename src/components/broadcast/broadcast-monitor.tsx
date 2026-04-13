@@ -204,27 +204,59 @@ export function BroadcastMonitor() {
       </div>
 
       {/* ── Quick Controls ─────────────────────────── */}
-      <div className="flex flex-col gap-2 border-t border-white/6 pt-3">
+      <div className="flex flex-col gap-3 border-t border-white/6 pt-3">
+
+        {/* Session info card */}
+        {activeSession && (
+          <div className="overflow-hidden rounded-lg bg-gradient-to-br from-white/[0.04] to-white/[0.02] ring-1 ring-white/[0.06]">
+            <div className="flex items-center justify-between px-3 py-2.5">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="truncate text-[11px] font-medium text-white/70">
+                  {activeSession.title}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {activeSession.status === "live" && (
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.5)]" />
+                  )}
+                  <span className="text-[9px] capitalize text-white/30">
+                    {activeSession.status}
+                  </span>
+                </div>
+              </div>
+              {activeSession.status === "live" && (
+                <div className="flex flex-col items-end">
+                  <span className="font-mono text-[13px] font-semibold tabular-nums text-white/50">
+                    {elapsed}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Theme selector */}
-        <div>
-          <span className="text-[8px] font-semibold uppercase tracking-widest text-white/25">Theme</span>
-          <select
-            value={activeThemeId}
-            onChange={(e) => setActiveTheme(e.target.value)}
-            className="mt-1 w-full rounded border border-white/10 bg-white/5 px-2 py-1.5 text-[10px] text-white/70 outline-none focus:border-primary/50"
-          >
-            {themes.map((t) => (
-              <option key={t.id} value={t.id} className="bg-[#1a1a1a]">
-                {t.name}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">Theme</span>
+          <div className="relative">
+            <select
+              value={activeThemeId}
+              onChange={(e) => setActiveTheme(e.target.value)}
+              className="w-full appearance-none rounded-lg bg-white/[0.04] px-3 py-2 pr-7 text-[11px] font-medium text-white/60 ring-1 ring-white/[0.06] transition-all outline-none hover:bg-white/[0.06] hover:text-white/80 focus:ring-primary/40"
+            >
+              {themes.map((t) => (
+                <option key={t.id} value={t.id} className="bg-[#1a1a1a] text-white/80">
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[8px] text-white/25">▼</div>
+          </div>
         </div>
 
         {/* Translation toggle */}
-        <div>
-          <span className="text-[8px] font-semibold uppercase tracking-widest text-white/25">Translation</span>
-          <div className="mt-1 flex flex-wrap gap-1">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[9px] font-semibold uppercase tracking-widest text-white/30">Translation</span>
+          <div className="flex flex-wrap gap-1">
             {translations.slice(0, 7).map((t) => (
               <button
                 key={t.id}
@@ -234,10 +266,10 @@ export function BroadcastMonitor() {
                     useBibleStore.getState().setActiveTranslation(t.id)
                   } catch {}
                 }}
-                className={`rounded px-1.5 py-0.5 text-[9px] font-medium transition-colors ${
+                className={`rounded-full px-2.5 py-1 text-[9px] font-semibold transition-all ${
                   t.id === activeTranslationId
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60"
+                    ? "bg-primary text-primary-foreground shadow-[0_0_8px_rgba(61,107,79,0.3)]"
+                    : "bg-white/[0.04] text-white/35 ring-1 ring-white/[0.06] hover:bg-white/[0.08] hover:text-white/60"
                 }`}
               >
                 {t.abbreviation}
@@ -257,30 +289,11 @@ export function BroadcastMonitor() {
               duration: null,
             })
           }}
-          className="flex items-center justify-center gap-1.5 rounded border border-white/10 bg-white/5 py-1.5 text-[10px] font-medium text-white/40 transition-colors hover:bg-white/10 hover:text-white/60"
+          className="group flex items-center justify-center gap-2 rounded-lg bg-white/[0.04] py-2.5 text-[11px] font-medium text-white/40 ring-1 ring-white/[0.06] transition-all hover:bg-white/[0.07] hover:text-white/70 hover:ring-white/[0.1]"
         >
-          <Megaphone className="size-3" />
+          <Megaphone className="size-3.5 transition-transform group-hover:scale-110" />
           New Announcement
         </button>
-
-        {/* Session info */}
-        {activeSession && (
-          <div className="flex items-center justify-between rounded bg-white/3 px-2 py-1.5">
-            <div className="flex flex-col">
-              <span className="text-[9px] font-medium text-white/50 truncate max-w-[120px]">
-                {activeSession.title}
-              </span>
-              <span className="text-[8px] text-white/25">
-                {activeSession.status === "live" ? "Live" : activeSession.status}
-              </span>
-            </div>
-            {activeSession.status === "live" && (
-              <span className="font-mono text-[10px] tabular-nums text-white/40">
-                {elapsed}
-              </span>
-            )}
-          </div>
-        )}
       </div>
     </div>
   )
