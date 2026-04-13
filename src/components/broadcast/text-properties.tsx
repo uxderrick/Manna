@@ -1,6 +1,7 @@
 import { useBroadcastStore } from "@/stores/broadcast-store"
 import { Slider } from "@/components/ui/slider"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import {
   Select,
   SelectContent,
@@ -78,11 +79,10 @@ function buildColorWithOpacity(hex: string, opacity: number): string {
   return `${hex}${alphaHex}`
 }
 
-function SectionHeader({ title, description }: { title: string; description: string }) {
+function SectionHeader({ title }: { title: string }) {
   return (
-    <div className="flex flex-col gap-0.5 pb-1">
-      <h4 className="text-xs font-semibold">{title}</h4>
-      <p className="text-[11px] text-muted-foreground">{description}</p>
+    <div className="border-b border-border pb-1">
+      <h4 className="text-xs font-bold text-foreground">{title}</h4>
     </div>
   )
 }
@@ -101,9 +101,9 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
   const textDecoration = data.textDecoration ?? "none"
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       {/* Font Family */}
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-muted-foreground">Font Family</label>
         <Select
           value={data.fontFamily}
@@ -123,7 +123,7 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
       </div>
 
       {/* Font Weight */}
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-muted-foreground">Font Weight</label>
         <Select
           value={String(data.fontWeight)}
@@ -143,37 +143,23 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
       </div>
 
       {/* Font Size */}
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between">
           <label className="text-xs font-medium text-muted-foreground">Font Size</label>
           <span className="text-xs tabular-nums text-muted-foreground">{data.fontSize}px</span>
         </div>
-        <div className="flex items-center gap-2">
-          <Slider
-            min={8}
-            max={200}
-            step={1}
-            value={[data.fontSize]}
-            onValueChange={([v]) => update(`${prefix}.fontSize`, v)}
-            className="flex-1"
-          />
-          <Input
-            type="number"
-            min={8}
-            max={200}
-            value={data.fontSize}
-            onChange={(e) => {
-              const v = Number(e.target.value)
-              if (v >= 8 && v <= 200) update(`${prefix}.fontSize`, v)
-            }}
-            className="w-16"
-          />
-        </div>
+        <Slider
+          min={8}
+          max={200}
+          step={1}
+          value={[data.fontSize]}
+          onValueChange={([v]) => update(`${prefix}.fontSize`, v)}
+        />
       </div>
 
       {/* Line Height — only for verse text, reference type doesn't have lineHeight */}
       {prefix === "verseText" && (
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-muted-foreground">Line Height</label>
             <span className="text-xs tabular-nums text-muted-foreground">{(draftTheme.verseText.lineHeight).toFixed(2)}</span>
@@ -189,7 +175,7 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
       )}
 
       {/* Letter Spacing */}
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between">
           <label className="text-xs font-medium text-muted-foreground">Letter Spacing</label>
           <span className="text-xs tabular-nums text-muted-foreground">{data.letterSpacing}px</span>
@@ -204,7 +190,7 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
       </div>
 
       {/* Horizontal Alignment */}
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-muted-foreground">Horizontal Alignment</label>
         <Select
           value={horizontalAlign}
@@ -226,7 +212,7 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
       </div>
 
       {/* Vertical Alignment */}
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-muted-foreground">Vertical Alignment</label>
         <Select
           value={verticalAlign}
@@ -246,7 +232,7 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
       </div>
 
       {/* Text Transform */}
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-muted-foreground">Text Transform</label>
         <Select
           value={textTransform}
@@ -266,7 +252,7 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
       </div>
 
       {/* Text Decoration */}
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-muted-foreground">Text Decoration</label>
         <Select
           value={textDecoration}
@@ -286,7 +272,7 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
       </div>
 
       {/* Text Color */}
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-muted-foreground">Text Color</label>
         <div className="flex items-center gap-2">
           <input
@@ -305,7 +291,7 @@ function FontControls({ prefix }: { prefix: "verseText" | "reference" }) {
                 update(`${prefix}.color`, buildColorWithOpacity(v, colorOpacity))
               }
             }}
-            className="w-20 font-mono"
+            className="w-[72px] font-mono"
           />
         </div>
         <div className="flex items-center justify-between">
@@ -333,23 +319,21 @@ function ReferenceProperties() {
   if (!draftTheme) return null
 
   return (
-    <div className="flex flex-col gap-3">
-      <SectionHeader title="Reference Text" description="Customize how reference text appears" />
+    <div className="flex flex-col gap-2">
+      <SectionHeader title="Reference Text" />
       <FontControls prefix="reference" />
 
       {/* Uppercase */}
       <div className="flex items-center justify-between">
         <label className="text-xs font-medium text-muted-foreground">Uppercase</label>
-        <input
-          type="checkbox"
+        <Switch
           checked={draftTheme.reference.uppercase}
-          onChange={(e) => update("reference.uppercase", e.target.checked)}
-          className="h-4 w-4 rounded border-input accent-primary"
+          onCheckedChange={(checked) => update("reference.uppercase", checked)}
         />
       </div>
 
       {/* Reference Position */}
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-muted-foreground">Reference Position</label>
         <Select
           value={draftTheme.reference.position}
@@ -382,32 +366,30 @@ function VerseProperties() {
   const outlineColor = outline ? parseColorOpacity(outline.color) : { hex: "#000000", opacity: 100 }
 
   return (
-    <div className="flex flex-col gap-3">
-      <SectionHeader title="Verse Text" description="Customize how verse text appears" />
+    <div className="flex flex-col gap-2">
+      <SectionHeader title="Verse Text" />
       <FontControls prefix="verseText" />
 
       {/* Text Shadow */}
-      <div className="flex flex-col gap-3 border-t pt-3">
+      <div className="flex flex-col gap-2 border-t pt-2">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-semibold">Text Shadow</label>
-          <input
-            type="checkbox"
+          <label className="text-xs font-bold text-foreground">Text Shadow</label>
+          <Switch
             checked={shadow !== null}
-            onChange={(e) => {
-              if (e.target.checked) {
+            onCheckedChange={(checked) => {
+              if (checked) {
                 update("verseText.shadow", { color: "#00000080", blur: 4, x: 2, y: 2 })
               } else {
                 update("verseText.shadow", null)
               }
             }}
-            className="h-4 w-4 rounded border-input accent-primary"
           />
         </div>
 
         {shadow && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             {/* Offset X */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-muted-foreground">Offset X</label>
                 <span className="text-xs tabular-nums text-muted-foreground">{shadow.x}px</span>
@@ -422,7 +404,7 @@ function VerseProperties() {
             </div>
 
             {/* Offset Y */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-muted-foreground">Offset Y</label>
                 <span className="text-xs tabular-nums text-muted-foreground">{shadow.y}px</span>
@@ -437,7 +419,7 @@ function VerseProperties() {
             </div>
 
             {/* Blur */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-muted-foreground">Blur</label>
                 <span className="text-xs tabular-nums text-muted-foreground">{shadow.blur}px</span>
@@ -452,7 +434,7 @@ function VerseProperties() {
             </div>
 
             {/* Shadow Color */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-muted-foreground">Shadow Color</label>
               <div className="flex items-center gap-2">
                 <input
@@ -477,7 +459,7 @@ function VerseProperties() {
                       )
                     }
                   }}
-                  className="w-20 font-mono"
+                  className="w-[72px] font-mono"
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -502,27 +484,25 @@ function VerseProperties() {
       </div>
 
       {/* Text Outline */}
-      <div className="flex flex-col gap-3 border-t pt-3">
+      <div className="flex flex-col gap-2 border-t pt-2">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-semibold">Text Outline</label>
-          <input
-            type="checkbox"
+          <label className="text-xs font-bold text-foreground">Text Outline</label>
+          <Switch
             checked={outline !== null}
-            onChange={(e) => {
-              if (e.target.checked) {
+            onCheckedChange={(checked) => {
+              if (checked) {
                 update("verseText.outline", { color: "#000000", width: 1 })
               } else {
                 update("verseText.outline", null)
               }
             }}
-            className="h-4 w-4 rounded border-input accent-primary"
           />
         </div>
 
         {outline && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             {/* Width */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-muted-foreground">Width</label>
                 <span className="text-xs tabular-nums text-muted-foreground">{outline.width}px</span>
@@ -537,7 +517,7 @@ function VerseProperties() {
             </div>
 
             {/* Outline Color */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-muted-foreground">Outline Color</label>
               <div className="flex items-center gap-2">
                 <input
@@ -554,7 +534,7 @@ function VerseProperties() {
                       update("verseText.outline.color", v)
                     }
                   }}
-                  className="w-20 font-mono"
+                  className="w-[72px] font-mono"
                 />
               </div>
             </div>
@@ -563,8 +543,8 @@ function VerseProperties() {
       </div>
 
       {/* Line Break Mode */}
-      <div className="flex flex-col gap-3 border-t pt-3">
-        <label className="text-xs font-semibold">Line Break Mode</label>
+      <div className="flex flex-col gap-2 border-t pt-2">
+        <label className="text-xs font-bold text-foreground">Line Break Mode</label>
         <Select
           value={draftTheme.verseText.lineBreakMode ?? "flow"}
           onValueChange={(v) => update("verseText.lineBreakMode", v)}
@@ -580,8 +560,8 @@ function VerseProperties() {
       </div>
 
       {/* Divider */}
-      <div className="flex flex-col gap-3 border-t pt-3">
-        <label className="text-xs font-semibold">Divider</label>
+      <div className="flex flex-col gap-2 border-t pt-2">
+        <label className="text-xs font-bold text-foreground">Divider</label>
         <Select
           value={draftTheme.divider?.style ?? "none"}
           onValueChange={(v) => update("divider.style", v)}
@@ -597,9 +577,9 @@ function VerseProperties() {
         </Select>
 
         {draftTheme.divider?.style && draftTheme.divider.style !== "none" && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             {/* Divider Color */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-muted-foreground">Divider Color</label>
               <div className="flex items-center gap-2">
                 <input
@@ -615,13 +595,13 @@ function VerseProperties() {
                       update("divider.color", e.target.value)
                     }
                   }}
-                  className="w-20 font-mono"
+                  className="w-[72px] font-mono"
                 />
               </div>
             </div>
 
             {/* Divider Width */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-muted-foreground">Width</label>
                 <span className="text-xs tabular-nums text-muted-foreground">{draftTheme.divider.width}px</span>
@@ -636,7 +616,7 @@ function VerseProperties() {
             </div>
 
             {/* Divider Opacity */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-muted-foreground">Opacity</label>
                 <span className="text-xs tabular-nums text-muted-foreground">{Math.round(draftTheme.divider.opacity * 100)}%</span>
@@ -653,7 +633,7 @@ function VerseProperties() {
             {/* Dot-specific controls */}
             {draftTheme.divider.style === "dots" && (
               <>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-medium text-muted-foreground">Dot Count</label>
                     <span className="text-xs tabular-nums text-muted-foreground">{draftTheme.divider.dotCount}</span>
@@ -666,7 +646,7 @@ function VerseProperties() {
                     onValueChange={([v]) => update("divider.dotCount", v)}
                   />
                 </div>
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-1">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-medium text-muted-foreground">Dot Size</label>
                     <span className="text-xs tabular-nums text-muted-foreground">{draftTheme.divider.dotSize}px</span>

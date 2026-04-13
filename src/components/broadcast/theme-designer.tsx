@@ -2,7 +2,7 @@ import { useEffect } from "react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 import { useBroadcastStore } from "@/stores"
 import { Button } from "@/components/ui/button"
-import { SaveIcon, TrashIcon, XIcon } from "lucide-react"
+import { ArrowLeftIcon, SaveIcon } from "lucide-react"
 import { ThemeLibrary } from "@/components/broadcast/theme-library"
 import { DesignCanvas } from "@/components/broadcast/design-canvas"
 import { PropertiesPanel } from "@/components/broadcast/properties-panel"
@@ -50,31 +50,28 @@ export function ThemeDesigner() {
           </DialogPrimitive.Title>
 
           {/* Top bar */}
-          <div className="flex h-14 shrink-0 items-center gap-3 border-b border-border px-4 bg-card">
-            <span className="text-xl font-semibold text-foreground">
-              Theme Designer
+          <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4 bg-card">
+            <Button variant="ghost" size="icon" onClick={handleClose} className="size-8">
+              <ArrowLeftIcon className="size-4" />
+            </Button>
+            <span className="text-sm font-semibold text-foreground">
+              {draftTheme?.name || "Theme Designer"}
             </span>
+            {draftTheme && (
+              <span className="size-2 rounded-full bg-orange-400" title="Unsaved changes" />
+            )}
 
             <div className="flex-1" />
 
-            <Button variant="outline" onClick={handleDiscard}>
-              <TrashIcon className="size-4" />
-              Discard
+            <Button variant="ghost" onClick={handleDiscard} className="text-muted-foreground">
+              Revert
             </Button>
             <Button
-
-              className="bg-primary text-primary-foreground hover:bg-primary/80"
+              className="rounded-full bg-primary text-primary-foreground hover:bg-primary/80"
               onClick={handleSave}
             >
               <SaveIcon className="size-4" />
-              Save Theme
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={handleClose}
-            >
-              <XIcon strokeWidth={2} />
-              Close
+              Save
             </Button>
           </div>
 
