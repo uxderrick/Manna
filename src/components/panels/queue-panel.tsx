@@ -1,16 +1,21 @@
+import { useState } from "react"
+import { invoke } from "@tauri-apps/api/core"
 import { PanelHeader } from "@/components/ui/panel-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import {
   PlayIcon,
   XIcon,
   ListIcon,
+  SearchIcon,
+  PlusIcon,
 } from "lucide-react"
 import { useQueueStore, useBroadcastStore, useBibleStore } from "@/stores"
 import { toVerseRenderData } from "@/hooks/use-broadcast"
 import { bibleActions } from "@/hooks/use-bible"
-import type { QueueItem } from "@/types"
+import type { QueueItem, Verse } from "@/types"
 
 function QueueItemCard({
   item,
@@ -101,6 +106,36 @@ function QueueItemCard({
 export function QueuePanel() {
   const items = useQueueStore((s) => s.items)
   const activeIndex = useQueueStore((s) => s.activeIndex)
+  const activeTranslationId = useBibleStore((s) => s.activeTranslationId)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<Verse[]>([])
+
+  const handleSearch = async () => {
+    if (searchQuery.trim().length < 2) return
+    try {
+      const results = await invoke<Verse[]>("search_verses", {
+        query: searchQuery.trim(),
+        translationId: activeTranslationId,
+        limit: 6,
+      })
+      setSearchResults(results)
+    } catch {
+      setSearchResults([])
+    }
+  }
+
+  const addVerseToQueue = (verse: Verse) => {
+    useQueueStore.getState().addItem({
+      id: crypto.randomUUID(),
+      verse,
+      reference: `${verse.book_name} ${verse.chapter}:${verse.verse}`,
+      confidence: 1,
+      source: "manual",
+      added_at: Date.now(),
+    })
+    setSearchResults([])
+    setSearchQuery("")
+  }
 
   return (
     <div
@@ -121,6 +156,45 @@ export function QueuePanel() {
         </div>
       </PanelHeader>
 
+      {/* Quick add search */}
+      <div className="flex shrink-0 gap-1 border-b border-border p-1.5">
+        <div className="relative flex-1">
+          <SearchIcon className="absolute left-2 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            placeholder="Add verse..."
+            className="h-7 pl-7 text-[11px]"
+          />
+        </div>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleSearch}>
+          <PlusIcon className="size-3" />
+        </Button>
+      </div>
+
+      {/* Search results */}
+      {searchResults.length > 0 && (
+        <div className="shrink-0 border-b border-border bg-muted/20">
+          <div className="max-h-32 overflow-y-auto">
+            {searchResults.map((verse) => (
+              <button
+                key={verse.id}
+                onClick={() => addVerseToQueue(verse)}
+                className="flex w-full items-start gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-muted/50"
+              >
+                <span className="shrink-0 text-[10px] font-semibold text-primary">
+                  {verse.book_name} {verse.chapter}:{verse.verse}
+                </span>
+                <span className="line-clamp-1 font-serif text-[10px] text-muted-foreground">
+                  {verse.text}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex flex-col gap-1.5 p-2">
           {items.length === 0 && (
@@ -131,7 +205,7 @@ export function QueuePanel() {
               <div className="flex flex-col gap-1">
                 <p className="text-xs font-medium text-muted-foreground">Queue is empty</p>
                 <p className="text-[0.625rem] leading-relaxed text-muted-foreground/60">
-                  Verses added from detections or search will appear here for quick access during the service.
+                  Search above to add verses, or they'll appear here from detections during the service.
                 </p>
               </div>
             </div>
