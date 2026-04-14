@@ -42,7 +42,7 @@ import {
   GraduationCapIcon,
   BrainCircuitIcon,
 } from "lucide-react"
-import { useSettingsStore, persistDeepgramApiKey, persistAutoMode, persistConfidenceThreshold } from "@/stores"
+import { useSettingsStore, persistDeepgramApiKey, persistClaudeApiKey, persistAutoMode, persistConfidenceThreshold } from "@/stores"
 import { useTutorialStore } from "@/stores/tutorial-store"
 import { useSettingsDialogStore } from "@/lib/settings-dialog"
 import type { DeviceInfo } from "@/types/audio"
@@ -404,7 +404,16 @@ function DisplayModeSection() {
 /* -------------------------------------------------------------------------- */
 
 function ApiKeysSection() {
-  const { deepgramApiKey, sttProvider } = useSettingsStore()
+  const { deepgramApiKey, claudeApiKey, sttProvider } = useSettingsStore()
+
+  const [claudeKeyValue, setClaudeKeyValue] = useState(claudeApiKey ?? "")
+  const [claudeSaved, setClaudeSaved] = useState(false)
+
+  const handleSaveClaudeKey = () => {
+    persistClaudeApiKey(claudeKeyValue || null)
+    setClaudeSaved(true)
+    setTimeout(() => setClaudeSaved(false), 2000)
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -429,6 +438,47 @@ function ApiKeysSection() {
             ? "Not required when using local Whisper. "
             : "Required for cloud transcription. "}
           Configure in the Speech Recognition section.
+        </p>
+      </div>
+
+      {/* Claude API Key */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Claude API Key
+          </label>
+          {claudeApiKey ? (
+            <Badge variant="outline" className="text-[0.5rem]">
+              Key configured
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-[0.5rem] text-muted-foreground">
+              Not set
+            </Badge>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Input
+            type="password"
+            placeholder="Enter your Claude API key..."
+            value={claudeKeyValue}
+            onChange={(e) => setClaudeKeyValue(e.target.value)}
+            className="flex-1 text-xs"
+          />
+          <Button size="sm" onClick={handleSaveClaudeKey}>
+            {claudeSaved ? (
+              <>
+                <CheckIcon className="size-3" />
+                Saved
+              </>
+            ) : (
+              "Save"
+            )}
+          </Button>
+        </div>
+        <p className="text-[0.625rem] text-muted-foreground">
+          Used for AI sermon summaries. Get a key at{" "}
+          <span className="text-primary">console.anthropic.com</span>
         </p>
       </div>
     </div>

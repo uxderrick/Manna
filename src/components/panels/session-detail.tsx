@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeftIcon, BookOpenIcon, MicIcon, BarChart3Icon, DownloadIcon, ClipboardIcon, FileTextIcon, FileJsonIcon, PrinterIcon } from "lucide-react"
+import { ArrowLeftIcon, BookOpenIcon, MicIcon, BarChart3Icon, DownloadIcon, ClipboardIcon, FileTextIcon, FileJsonIcon, PrinterIcon, SparklesIcon, LoaderIcon, CopyIcon, CheckIcon } from "lucide-react"
+import { summarizeTranscript } from "@/lib/summarize"
 import type { SessionDetection, SessionTranscriptSegment, SessionNote } from "@/types/session"
 
 interface SessionDetailProps {
@@ -69,6 +70,10 @@ export function SessionDetail({ sessionId, sessionTitle, onBack }: SessionDetail
   const [notes, setNotes] = useState<SessionNote[]>([])
   const [loading, setLoading] = useState(true)
   const [exportOpen, setExportOpen] = useState(false)
+  const [summary, setSummary] = useState<string | null>(null)
+  const [summarizing, setSummarizing] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [summaryCopied, setSummaryCopied] = useState(false)
   const exportRef = useRef<HTMLDivElement>(null)
 
   // Close dropdown on outside click
@@ -122,6 +127,33 @@ export function SessionDetail({ sessionId, sessionTitle, onBack }: SessionDetail
     window.print()
   }
 
+  const handleSummarize = async () => {
+    setExportOpen(false)
+    setSummaryError(null)
+    setSummarizing(true)
+    setTab("stats")
+    try {
+      const text = transcript.map((s) => s.text).join(" ")
+      if (!text.trim()) {
+        throw new Error("No transcript to summarize.")
+      }
+      const result = await summarizeTranscript(text)
+      setSummary(result)
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Summarization failed.")
+    } finally {
+      setSummarizing(false)
+    }
+  }
+
+  const handleCopySummary = () => {
+    if (summary) {
+      navigator.clipboard.writeText(summary)
+      setSummaryCopied(true)
+      setTimeout(() => setSummaryCopied(false), 2000)
+    }
+  }
+
   const presentedCount = detections.filter(d => d.wasPresented).length
   const uniqueBooks = new Set(detections.map(d => d.verseRef.split(" ")[0]))
 
@@ -173,6 +205,19 @@ export function SessionDetail({ sessionId, sessionTitle, onBack }: SessionDetail
               >
                 <PrinterIcon className="size-3.5" />
                 Print / PDF
+              </button>
+              <div className="my-1 border-t border-border" />
+              <button
+                onClick={handleSummarize}
+                disabled={summarizing || transcript.length === 0}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-foreground hover:bg-muted/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {summarizing ? (
+                  <LoaderIcon className="size-3.5 animate-spin" />
+                ) : (
+                  <SparklesIcon className="size-3.5" />
+                )}
+                Summarize with AI
               </button>
             </div>
           )}
@@ -261,6 +306,46 @@ export function SessionDetail({ sessionId, sessionTitle, onBack }: SessionDetail
                 <p className="text-[10px] text-muted-foreground">Transcript Segments</p>
               </div>
             </div>
+
+            {/* AI Summary */}
+            {summarizing && (
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/20 p-3">
+                <LoaderIcon className="size-3.5 animate-spin text-primary" />
+                <p className="text-xs text-muted-foreground">Summarizing transcript...</p>
+              </div>
+            )}
+
+            {summaryError && (
+              <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+                <p className="text-xs text-red-500">{summaryError}</p>
+              </div>
+            )}
+
+            {summary && !summarizing && (
+              <div className="flex flex-col gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <SparklesIcon className="size-3 text-primary" />
+                    <span className="text-[10px] font-medium uppercase tracking-wider text-primary">AI Summary</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={handleCopySummary}
+                    title="Copy summary"
+                  >
+                    {summaryCopied ? (
+                      <CheckIcon className="size-3 text-primary" />
+                    ) : (
+                      <CopyIcon className="size-3" />
+                    )}
+                  </Button>
+                </div>
+                <div className="whitespace-pre-wrap text-xs leading-relaxed text-foreground/80">
+                  {summary}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

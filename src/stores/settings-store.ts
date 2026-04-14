@@ -90,6 +90,10 @@ export async function hydrateSettings(): Promise<void> {
     if (audioDeviceId) {
       useSettingsStore.getState().setAudioDeviceId(audioDeviceId)
     }
+    const claudeApiKey = await store.get<string>("claudeApiKey")
+    if (claudeApiKey) {
+      useSettingsStore.getState().setClaudeApiKey(claudeApiKey)
+    }
     const autoMode = await store.get<boolean>("autoMode")
     if (autoMode != null) {
       useSettingsStore.getState().setAutoMode(autoMode)
@@ -156,6 +160,21 @@ export async function persistDeepgramApiKey(key: string | null): Promise<void> {
     }
   } catch {
     console.warn("[settings] Failed to persist Deepgram API key")
+  }
+}
+
+/** Persist the Claude API key to disk. */
+export async function persistClaudeApiKey(key: string | null): Promise<void> {
+  useSettingsStore.getState().setClaudeApiKey(key)
+  try {
+    const store = await getStore()
+    if (key) {
+      await store.set("claudeApiKey", key)
+    } else {
+      await store.delete("claudeApiKey")
+    }
+  } catch {
+    console.warn("[settings] Failed to persist Claude API key")
   }
 }
 
