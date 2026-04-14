@@ -123,9 +123,23 @@ impl DeepgramClient {
                 .await
             {
                 Ok(()) => {
-                    // Clean shutdown
-                    log::info!("DeepgramClient: connection closed normally");
-                    break;
+                    // Server closed connection cleanly — this often happens when
+                    // Deepgram detects prolonged silence. Treat as a reconnectable
+                    // disconnect rather than a permanent stop.
+                    if cancelled.load(Ordering::SeqCst) {
+                        log::info!("DeepgramClient: connection closed normally (cancelled)");
+                        break;
+                    }
+                    log::info!("DeepgramClient: server closed connection, reconnecting...");
+                    let _ = event_tx.send(TranscriptEvent::Disconnected).await;
+                    attempts += 1;
+                    if attempts >= MAX_RECONNECT_ATTEMPTS {
+                        log::error!("DeepgramClient: max reconnection attempts after clean close");
+                        break;
+                    }
+                    let delay = std::time::Duration::from_millis(500 * u64::from(attempts));
+                    tokio::time::sleep(delay).await;
+                    continue;
                 }
                 Err(e) => {
                     attempts += 1;

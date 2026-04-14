@@ -39,6 +39,7 @@ models/*
 .env
 .venv/
 .superpowers/
+.docs/
 embeddings/*
 
 .claude/CLAUDE.md

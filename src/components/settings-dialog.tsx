@@ -42,7 +42,7 @@ import {
   GraduationCapIcon,
   BrainCircuitIcon,
 } from "lucide-react"
-import { useSettingsStore, persistDeepgramApiKey } from "@/stores"
+import { useSettingsStore, persistDeepgramApiKey, persistAutoMode, persistConfidenceThreshold } from "@/stores"
 import { useTutorialStore } from "@/stores/tutorial-store"
 import { useSettingsDialogStore } from "@/lib/settings-dialog"
 import type { DeviceInfo } from "@/types/audio"
@@ -135,7 +135,9 @@ function AudioSection() {
         </label>
         <Select
           value={audioDeviceId ?? "__default__"}
-          onValueChange={(v) => setAudioDeviceId(v === "__default__" ? null : v)}
+          onValueChange={(v) => {
+            import("@/stores/settings-store").then(({ persistAudioDeviceId }) => persistAudioDeviceId(v === "__default__" ? null : v))
+          }}
           disabled={loading}
         >
           <SelectTrigger className="h-8 text-xs">
@@ -157,6 +159,10 @@ function AudioSection() {
           Selected device persists across sessions. Leave as system default to
           follow OS audio routing.
         </p>
+        <div className="rounded-md bg-muted/50 px-3 py-2 text-[0.625rem] leading-relaxed text-muted-foreground">
+          <span className="font-medium text-foreground/70">Tip:</span> To capture audio from a soundboard, video, or another app, use a virtual audio device like{" "}
+          <span className="font-medium">BlackHole</span> (free). Set up a Multi-Output Device in macOS Audio MIDI Setup to hear audio and route it to Manna simultaneously.
+        </div>
       </div>
 
       {/* Input gain */}
@@ -174,7 +180,9 @@ function AudioSection() {
           max={100}
           step={1}
           value={[gainPercent]}
-          onValueChange={([v]) => setGain((v / 100) * 2.0)}
+          onValueChange={([v]) => {
+            import("@/stores/settings-store").then(({ persistGain }) => persistGain((v / 100) * 2.0))
+          }}
         />
         <p className="text-[0.625rem] text-muted-foreground">
           Amplifies the incoming audio signal before transcription. 50% is unity
@@ -324,7 +332,7 @@ function DisplayModeSection() {
 
         <RadioGroup
           value={autoMode ? "auto" : "manual"}
-          onValueChange={(v) => setAutoMode(v === "auto")}
+          onValueChange={(v) => persistAutoMode(v === "auto")}
           className="gap-3"
         >
           {/* Auto mode */}
@@ -379,7 +387,7 @@ function DisplayModeSection() {
             max={100}
             step={1}
             value={[thresholdPercent]}
-            onValueChange={([v]) => setConfidenceThreshold(v / 100)}
+            onValueChange={([v]) => persistConfidenceThreshold(v / 100)}
           />
           <p className="text-[0.625rem] text-muted-foreground">
             Only verses with confidence above this threshold will be sent to

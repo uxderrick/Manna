@@ -8,11 +8,16 @@ import {
   useBibleStore,
   useBroadcastStore,
   useSessionStore,
+  useSettingsStore,
 } from "@/stores"
 import { useTauriEvent } from "@/hooks/use-tauri-event"
 import { bibleActions } from "@/hooks/use-bible"
+import { toVerseRenderData } from "@/hooks/use-broadcast"
 import type { TranscriptSegment } from "@/types"
 import type { DetectionResult } from "@/types"
+
+// Auto-broadcast cooldown — prevents rapid flickering between verses
+let lastAutoBroadcastAt = 0
 
 export function TranscriptPanel() {
   const segments = useTranscriptStore((s) => s.segments)
@@ -154,6 +159,36 @@ export function TranscriptPanel() {
           chapter: directHit.chapter,
           verse: directHit.verse,
         })
+    }
+
+    // ── Auto-broadcast mode ──────────────────────────────────────
+    const { autoMode, confidenceThreshold, cooldownMs } = useSettingsStore.getState()
+    if (autoMode) {
+      const now = Date.now()
+      if (now - lastAutoBroadcastAt < cooldownMs) return // cooldown active
+
+      // Find the best detection that meets the threshold
+      const best = detections
+        .filter((d) => d.confidence >= confidenceThreshold && d.book_number > 0)
+        .sort((a, b) => b.confidence - a.confidence)[0]
+
+      if (best) {
+        lastAutoBroadcastAt = now
+        const verse = {
+          id: 0,
+          translation_id: useBibleStore.getState().activeTranslationId,
+          book_number: best.book_number,
+          book_name: best.book_name,
+          book_abbreviation: "",
+          chapter: best.chapter,
+          verse: best.verse,
+          text: best.verse_text,
+        }
+        const trans = useBibleStore.getState().translations
+          .find((t) => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+        // Push directly to live screen — skip preview in auto mode
+        useBroadcastStore.getState().setLiveVerse(toVerseRenderData(verse, trans))
+      }
     }
   })
 
