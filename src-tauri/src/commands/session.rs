@@ -59,6 +59,18 @@ pub fn delete_session(db: State<'_, DbState>, id: i64) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn update_session_title(
+    db: State<'_, DbState>,
+    id: i64,
+    title: String,
+) -> Result<(), String> {
+    db.lock()
+        .map_err(|e| e.to_string())?
+        .update_session_title(id, &title)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn update_session_summary(
     db: State<'_, DbState>,
     id: i64,

@@ -139,12 +139,13 @@ impl SttProvider for WhisperProvider {
         let vad_handle = tokio::task::spawn_blocking(move || {
             use rhema_audio::{AudioFrame, Vad, VadConfig, VadTransition};
 
-            // Higher thresholds than default to avoid sending near-silence
-            // to Whisper (which causes hallucinations).
+            // Lower thresholds to pick up room/ambient audio (speaker at a
+            // podium, mic on a desk). Tradeoff: more background noise reaches
+            // Whisper, but suppress_non_speech_tokens handles most hallucinations.
             let vad_config = VadConfig {
-                silence_threshold: 0.01,
-                frame_threshold: 0.005,
-                min_voice_frames: 6,
+                silence_threshold: 0.003,
+                frame_threshold: 0.002,
+                min_voice_frames: 3,
                 ..VadConfig::default()
             };
             let mut vad = Vad::new(vad_config);
@@ -247,7 +248,7 @@ impl SttProvider for WhisperProvider {
                 params.set_print_realtime(false);
                 params.set_single_segment(false);
                 params.set_token_timestamps(true);
-                params.set_no_speech_thold(0.6);
+                params.set_no_speech_thold(0.4);
                 params.set_suppress_blank(true);
                 params.set_suppress_non_speech_tokens(true);
 

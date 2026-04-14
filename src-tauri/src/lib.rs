@@ -85,6 +85,7 @@ pub fn run() {
             commands::session::start_session,
             commands::session::end_session,
             commands::session::delete_session,
+            commands::session::update_session_title,
             commands::session::update_session_summary,
             commands::session::add_session_detection,
             commands::session::get_session_detections,

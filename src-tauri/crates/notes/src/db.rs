@@ -194,6 +194,17 @@ impl SessionDb {
     }
 
     /// Update the AI-generated summary for a session.
+    pub fn update_session_title(&self, id: i64, title: &str) -> Result<()> {
+        let changed = self.conn.execute(
+            "UPDATE sermon_sessions SET title = ?1, updated_at = datetime('now') WHERE id = ?2",
+            params![title, id],
+        )?;
+        if changed == 0 {
+            return Err(SessionError::NotFound(id));
+        }
+        Ok(())
+    }
+
     pub fn update_session_summary(&self, id: i64, summary: &str) -> Result<()> {
         let changed = self.conn.execute(
             "UPDATE sermon_sessions SET summary = ?1, updated_at = datetime('now') WHERE id = ?2",

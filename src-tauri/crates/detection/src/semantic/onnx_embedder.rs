@@ -248,13 +248,13 @@ impl OnnxEmbedder {
         };
 
         // Try f32 first, fall back to f16 (some ONNX exports output half-precision)
-        let (out_dims_vec, data_f32);
+        let (out_dims_vec, data_f32): (Vec<i64>, Vec<f32>);
         if let Ok((shape, d)) = output_value.try_extract_tensor::<f32>() {
             out_dims_vec = shape.to_vec();
             data_f32 = d.to_vec();
         } else if let Ok((shape, d)) = output_value.try_extract_tensor::<half::f16>() {
             out_dims_vec = shape.to_vec();
-            data_f32 = d.iter().map(|v| v.to_f32()).collect();
+            data_f32 = d.iter().map(|v: &half::f16| v.to_f32()).collect();
         } else {
             return Err(DetectionError::Internal(
                 "cannot extract tensor as f32 or f16".into(),

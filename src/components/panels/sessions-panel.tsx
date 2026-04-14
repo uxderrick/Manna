@@ -81,16 +81,31 @@ function SessionRow({
   isActive,
   onClick,
   onContextMenu,
+  onTitleChange,
 }: {
   session: SermonSession
   isActive: boolean
   onClick: () => void
   onContextMenu: (e: React.MouseEvent) => void
+  onTitleChange: (newTitle: string) => void
 }) {
+  const [editing, setEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(session.title)
+
   const statusColors: Record<string, string> = {
     planned: "bg-muted text-muted-foreground",
     live: "bg-live-pulse/20 text-live-pulse",
     completed: "bg-primary/10 text-primary",
+  }
+
+  const handleSaveTitle = () => {
+    const trimmed = editTitle.trim()
+    if (trimmed && trimmed !== session.title) {
+      onTitleChange(trimmed)
+    } else {
+      setEditTitle(session.title)
+    }
+    setEditing(false)
   }
 
   return (
@@ -100,7 +115,27 @@ function SessionRow({
       onContextMenu={onContextMenu}
     >
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{session.title}</p>
+        {editing ? (
+          <input
+            autoFocus
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            onBlur={handleSaveTitle}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSaveTitle()
+              if (e.key === "Escape") { setEditTitle(session.title); setEditing(false) }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full rounded border border-primary bg-transparent px-1 py-0.5 text-sm font-medium outline-none focus:ring-1 focus:ring-primary"
+          />
+        ) : (
+          <p
+            className="truncate font-medium"
+            onDoubleClick={(e) => { e.stopPropagation(); setEditing(true) }}
+          >
+            {session.title}
+          </p>
+        )}
         <p className="text-xs text-muted-foreground">
           {session.date}
           {session.speaker && ` · ${session.speaker}`}
@@ -124,7 +159,11 @@ export function SessionsPanel() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: number } | null>(null)
 
   function loadSessions() {
-    listSessions().then(setSessions).catch(() => {})
+    listSessions().then((s) => {
+      // Sort by createdAt descending — newest first
+      const sorted = [...s].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      setSessions(sorted)
+    }).catch(() => {})
   }
 
   useEffect(() => {
@@ -158,6 +197,12 @@ export function SessionsPanel() {
               onClick={() => {
                 setViewingSessionId(session.id)
                 setViewingSessionTitle(session.title)
+              }}
+              onTitleChange={async (newTitle) => {
+                try {
+                  await invoke("update_session_title", { id: session.id, title: newTitle })
+                  loadSessions()
+                } catch {}
               }}
               onContextMenu={(e) => {
                 e.preventDefault()
