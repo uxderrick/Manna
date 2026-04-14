@@ -15,6 +15,7 @@ import { SearchPanel } from "@/components/panels/search-panel"
 import { DetectionsPanel } from "@/components/panels/detections-panel"
 import { QueuePanel } from "@/components/panels/queue-panel"
 import { CrossRefPanel } from "@/components/panels/crossref-panel"
+import { PlannerPanel } from "@/components/panels/planner-panel"
 import { BroadcastMonitor } from "@/components/broadcast/broadcast-monitor"
 import { HistoryPanel } from "@/components/panels/history-panel"
 import { AboutDialog } from "@/components/about-dialog"
@@ -295,7 +296,7 @@ export function Workspace() {
               { id: "queue", label: "Queue", content: <QueuePanel /> },
               { id: "history", label: "History", content: <HistoryPanel /> },
               { id: "cross-refs", label: "Cross-refs", content: <CrossRefPanel /> },
-              { id: "planner", label: "Planner", content: <Placeholder label="Planner" /> },
+              { id: "planner", label: "Planner", content: <PlannerPanel /> },
             ]}
           />
         </Panel>
