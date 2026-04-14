@@ -6,6 +6,7 @@ import {
   useAudioStore,
   useDetectionStore,
   useBibleStore,
+  useSessionStore,
 } from "@/stores"
 import { useTauriEvent } from "@/hooks/use-tauri-event"
 import { bibleActions } from "@/hooks/use-bible"
@@ -57,6 +58,21 @@ export function TranscriptPanel() {
         timestamp: Date.now(),
       }
       useTranscriptStore.getState().addSegment(segment)
+
+      // Record transcript to active session
+      const activeSession = useSessionStore.getState().activeSession
+      if (activeSession && activeSession.status === "live") {
+        invoke("add_session_transcript", {
+          request: {
+            sessionId: activeSession.id,
+            text: payload.text,
+            isFinal: true,
+            confidence: payload.confidence || null,
+            timestampMs: Date.now(),
+            speakerLabel: null,
+          }
+        }).catch(() => {})
+      }
     }
   )
 
@@ -72,6 +88,25 @@ export function TranscriptPanel() {
   // Listen for detection results from the backend (batch replaces previous detections)
   useTauriEvent<DetectionResult[]>("verse_detections", (detections) => {
     useDetectionStore.getState().addDetections(detections)
+
+    // Record detections to active session
+    const activeSession = useSessionStore.getState().activeSession
+    if (activeSession && activeSession.status === "live") {
+      for (const d of detections) {
+        invoke("add_session_detection", {
+          request: {
+            sessionId: activeSession.id,
+            verseRef: d.verse_ref,
+            verseText: d.verse_text || "",
+            translation: useBibleStore.getState().translations
+              .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV",
+            confidence: d.confidence,
+            source: d.source,
+            transcriptSnippet: d.transcript_snippet || null,
+          }
+        }).catch(() => {})
+      }
+    }
 
     // Auto-navigate book search + select verse for preview/live
     // Handle direct, contextual (reading mode), and high-confidence quotation matches
