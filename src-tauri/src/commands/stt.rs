@@ -459,9 +459,39 @@ fn run_direct_detection(app: &AppHandle, transcript: &str) -> bool {
     has_high_confidence
 }
 
+/// Minimum word count for semantic detection. Short phrases like "God is good"
+/// or "praise the Lord" create too many false positives. Direct detection
+/// still catches short explicit references like "Psalm 1:1".
+const SEMANTIC_MIN_WORDS: usize = 5;
+
+/// Cooldown between semantic detections (milliseconds). Prevents rapid-fire
+/// flooding when the pastor is speaking continuously.
+const SEMANTIC_COOLDOWN_MS: u64 = 3000;
+
+/// Track last semantic detection time for cooldown
+static LAST_SEMANTIC_EMIT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// Run semantic (ONNX embedding) detection. Slow, runs in background worker.
 fn run_semantic_detection(app: &AppHandle, transcript: &str) {
     log::info!("[DET-SEMANTIC] Running on: {:?}", &transcript[..transcript.len().min(80)]);
+
+    // Skip short phrases — too many false positives from casual speech
+    let word_count = transcript.split_whitespace().count();
+    if word_count < SEMANTIC_MIN_WORDS {
+        log::info!("[DET-SEMANTIC] Skipped: only {word_count} words (min {SEMANTIC_MIN_WORDS})");
+        return;
+    }
+
+    // Cooldown — don't emit another semantic detection within 3 seconds
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let last = LAST_SEMANTIC_EMIT.load(std::sync::atomic::Ordering::Relaxed);
+    if now_ms.saturating_sub(last) < SEMANTIC_COOLDOWN_MS {
+        log::info!("[DET-SEMANTIC] Cooldown active, skipping");
+        return;
+    }
     let managed: State<'_, Mutex<AppState>> = app.state();
     let mut app_state = match managed.lock() {
         Ok(s) => s,
@@ -496,12 +526,12 @@ fn run_semantic_detection(app: &AppHandle, transcript: &str) {
         );
     }
 
-    // Only emit top 3 results above 50% confidence
-    // This reduces noise while still showing alternatives
+    // Only emit top 3 results above 60% confidence
+    // Higher threshold reduces false positives from casual speech
     let results: Vec<super::detection::DetectionResult> = detections
         .iter()
         .take(3)
-        .filter(|m| m.detection.confidence >= 0.50)
+        .filter(|m| m.detection.confidence >= 0.60)
         .map(|m| super::detection::to_result(&app_state, m))
         .collect();
     for r in &results {
@@ -511,10 +541,12 @@ fn run_semantic_detection(app: &AppHandle, transcript: &str) {
         );
     }
     if results.is_empty() {
-        log::info!("[DET-SEMANTIC] Top result below 50% threshold, suppressed");
+        log::info!("[DET-SEMANTIC] Top result below 60% threshold, suppressed");
     }
     drop(app_state);
     if !results.is_empty() {
+        // Update cooldown timestamp
+        LAST_SEMANTIC_EMIT.store(now_ms, std::sync::atomic::Ordering::Relaxed);
         let _ = app.emit("verse_detections", &results);
     }
 }

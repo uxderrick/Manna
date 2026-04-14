@@ -13,6 +13,7 @@ interface BroadcastState {
   isLive: boolean
   previewVerse: VerseRenderData | null
   liveVerse: VerseRenderData | null
+  history: Array<{ verse: VerseRenderData; presentedAt: number }>
 
   // Designer state
   isDesignerOpen: boolean
@@ -92,6 +93,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   isLive: false,
   previewVerse: null,
   liveVerse: null,
+  history: [],
   isDesignerOpen: false,
   editingThemeId: null,
   draftTheme: null,
@@ -161,6 +163,14 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   setPreviewVerse: (previewVerse) => set({ previewVerse }),
   setLiveVerse: (liveVerse) => {
     set({ liveVerse, isLive: liveVerse !== null })
+    // Record to history (avoid duplicates of same verse consecutively)
+    if (liveVerse) {
+      const { history } = get()
+      const lastRef = history[0]?.verse.reference
+      if (lastRef !== liveVerse.reference) {
+        set({ history: [{ verse: liveVerse, presentedAt: Date.now() }, ...history].slice(0, 50) })
+      }
+    }
     get().syncBroadcastOutput()
   },
   goLive: () => {
