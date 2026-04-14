@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Panel, Group, Separator, useGroupRef } from "react-resizable-panels"
 import { Toolbar } from "./toolbar"
 import { CommandPalette } from "@/components/command-palette"
@@ -89,11 +89,18 @@ const DEFAULT_LAYOUT = { left: 25, center: 25, right: 25, broadcast: 25 }
 /* -------------------------------------------------------------------------- */
 
 export function Workspace() {
-  const [transcriptCollapsed, setTranscriptCollapsed] = useState(false)
+  const [transcriptCollapsed, setTranscriptCollapsed] = useState(true)
   const { theme, setTheme } = useTheme()
   const mainGroupRef = useGroupRef()
   const panelTabs = usePanelTabsStore()
   const isTranscribing = useTranscriptStore((s) => s.isTranscribing)
+
+  // Auto-open transcript when service starts
+  useEffect(() => {
+    if (isTranscribing) {
+      setTranscriptCollapsed(false)
+    }
+  }, [isTranscribing])
 
   const commands = useMemo(
     () =>

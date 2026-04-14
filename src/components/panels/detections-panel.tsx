@@ -2,10 +2,10 @@ import { useEffect, useState } from "react"
 import { PanelHeader } from "@/components/ui/panel-header"
 import { ConfidenceDot } from "@/components/ui/confidence-dot"
 import { Button } from "@/components/ui/button"
-import { PlayIcon, PlusIcon, RadioIcon, ScanSearchIcon } from "lucide-react"
+import { PlayIcon, PlusIcon, RadioIcon, ScanSearchIcon, MicIcon } from "lucide-react"
 import { useDetection, detectionActions } from "@/hooks/use-detection"
 import { bibleActions } from "@/hooks/use-bible"
-import { useQueueStore, useBroadcastStore, useBibleStore } from "@/stores"
+import { useQueueStore, useBroadcastStore, useBibleStore, useTranscriptStore } from "@/stores"
 import { toVerseRenderData } from "@/hooks/use-broadcast"
 import { invoke } from "@tauri-apps/api/core"
 import type { DetectionResult } from "@/types"
@@ -179,6 +179,7 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
 
 export function DetectionsPanel() {
   const { detections } = useDetection()
+  const isTranscribing = useTranscriptStore((s) => s.isTranscribing)
 
   return (
     <div
@@ -196,15 +197,41 @@ export function DetectionsPanel() {
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex flex-col gap-0">
-          {detections.length === 0 && (
+          {detections.length === 0 && !isTranscribing && (
+            <div className="relative flex flex-1 flex-col items-center justify-center gap-5 overflow-hidden px-6 py-16 text-center">
+              {/* Radial gradient background */}
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/8 via-transparent to-transparent" />
+
+              <div className="relative flex size-14 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20">
+                <MicIcon className="size-6 text-primary" />
+              </div>
+              <div className="relative flex flex-col gap-1.5">
+                <p className="text-sm font-semibold text-foreground">Ready to begin</p>
+                <p className="max-w-[200px] text-xs leading-relaxed text-muted-foreground">
+                  Start a service to detect Bible verses in real time as the sermon is preached.
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  // Trigger start service from toolbar
+                  const toolbar = document.querySelector('[data-slot="start-service-btn"]') as HTMLButtonElement
+                  toolbar?.click()
+                }}
+                className="relative rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:shadow-xl hover:shadow-primary/30"
+              >
+                Start Service
+              </button>
+            </div>
+          )}
+          {detections.length === 0 && isTranscribing && (
             <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
-              <div className="flex size-10 items-center justify-center rounded-full bg-muted/50">
-                <ScanSearchIcon className="size-5 text-muted-foreground/60" />
+              <div className="flex size-10 items-center justify-center rounded-full bg-primary/10">
+                <ScanSearchIcon className="size-5 animate-pulse text-primary" />
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-muted-foreground">No detections yet</p>
-                <p className="text-[0.625rem] leading-relaxed text-muted-foreground/60">
-                  Start transcribing and verse references will be detected automatically as the sermon plays.
+                <p className="text-xs font-medium text-foreground">Listening...</p>
+                <p className="text-[0.625rem] leading-relaxed text-muted-foreground">
+                  Verse references will appear here as they are detected in the sermon.
                 </p>
               </div>
             </div>

@@ -60,8 +60,24 @@ export function Toolbar() {
 
   const isLive = activeSession?.status === "live"
 
-  const handleStart = async () => {
+  const handleStartService = async () => {
     try {
+      // Auto-create session if none active
+      if (!useSessionStore.getState().activeSession) {
+        const now = new Date()
+        const date = now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" })
+        const time = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+        const session = await invoke<any>("create_session", {
+          request: {
+            title: `${date} — ${time}`,
+            date: now.toISOString().split("T")[0],
+          }
+        })
+        const started = await invoke<any>("start_session", { id: session.id })
+        useSessionStore.getState().setActiveSession(started)
+      }
+
+      // Start transcription
       useTranscriptStore.getState().setConnectionStatus("connecting")
       const settings = useSettingsStore.getState()
       await invoke("start_transcription", {
@@ -82,16 +98,23 @@ export function Toolbar() {
     }
   }
 
-  const handleStop = async () => {
-    const confirmed = await ask("Stop transcribing? This will end live audio capture.", { title: "Stop Transcription", kind: "warning" })
+  const handleEndService = async () => {
+    const confirmed = await ask("End service? This will stop transcription and save the session.", { title: "End Service", kind: "warning" })
     if (!confirmed) return
     try {
       await invoke("stop_transcription")
       useTranscriptStore.getState().setTranscribing(false)
       useTranscriptStore.getState().setPartial("")
       useTranscriptStore.getState().setConnectionStatus("disconnected")
+
+      // End the session
+      const session = useSessionStore.getState().activeSession
+      if (session) {
+        await invoke("end_session", { id: session.id })
+        useSessionStore.getState().setActiveSession(null)
+      }
     } catch (e) {
-      console.error("Failed to stop transcription:", e)
+      console.error("Failed to end service:", e)
     }
   }
 
@@ -124,24 +147,23 @@ export function Toolbar() {
         )}
         {isTranscribing ? (
           <Button
-            variant="ghost"
             size="sm"
-            className="gap-1.5 text-destructive hover:text-destructive"
-            onClick={handleStop}
+            className="gap-1.5 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={handleEndService}
           >
             <MicOffIcon className="size-3.5" />
-            Stop
+            End Service
           </Button>
         ) : (
           <Button
-            variant="ghost"
+            data-slot="start-service-btn"
             size="sm"
-            className="gap-1.5"
-            onClick={handleStart}
+            className="gap-1.5 rounded-full"
+            onClick={handleStartService}
             disabled={connectionStatus === "connecting"}
           >
             <MicIcon className="size-3.5" />
-            {connectionStatus === "connecting" ? "Connecting…" : "Start transcribing"}
+            {connectionStatus === "connecting" ? "Connecting…" : "Start Service"}
           </Button>
         )}
       </div>
