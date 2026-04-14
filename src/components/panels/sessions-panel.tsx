@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react"
+import { invoke } from "@tauri-apps/api/core"
 import { useSession } from "@/hooks/use-session"
 import { useSessionStore } from "@/stores"
 import type { SermonSession, CreateSessionRequest } from "@/types/session"
+import { SessionDetail } from "./session-detail"
 
 function CreateSessionForm({ onCreated }: { onCreated: () => void }) {
   const { createSession, startSession } = useSession()
@@ -70,10 +72,12 @@ function SessionRow({
   session,
   isActive,
   onClick,
+  onContextMenu,
 }: {
   session: SermonSession
   isActive: boolean
   onClick: () => void
+  onContextMenu: (e: React.MouseEvent) => void
 }) {
   const statusColors: Record<string, string> = {
     planned: "bg-muted text-muted-foreground",
@@ -85,6 +89,7 @@ function SessionRow({
     <button
       className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted/50 ${isActive ? "bg-muted" : ""}`}
       onClick={onClick}
+      onContextMenu={onContextMenu}
     >
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{session.title}</p>
@@ -106,6 +111,9 @@ export function SessionsPanel() {
   const { listSessions } = useSession()
   const activeSession = useSessionStore((s) => s.activeSession)
   const [sessions, setSessions] = useState<SermonSession[]>([])
+  const [viewingSessionId, setViewingSessionId] = useState<number | null>(null)
+  const [viewingSessionTitle, setViewingSessionTitle] = useState("")
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; sessionId: number } | null>(null)
 
   function loadSessions() {
     listSessions().then(setSessions).catch(() => {})
@@ -114,6 +122,16 @@ export function SessionsPanel() {
   useEffect(() => {
     loadSessions()
   }, [])
+
+  if (viewingSessionId) {
+    return (
+      <SessionDetail
+        sessionId={viewingSessionId}
+        sessionTitle={viewingSessionTitle}
+        onBack={() => setViewingSessionId(null)}
+      />
+    )
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -129,11 +147,52 @@ export function SessionsPanel() {
               key={session.id}
               session={session}
               isActive={activeSession?.id === session.id}
-              onClick={() => useSessionStore.getState().setActiveSession(session)}
+              onClick={() => {
+                setViewingSessionId(session.id)
+                setViewingSessionTitle(session.title)
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setContextMenu({ x: e.clientX, y: e.clientY, sessionId: session.id })
+              }}
             />
           ))
         )}
       </div>
+      {contextMenu && (
+        <>
+          <div className="fixed inset-0 z-50" onClick={() => setContextMenu(null)} />
+          <div
+            className="fixed z-50 min-w-[140px] rounded-lg border border-border bg-popover p-1 shadow-lg"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+          >
+            <button
+              className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-popover-foreground hover:bg-accent"
+              onClick={() => {
+                setViewingSessionId(contextMenu.sessionId)
+                const session = sessions.find(s => s.id === contextMenu.sessionId)
+                setViewingSessionTitle(session?.title ?? "")
+                setContextMenu(null)
+              }}
+            >
+              View Details
+            </button>
+            <button
+              className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-destructive hover:bg-destructive/10"
+              onClick={async () => {
+                try {
+                  await invoke("delete_session", { id: contextMenu.sessionId })
+                  const updated = await invoke<SermonSession[]>("list_sessions")
+                  useSessionStore.getState().setSessions(updated)
+                } catch {}
+                setContextMenu(null)
+              }}
+            >
+              Delete Session
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }
