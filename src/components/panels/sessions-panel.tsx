@@ -7,7 +7,12 @@ import { SessionDetail } from "./session-detail"
 
 function CreateSessionForm({ onCreated }: { onCreated: () => void }) {
   const { createSession, startSession } = useSession()
-  const [title, setTitle] = useState("")
+  const [title, setTitle] = useState(() => {
+    const now = new Date()
+    const date = now.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" })
+    const time = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+    return `${date} — ${time}`
+  })
   const [speaker, setSpeaker] = useState("")
   const [seriesName, setSeriesName] = useState("")
   const [isCreating, setIsCreating] = useState(false)
@@ -26,7 +31,10 @@ function CreateSessionForm({ onCreated }: { onCreated: () => void }) {
       const session = await createSession(request)
       const started = await startSession(session.id)
       useSessionStore.getState().setActiveSession(started)
-      setTitle("")
+      const next = new Date()
+      const nextDate = next.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" })
+      const nextTime = next.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+      setTitle(`${nextDate} — ${nextTime}`)
       setSpeaker("")
       setSeriesName("")
       onCreated()
