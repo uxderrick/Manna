@@ -6,6 +6,7 @@ import {
   useAudioStore,
   useDetectionStore,
   useBibleStore,
+  useBroadcastStore,
   useSessionStore,
 } from "@/stores"
 import { useTauriEvent } from "@/hooks/use-tauri-event"
@@ -105,6 +106,26 @@ export function TranscriptPanel() {
             transcriptSnippet: d.transcript_snippet || null,
           }
         }).catch(() => {})
+      }
+    }
+
+    // Auto-add high-confidence detections (99%+) to history
+    // These are near-certain matches the pastor explicitly referenced
+    for (const d of detections) {
+      if (d.confidence >= 0.99 && d.book_number > 0) {
+        const trans = useBibleStore.getState().translations
+          .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+        const verseData = {
+          reference: `${d.book_name} ${d.chapter}:${d.verse} (${trans})`,
+          segments: [{ text: d.verse_text || "" }],
+        }
+        const { history } = useBroadcastStore.getState()
+        const lastRef = history[0]?.verse.reference
+        if (lastRef !== verseData.reference) {
+          useBroadcastStore.setState({
+            history: [{ verse: verseData, presentedAt: Date.now() }, ...history].slice(0, 50)
+          })
+        }
       }
     }
 
