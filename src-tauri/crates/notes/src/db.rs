@@ -369,6 +369,82 @@ impl SessionDb {
         self.conn.execute("DELETE FROM themes WHERE id = ?1", params![id])?;
         Ok(())
     }
+
+    // ── Analytics ─────────────────────────────────────────────
+
+    pub fn get_aggregate_stats(&self) -> Result<(i64, i64, f64, String)> {
+        let total_sessions: i64 = self.conn
+            .query_row("SELECT COUNT(*) FROM sermon_sessions WHERE status = 'completed'", [], |r| r.get(0))
+            .unwrap_or(0);
+
+        let total_detections: i64 = self.conn
+            .query_row("SELECT COUNT(*) FROM session_detections", [], |r| r.get(0))
+            .unwrap_or(0);
+
+        let total_hours: f64 = self.conn
+            .query_row(
+                "SELECT COALESCE(SUM((julianday(ended_at) - julianday(started_at)) * 24), 0.0) FROM sermon_sessions WHERE status = 'completed' AND started_at IS NOT NULL AND ended_at IS NOT NULL",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0.0);
+
+        let top_book: String = self.conn
+            .query_row(
+                "SELECT verse_ref FROM session_detections GROUP BY substr(verse_ref, 1, instr(verse_ref, ' ') - 1) ORDER BY COUNT(*) DESC LIMIT 1",
+                [],
+                |r| {
+                    let full_ref: String = r.get(0)?;
+                    Ok(full_ref.split(' ').next().unwrap_or("Unknown").to_string())
+                },
+            )
+            .unwrap_or_else(|_| "None".to_string());
+
+        Ok((total_sessions, total_detections, total_hours, top_book))
+    }
+
+    pub fn get_verse_frequency(&self, limit: i64) -> Result<Vec<(String, i64)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT verse_ref, COUNT(*) as cnt FROM session_detections GROUP BY verse_ref ORDER BY cnt DESC LIMIT ?1"
+        )?;
+        let rows = stmt
+            .query_map(params![limit], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn get_recent_sessions(&self, limit: i64) -> Result<Vec<SermonSession>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, title, speaker, date, series_name, tags, started_at, ended_at,
+                    status, planned_scriptures, summary, created_at, updated_at
+             FROM sermon_sessions ORDER BY created_at DESC LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit], |row| Ok(row_to_session(row)))?;
+
+        let mut sessions = Vec::new();
+        for r in rows {
+            sessions.push(r?.map_err(|_| {
+                SessionError::Serialization(serde_json::Error::io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Failed to deserialize session row",
+                )))
+            })?);
+        }
+        Ok(sessions)
+    }
+
+    pub fn get_session_detection_count(&self, session_id: i64) -> Result<i64> {
+        let count: i64 = self.conn
+            .query_row(
+                "SELECT COUNT(*) FROM session_detections WHERE session_id = ?1",
+                params![session_id],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        Ok(count)
+    }
 }
 
 // ── Row-mapping helpers ─────────────────────────────────────────────
