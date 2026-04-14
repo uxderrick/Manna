@@ -15,7 +15,7 @@ export async function summarizeTranscript(transcript: string): Promise<string> {
       "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6-20260414",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
       messages: [{
         role: "user",
