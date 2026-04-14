@@ -19,11 +19,22 @@ export async function summarizeTranscript(transcript: string): Promise<string> {
       max_tokens: 1024,
       messages: [{
         role: "user",
-        content: `Summarize this sermon transcript into clear, concise sermon notes. Include:
-- Main topic/theme
-- Key Bible verses referenced
-- Main points (3-5 bullet points)
-- Key takeaways
+        content: `You are a church sermon notes assistant. Summarize this sermon transcript into clear, concise notes. Work with whatever content is available — even if the transcript is short, fragmented, or from a test recording.
+
+Always produce useful notes. Never refuse or say the transcript is insufficient. Extract whatever you can.
+
+Format:
+## Topic
+[Best guess at the main theme based on what was said]
+
+## Key Verses
+[Any Bible verses mentioned or referenced, even indirectly]
+
+## Main Points
+[3-5 bullet points summarizing what was discussed]
+
+## Takeaways
+[1-3 practical takeaways for the congregation]
 
 Transcript:
 ${transcript.slice(0, 12000)}`,
