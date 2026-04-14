@@ -216,9 +216,9 @@ export function DetectionsPanel() {
                 </p>
               </div>
               <button
-                onClick={async () => {
-                  const toolbar = document.querySelector('[data-slot="start-service-btn"]') as HTMLButtonElement
-                  toolbar?.click()
+                onClick={() => {
+                  const btn = document.querySelector('[data-slot="start-service-btn"]') as HTMLButtonElement
+                  btn?.click()
                 }}
                 className="relative rounded-full bg-gradient-to-r from-primary to-primary/80 px-6 py-3 text-sm font-bold text-primary-foreground shadow-xl shadow-primary/25 transition-all hover:shadow-2xl hover:shadow-primary/35 hover:brightness-110"
               >

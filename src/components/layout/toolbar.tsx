@@ -13,6 +13,7 @@ import { LevelMeter } from "@/components/ui/level-meter"
 import { LiveIndicator } from "@/components/ui/live-indicator"
 import { SettingsDialog } from "@/components/settings-dialog"
 import { ApiKeyPrompt } from "@/components/ui/api-key-prompt"
+import { PreflightChecklist } from "@/components/preflight-checklist"
 import { MicIcon, MicOffIcon } from "lucide-react"
 
 /* -------------------------------------------------------------------------- */
@@ -57,8 +58,13 @@ export function Toolbar() {
   const audioLevel = useAudioStore((s) => s.level)
   const deepgramApiKey = useSettingsStore((s) => s.deepgramApiKey)
   const [showKeyPrompt, setShowKeyPrompt] = useState(false)
+  const [showPreflight, setShowPreflight] = useState(false)
 
   const isLive = activeSession?.status === "live"
+
+  const handleStartServiceClick = () => {
+    setShowPreflight(true)
+  }
 
   const handleStartService = async () => {
     try {
@@ -159,7 +165,7 @@ export function Toolbar() {
             data-slot="start-service-btn"
             size="sm"
             className="gap-1.5 rounded-full"
-            onClick={handleStartService}
+            onClick={handleStartServiceClick}
             disabled={connectionStatus === "connecting"}
           >
             <MicIcon className="size-3.5" />
@@ -178,6 +184,12 @@ export function Toolbar() {
         onOpenChange={setShowKeyPrompt}
         service="Deepgram"
         description="Live transcription needs a Deepgram API key. Add it in settings so the app can start listening."
+      />
+
+      <PreflightChecklist
+        open={showPreflight}
+        onOpenChange={setShowPreflight}
+        onStart={handleStartService}
       />
     </div>
   )
