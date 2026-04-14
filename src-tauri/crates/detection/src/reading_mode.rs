@@ -212,7 +212,7 @@ impl ReadingMode {
         }
 
         // "previous chapter"
-        if trimmed == "previous chapter" || trimmed == "previous chapter." {
+        if trimmed.contains("previous chapter") || trimmed.contains("last chapter") {
             if self.chapter > 1 {
                 let new_chapter = self.chapter - 1;
                 log::info!("[READING] 'Previous chapter' command detected → chapter {new_chapter}");
@@ -334,23 +334,23 @@ impl ReadingMode {
         let lower = text.to_lowercase();
         let trimmed = lower.trim();
 
-        // Check for "next" / "next verse" command
-        if trimmed == "next" || trimmed == "next." || trimmed == "next verse"
-            || trimmed == "next verse." {
+        // Check for "next" / "next verse" command (contains match for natural speech)
+        if trimmed.contains("next verse") || trimmed.contains("next scripture")
+            || trimmed == "next" || trimmed == "next." {
             let next_idx = self.current_index + 1;
             if next_idx < self.verses.len() {
-                log::info!("[READING] 'Next' command detected");
+                log::info!("[READING] 'Next' command detected in: {trimmed}");
                 return self.advance_to(next_idx);
             }
             return None;
         }
 
-        // Check for "previous" / "go back" command
-        if trimmed == "previous verse" || trimmed == "previous verse."
-            || trimmed == "go back" || trimmed == "go back." {
+        // Check for "previous" / "go back" command (contains match for natural speech)
+        if trimmed.contains("previous verse") || trimmed.contains("previous scripture")
+            || trimmed.contains("go back") || trimmed.contains("last verse") {
             if self.current_index > 0 {
                 let prev_idx = self.current_index - 1;
-                log::info!("[READING] 'Previous' command detected");
+                log::info!("[READING] 'Previous' command detected in: {trimmed}");
                 return self.advance_to(prev_idx);
             }
             return None;
