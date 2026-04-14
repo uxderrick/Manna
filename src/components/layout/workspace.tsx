@@ -23,6 +23,7 @@ import { DistributeSummaryDrawer } from "@/components/session/distribute-summary
 import { AnnouncementDialog } from "@/components/broadcast/announcement-dialog"
 import { ThemeDesigner } from "@/components/broadcast/theme-designer"
 import { SessionsPanel } from "@/components/panels/sessions-panel"
+import { AnalyticsPanel } from "@/components/panels/analytics-panel"
 import { useAboutDialogStore } from "@/lib/about-dialog"
 import { useEndSessionDialogStore } from "@/lib/end-session-dialog"
 import { useExportNotesDrawerStore } from "@/lib/export-notes-drawer"
@@ -233,7 +234,7 @@ export function Workspace() {
                 onTabChange={(id) => panelTabs.setTab("center", id)}
                 tabs={[
                   { id: "detections", label: "Detections", content: <DetectionsPanel /> },
-                  { id: "analytics", label: "Analytics", content: <Placeholder label="Analytics" /> },
+                  { id: "analytics", label: "Analytics", content: <AnalyticsPanel /> },
                 ]}
               />
             </div>
