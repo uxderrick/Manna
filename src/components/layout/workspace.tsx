@@ -24,6 +24,7 @@ import { DistributeSummaryDrawer } from "@/components/session/distribute-summary
 import { AnnouncementDialog } from "@/components/broadcast/announcement-dialog"
 import { ThemeDesigner } from "@/components/broadcast/theme-designer"
 import { SessionsPanel } from "@/components/panels/sessions-panel"
+import { NotesPanel } from "@/components/panels/notes-panel"
 import { AnalyticsPanel } from "@/components/panels/analytics-panel"
 import { useAboutDialogStore } from "@/lib/about-dialog"
 import { useEndSessionDialogStore } from "@/lib/end-session-dialog"
@@ -223,7 +224,7 @@ export function Workspace() {
             tabs={[
               { id: "search", label: "Search", content: <SearchPanel /> },
               { id: "sessions", label: "Sessions", content: <SessionsPanel /> },
-              { id: "notes", label: "Notes", content: <Placeholder label="Notes" /> },
+              { id: "notes", label: "Notes", content: <NotesPanel /> },
               { id: "songs", label: "Songs", content: <Placeholder label="Songs" /> },
             ]}
           />
@@ -274,12 +275,10 @@ export function Workspace() {
                 )}
               </button>
 
-              {/* Content — hidden when collapsed */}
-              {!transcriptCollapsed && (
-                <div className="min-h-0 flex-1 overflow-auto">
-                  <TranscriptPanel />
-                </div>
-              )}
+              {/* Content — visually hidden when collapsed, always mounted for event listeners */}
+              <div className={`min-h-0 flex-1 overflow-auto ${transcriptCollapsed ? "hidden" : ""}`}>
+                <TranscriptPanel />
+              </div>
             </div>
           </div>
         </Panel>
