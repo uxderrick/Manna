@@ -97,11 +97,68 @@ impl AssemblyAIClient {
 impl SttProvider for AssemblyAIClient {
     async fn start(
         &self,
-        _audio_rx: Receiver<Vec<i16>>,
-        _event_tx: mpsc::Sender<TranscriptEvent>,
+        audio_rx: Receiver<Vec<i16>>,
+        event_tx: mpsc::Sender<TranscriptEvent>,
     ) -> Result<(), SttError> {
-        // Implementation lands in Task 2
-        Err(SttError::ConnectionFailed("not yet implemented".into()))
+        if self.config.api_key.is_empty() {
+            return Err(SttError::ApiKeyMissing);
+        }
+
+        let cancelled = self.cancelled.clone();
+        let mut attempts: u32 = 0;
+
+        loop {
+            if cancelled.load(Ordering::SeqCst) {
+                log::info!("AssemblyAIClient: cancelled, stopping connection loop");
+                break;
+            }
+
+            match self
+                .try_connect(audio_rx.clone(), event_tx.clone(), cancelled.clone())
+                .await
+            {
+                Ok(()) => {
+                    if cancelled.load(Ordering::SeqCst) {
+                        log::info!("AssemblyAIClient: connection closed normally (cancelled)");
+                        break;
+                    }
+                    // Audio source gone → stop reconnecting into a dead channel.
+                    if matches!(
+                        audio_rx.try_recv(),
+                        Err(crossbeam_channel::TryRecvError::Disconnected)
+                    ) {
+                        log::info!("AssemblyAIClient: audio source closed, stopping reconnect loop");
+                        break;
+                    }
+                    log::info!("AssemblyAIClient: server closed connection, reconnecting...");
+                    let _ = event_tx.send(TranscriptEvent::Disconnected).await;
+                    attempts = 0;
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    continue;
+                }
+                Err(e) => {
+                    attempts += 1;
+                    log::warn!(
+                        "AssemblyAIClient: connection error (attempt {attempts}/{MAX_RECONNECT_ATTEMPTS}): {e}"
+                    );
+                    let _ = event_tx.send(TranscriptEvent::Disconnected).await;
+
+                    if attempts >= MAX_RECONNECT_ATTEMPTS {
+                        log::error!("AssemblyAIClient: max reconnection attempts reached");
+                        let _ = event_tx
+                            .send(TranscriptEvent::Error(format!(
+                                "Max reconnection attempts reached: {e}"
+                            )))
+                            .await;
+                        return Err(e);
+                    }
+
+                    tokio::time::sleep(RECONNECT_DELAY).await;
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn stop(&self) {
@@ -110,5 +167,18 @@ impl SttProvider for AssemblyAIClient {
 
     fn name(&self) -> &'static str {
         "assemblyai"
+    }
+}
+
+impl AssemblyAIClient {
+    /// Attempt a single WebSocket connection and run send/receive loops.
+    async fn try_connect(
+        &self,
+        _audio_rx: Receiver<Vec<i16>>,
+        _event_tx: mpsc::Sender<TranscriptEvent>,
+        _cancelled: Arc<AtomicBool>,
+    ) -> Result<(), SttError> {
+        // Task 4 implements this
+        Err(SttError::ConnectionFailed("try_connect not implemented".into()))
     }
 }
