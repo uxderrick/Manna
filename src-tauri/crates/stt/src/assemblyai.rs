@@ -52,14 +52,16 @@ impl WsProvider for AssemblyAIClient {
             .map_err(|e| SttError::ConnectionFailed(e.to_string()))?;
         {
             let mut q = url.query_pairs_mut();
-            // `speech_model` is required by v3 Universal-Streaming — omitting it
-            // causes the server to accept the upgrade then close immediately.
-            q.append_pair("speech_model", "universal");
+            // v3 Universal-Streaming model. Older "u3-pro" is deprecated; use "u3-rt-pro".
+            q.append_pair("speech_model", "u3-rt-pro");
             q.append_pair("sample_rate", &self.config.sample_rate.to_string());
             q.append_pair("encoding", "pcm_s16le");
             q.append_pair("format_turns", "true");
+            // AAI expects keyterms_prompt as a JSON-encoded array string, not comma-separated.
             let all = priority_keyterms(100);
-            q.append_pair("keyterms_prompt", &all.join(","));
+            let keyterms_json = serde_json::to_string(&all)
+                .map_err(|e| SttError::ConnectionFailed(e.to_string()))?;
+            q.append_pair("keyterms_prompt", &keyterms_json);
             log::info!("AssemblyAI keyterms_prompt: {} terms", all.len());
         }
         log::info!("AssemblyAI WebSocket URL: {}", url.as_str());
