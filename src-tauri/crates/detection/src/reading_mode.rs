@@ -454,7 +454,9 @@ fn extract_verse_number(text: &str) -> Option<i32> {
     None
 }
 
-/// Parse a tens word ("twenty" → 20, "thirty" → 30, etc.) Returns None for non-tens words.
+/// Parse a tens-or-hundred word ("twenty" → 20, "hundred" → 100) used as the
+/// leading component of compounds like "twenty first" (21) or "hundred third" (103).
+/// Returns None for other words.
 fn parse_tens(word: &str) -> Option<i32> {
     match word.to_lowercase().as_str() {
         "twenty" => Some(20),
@@ -465,7 +467,6 @@ fn parse_tens(word: &str) -> Option<i32> {
         "seventy" => Some(70),
         "eighty" => Some(80),
         "ninety" => Some(90),
-        "one" => Some(100),
         "hundred" => Some(100),
         _ => None,
     }
