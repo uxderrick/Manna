@@ -62,21 +62,23 @@ export function PreflightChecklist({ open, onOpenChange, onStart }: PreflightChe
       // Check 2: API Key
       const settings = useSettingsStore.getState()
       if (settings.sttProvider === "deepgram") {
-        if (settings.deepgramApiKey) {
-          results.push({
-            label: "Deepgram API Key",
-            status: "pass",
-            detail: "API key configured",
-            icon: <Key className="size-4" />,
-          })
-        } else {
-          results.push({
-            label: "Deepgram API Key",
-            status: "fail",
-            detail: "No API key. Go to Settings → API Keys to add one.",
-            icon: <Key className="size-4" />,
-          })
-        }
+        results.push({
+          label: "Deepgram API Key",
+          status: settings.deepgramApiKey ? "pass" : "fail",
+          detail: settings.deepgramApiKey
+            ? "API key configured"
+            : "No API key. Go to Settings → API Keys to add one.",
+          icon: <Key className="size-4" />,
+        })
+      } else if (settings.sttProvider === "assemblyai") {
+        results.push({
+          label: "AssemblyAI API Key",
+          status: settings.assemblyAiApiKey ? "pass" : "fail",
+          detail: settings.assemblyAiApiKey
+            ? "API key configured"
+            : "No API key. Go to Settings → API Keys to add one.",
+          icon: <Key className="size-4" />,
+        })
       } else {
         results.push({
           label: "Whisper (Local)",
