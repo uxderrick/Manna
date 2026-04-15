@@ -52,6 +52,9 @@ impl WsProvider for AssemblyAIClient {
             .map_err(|e| SttError::ConnectionFailed(e.to_string()))?;
         {
             let mut q = url.query_pairs_mut();
+            // `speech_model` is required by v3 Universal-Streaming — omitting it
+            // causes the server to accept the upgrade then close immediately.
+            q.append_pair("speech_model", "universal");
             q.append_pair("sample_rate", &self.config.sample_rate.to_string());
             q.append_pair("encoding", "pcm_s16le");
             q.append_pair("format_turns", "true");
@@ -63,9 +66,10 @@ impl WsProvider for AssemblyAIClient {
         Ok(url)
     }
 
-    fn auth_header(&self) -> Result<HeaderValue, SttError> {
-        // AssemblyAI uses the raw API key (no "Token" prefix).
+    fn auth_header(&self) -> Result<Option<HeaderValue>, SttError> {
+        // v3 Universal-Streaming authenticates via `Authorization: <raw-api-key>`.
         HeaderValue::from_str(&self.config.api_key)
+            .map(Some)
             .map_err(|e| SttError::ConnectionFailed(e.to_string()))
     }
 
@@ -139,9 +143,17 @@ async fn parse_and_send(
         .and_then(|v| v.as_str())
         .unwrap_or_default();
 
+    log::info!("[AssemblyAI] recv type={msg_type}");
+
     match msg_type {
-        "Begin" => Ok(false),
-        "Termination" => Ok(true),
+        "Begin" => {
+            log::info!("[AssemblyAI] session Begin");
+            Ok(false)
+        }
+        "Termination" => {
+            log::info!("[AssemblyAI] session Termination");
+            Ok(true)
+        }
         "Turn" => {
             let transcript = json
                 .get("transcript")

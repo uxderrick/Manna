@@ -44,7 +44,7 @@ import {
   Loader2Icon,
   XIcon,
 } from "lucide-react"
-import { useSettingsStore, persistDeepgramApiKey, persistAssemblyAiApiKey, persistClaudeApiKey, persistAutoMode, persistConfidenceThreshold } from "@/stores"
+import { useSettingsStore, persistDeepgramApiKey, persistAssemblyAiApiKey, persistClaudeApiKey, persistAutoMode, persistConfidenceThreshold, persistSttProvider } from "@/stores"
 import { useTutorialStore } from "@/stores/tutorial-store"
 import { useSettingsDialogStore } from "@/lib/settings-dialog"
 import type { DeviceInfo } from "@/types/audio"
@@ -210,7 +210,6 @@ type VerifyResult = { ok: boolean; http_ok: boolean; ws_ok: boolean; detail: str
 function SpeechSection() {
   const {
     sttProvider,
-    setSttProvider,
     deepgramApiKey,
     assemblyAiApiKey,
   } = useSettingsStore()
@@ -286,7 +285,7 @@ function SpeechSection() {
 
         <RadioGroup
           value={sttProvider}
-          onValueChange={(v) => setSttProvider(v as "deepgram" | "assemblyai" | "whisper")}
+          onValueChange={(v) => persistSttProvider(v as "deepgram" | "assemblyai" | "whisper")}
           className="gap-3"
         >
           {/* Deepgram (cloud) */}

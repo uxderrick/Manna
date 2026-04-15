@@ -33,8 +33,14 @@ export function useTranscription() {
   const startTranscription = useCallback(async () => {
     const { useSettingsStore } = await import("@/stores")
     const settings = useSettingsStore.getState()
+    const apiKey =
+      settings.sttProvider === "deepgram"
+        ? (settings.deepgramApiKey ?? "")
+        : settings.sttProvider === "assemblyai"
+          ? (settings.assemblyAiApiKey ?? "")
+          : ""
     await invoke("start_transcription", {
-      apiKey: settings.sttProvider === "deepgram" ? (settings.deepgramApiKey ?? "") : "",
+      apiKey,
       provider: settings.sttProvider,
     })
     store.setTranscribing(true)

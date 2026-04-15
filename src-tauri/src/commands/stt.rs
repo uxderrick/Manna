@@ -1064,12 +1064,19 @@ pub async fn verify_assemblyai_key(api_key: String) -> Result<VerifyResult, Stri
 
     let mut ws_err: Option<String> = None;
     if http_ok {
-        let url = url::Url::parse(
-            "wss://streaming.assemblyai.com/v3/ws?sample_rate=16000&encoding=pcm_s16le&format_turns=true",
-        )
-        .map_err(|e| e.to_string())?;
+        // v3 auth is via `token` query param, not an HTTP header.
+        let mut url = url::Url::parse("wss://streaming.assemblyai.com/v3/ws")
+            .map_err(|e| e.to_string())?;
+        {
+            let mut q = url.query_pairs_mut();
+            q.append_pair("token", &api_key);
+            q.append_pair("sample_rate", "16000");
+            q.append_pair("encoding", "pcm_s16le");
+            q.append_pair("format_turns", "true");
+        }
         let terminate = serde_json::json!({"type": "Terminate"}).to_string();
-        ws_err = ws_probe(url, ("Authorization", &api_key), true, Some(&terminate))
+        // Pass a placeholder header (ignored): ws_probe requires a header tuple.
+        ws_err = ws_probe(url, ("x-no-op", "1"), true, Some(&terminate))
             .await
             .err();
     }

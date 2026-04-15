@@ -40,7 +40,8 @@ pub trait WsProvider: Send + Sync + 'static {
     fn build_url(&self) -> Result<Url, SttError>;
 
     /// Authorization header value (full value, including any "Token " prefix).
-    fn auth_header(&self) -> Result<HeaderValue, SttError>;
+    /// Return `None` if auth is carried in the URL (e.g. `?token=...` query param).
+    fn auth_header(&self) -> Result<Option<HeaderValue>, SttError>;
 
     /// Keepalive frame to send during silence gaps. `None` disables keepalive.
     fn keepalive_frame(&self) -> Option<String>;
@@ -141,15 +142,21 @@ async fn try_connect<P: WsProvider>(
         .as_str()
         .into_client_request()
         .map_err(|e| SttError::ConnectionFailed(e.to_string()))?;
-    request
-        .headers_mut()
-        .insert("Authorization", provider.auth_header()?);
+    if let Some(auth) = provider.auth_header()? {
+        request.headers_mut().insert("Authorization", auth);
+    }
 
-    let (ws_stream, _response) = tokio_tungstenite::connect_async(request)
+    let (ws_stream, response) = tokio_tungstenite::connect_async(request)
         .await
-        .map_err(|e| SttError::ConnectionFailed(e.to_string()))?;
+        .map_err(|e| {
+            log::error!("{tag}: WebSocket handshake failed: {e}");
+            SttError::ConnectionFailed(e.to_string())
+        })?;
 
-    log::info!("{tag}: connected");
+    log::info!(
+        "{tag}: connected (HTTP {} during WS upgrade)",
+        response.status()
+    );
     let _ = event_tx.send(TranscriptEvent::Connected).await;
 
     let (mut write, mut read) = ws_stream.split();
@@ -275,8 +282,15 @@ async fn try_connect<P: WsProvider>(
                         Err(e) => log::warn!("{tag} receiver: parse error: {e}"),
                     }
                 }
-                Ok(Message::Close(_)) => {
-                    log::info!("{tag} receiver: server closed connection");
+                Ok(Message::Close(frame)) => {
+                    match frame {
+                        Some(f) => log::warn!(
+                            "{tag} receiver: server closed connection (code={}, reason={:?})",
+                            u16::from(f.code),
+                            f.reason
+                        ),
+                        None => log::info!("{tag} receiver: server closed connection (no frame)"),
+                    }
                     break;
                 }
                 Ok(_) => {}

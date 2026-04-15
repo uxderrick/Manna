@@ -85,9 +85,11 @@ impl WsProvider for DeepgramClient {
         Ok(url)
     }
 
-    fn auth_header(&self) -> Result<HeaderValue, SttError> {
+    fn auth_header(&self) -> Result<Option<HeaderValue>, SttError> {
         let auth_value = format!("Token {}", self.config.api_key);
-        HeaderValue::from_str(&auth_value).map_err(|e| SttError::ConnectionFailed(e.to_string()))
+        HeaderValue::from_str(&auth_value)
+            .map(Some)
+            .map_err(|e| SttError::ConnectionFailed(e.to_string()))
     }
 
     fn keepalive_frame(&self) -> Option<String> {
