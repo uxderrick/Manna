@@ -64,6 +64,8 @@ pub fn run() {
             commands::audio::get_audio_devices,
             commands::stt::start_transcription,
             commands::stt::stop_transcription,
+            commands::stt::verify_deepgram_key,
+            commands::stt::verify_assemblyai_key,
             commands::broadcast::list_monitors,
             commands::broadcast::ensure_broadcast_window,
             commands::broadcast::open_broadcast_window,
