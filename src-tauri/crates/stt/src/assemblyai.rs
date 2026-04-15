@@ -330,3 +330,82 @@ impl AssemblyAIClient {
         Ok(())
     }
 }
+
+/// Parse an AssemblyAI JSON message and forward the corresponding `TranscriptEvent`.
+///
+/// AssemblyAI Universal-Streaming v3 emits:
+/// - `{"type": "Begin", ...}` when the session opens
+/// - `{"type": "Turn", "transcript": "...", "end_of_turn": bool, "turn_is_formatted": bool, ...}` for partials/finals
+/// - `{"type": "Termination", ...}` when the session closes
+/// - `{"error": "..."}` on errors
+async fn parse_and_send(
+    text: &str,
+    event_tx: &mpsc::Sender<TranscriptEvent>,
+) -> Result<(), SttError> {
+    let json: serde_json::Value =
+        serde_json::from_str(text).map_err(|e| SttError::ParseError(e.to_string()))?;
+
+    // Error field takes precedence regardless of `type`.
+    if let Some(err) = json.get("error").and_then(|v| v.as_str()) {
+        let _ = event_tx
+            .send(TranscriptEvent::Error(format!("AssemblyAI: {err}")))
+            .await;
+        return Ok(());
+    }
+
+    let msg_type = json
+        .get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
+
+    match msg_type {
+        "Begin" => {
+            // Connected already emitted on WebSocket open — ignore.
+            Ok(())
+        }
+        "Termination" => {
+            let _ = event_tx.send(TranscriptEvent::Disconnected).await;
+            Ok(())
+        }
+        "Turn" => {
+            let transcript = json
+                .get("transcript")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+
+            if transcript.is_empty() {
+                return Ok(());
+            }
+
+            let end_of_turn = json
+                .get("end_of_turn")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            if end_of_turn {
+                let _ = event_tx
+                    .send(TranscriptEvent::Final {
+                        transcript,
+                        confidence: 1.0,
+                        speech_final: true,
+                        words: Vec::new(),
+                    })
+                    .await;
+            } else {
+                let _ = event_tx
+                    .send(TranscriptEvent::Partial {
+                        transcript,
+                        words: Vec::new(),
+                    })
+                    .await;
+            }
+            Ok(())
+        }
+        _ => {
+            // Unknown message type — ignore silently.
+            Ok(())
+        }
+    }
+}
