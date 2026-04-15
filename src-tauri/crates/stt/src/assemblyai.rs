@@ -215,6 +215,7 @@ impl AssemblyAIClient {
         #[allow(clippy::items_after_statements)]
         enum WsCommand {
             Audio(Vec<u8>),
+            KeepAlive,
             Close,
         }
         let (ws_tx, mut ws_rx) = tokio::sync::mpsc::channel::<WsCommand>(64);
@@ -226,6 +227,8 @@ impl AssemblyAIClient {
             tokio::task::spawn_blocking(move || {
                 let mut batch_buf: Vec<u8> = Vec::with_capacity(BATCH_SAMPLES * 2);
                 let batch_byte_threshold = BATCH_SAMPLES * 2;
+                let mut last_send = std::time::Instant::now();
+                let keepalive_interval = Duration::from_secs(5);
 
                 loop {
                     if cancelled.load(Ordering::SeqCst) {
@@ -243,6 +246,7 @@ impl AssemblyAIClient {
                                 if ws_tx.blocking_send(WsCommand::Audio(data)).is_err() {
                                     break;
                                 }
+                                last_send = std::time::Instant::now();
                             }
                         }
                         Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
@@ -251,6 +255,13 @@ impl AssemblyAIClient {
                                 if ws_tx.blocking_send(WsCommand::Audio(data)).is_err() {
                                     break;
                                 }
+                                last_send = std::time::Instant::now();
+                            }
+                            if last_send.elapsed() >= keepalive_interval {
+                                if ws_tx.blocking_send(WsCommand::KeepAlive).is_err() {
+                                    break;
+                                }
+                                last_send = std::time::Instant::now();
                             }
                         }
                         Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
@@ -273,6 +284,14 @@ impl AssemblyAIClient {
                     WsCommand::Audio(data) => {
                         if let Err(e) = write.send(Message::Binary(data.into())).await {
                             log::error!("AssemblyAIClient ws_writer: audio send error: {e}");
+                            send_err.store(true, Ordering::SeqCst);
+                            break;
+                        }
+                    }
+                    WsCommand::KeepAlive => {
+                        let ka = serde_json::json!({"type": "KeepAlive"}).to_string();
+                        if let Err(e) = write.send(Message::Text(ka.into())).await {
+                            log::error!("AssemblyAIClient ws_writer: keepalive error: {e}");
                             send_err.store(true, Ordering::SeqCst);
                             break;
                         }
