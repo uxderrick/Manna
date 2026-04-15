@@ -25,6 +25,9 @@ pub enum TranscriptEvent {
     SpeechStarted,
     Error(String),
     Connected,
+    /// Transient disconnect — the provider is about to reconnect automatically.
+    /// Do not tear down UI transcription state on this event.
+    Reconnecting,
     Disconnected,
 }
 

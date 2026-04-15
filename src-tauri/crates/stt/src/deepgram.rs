@@ -138,7 +138,7 @@ impl DeepgramClient {
                         break;
                     }
                     log::info!("DeepgramClient: server closed connection, reconnecting...");
-                    let _ = event_tx.send(TranscriptEvent::Disconnected).await;
+                    let _ = event_tx.send(TranscriptEvent::Reconnecting).await;
                     // Reset attempts — the connection was working, server just closed it
                     // (e.g. silence timeout). Fresh reconnect budget.
                     attempts = 0;
@@ -151,7 +151,7 @@ impl DeepgramClient {
                         "DeepgramClient: connection error (attempt {attempts}/{MAX_RECONNECT_ATTEMPTS}): {e}",
                     );
 
-                    let _ = event_tx.send(TranscriptEvent::Disconnected).await;
+                    let _ = event_tx.send(TranscriptEvent::Reconnecting).await;
 
                     if attempts >= MAX_RECONNECT_ATTEMPTS {
                         log::error!("DeepgramClient: max reconnection attempts reached");
@@ -481,11 +481,9 @@ impl SttProvider for DeepgramClient {
             log::warn!(
                 "[STT-Deepgram] WebSocket failed after retries: {e}, switching to REST fallback"
             );
-            let _ = event_tx
-                .send(TranscriptEvent::Error(
-                    "Connection unstable, switching to Hybrid mode".into(),
-                ))
-                .await;
+            // Not a fatal error — we're degrading to REST mode.
+            // Emit Reconnecting so the UI stays in "transcribing" state.
+            let _ = event_tx.send(TranscriptEvent::Reconnecting).await;
 
             let rest_client = crate::rest::DeepgramRestClient::new(self.config.clone());
             let mut audio_buffer: Vec<i16> = Vec::new();

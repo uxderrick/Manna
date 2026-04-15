@@ -20,7 +20,7 @@ use url::Url;
 use crate::error::SttError;
 use crate::keyterms::bible_keyterms;
 use crate::provider::SttProvider;
-use crate::types::{SttConfig, TranscriptEvent};
+use crate::types::{SttConfig, TranscriptEvent, Word};
 
 const MAX_RECONNECT_ATTEMPTS: u32 = 5;
 const RECONNECT_DELAY: Duration = Duration::from_secs(1);
@@ -46,10 +46,6 @@ impl AssemblyAIClient {
             config,
             cancelled: Arc::new(AtomicBool::new(false)),
         }
-    }
-
-    pub fn stop(&self) {
-        self.cancelled.store(true, Ordering::SeqCst);
     }
 
     /// Build the AssemblyAI WebSocket URL with query parameters and keyterm boosting.
@@ -131,7 +127,7 @@ impl SttProvider for AssemblyAIClient {
                         break;
                     }
                     log::info!("AssemblyAIClient: server closed connection, reconnecting...");
-                    let _ = event_tx.send(TranscriptEvent::Disconnected).await;
+                    let _ = event_tx.send(TranscriptEvent::Reconnecting).await;
                     attempts = 0;
                     tokio::time::sleep(Duration::from_millis(500)).await;
                     continue;
@@ -141,7 +137,7 @@ impl SttProvider for AssemblyAIClient {
                     log::warn!(
                         "AssemblyAIClient: connection error (attempt {attempts}/{MAX_RECONNECT_ATTEMPTS}): {e}"
                     );
-                    let _ = event_tx.send(TranscriptEvent::Disconnected).await;
+                    let _ = event_tx.send(TranscriptEvent::Reconnecting).await;
 
                     if attempts >= MAX_RECONNECT_ATTEMPTS {
                         log::error!("AssemblyAIClient: max reconnection attempts reached");
@@ -212,10 +208,10 @@ impl AssemblyAIClient {
         let recv_err = recv_error_flag.clone();
 
         // Bridge: blocking audio reader → async WebSocket writer.
+        // AssemblyAI v3 Universal-Streaming tolerates silence gaps; no keepalive frame is required.
         #[allow(clippy::items_after_statements)]
         enum WsCommand {
             Audio(Vec<u8>),
-            KeepAlive,
             Close,
         }
         let (ws_tx, mut ws_rx) = tokio::sync::mpsc::channel::<WsCommand>(64);
@@ -227,8 +223,6 @@ impl AssemblyAIClient {
             tokio::task::spawn_blocking(move || {
                 let mut batch_buf: Vec<u8> = Vec::with_capacity(BATCH_SAMPLES * 2);
                 let batch_byte_threshold = BATCH_SAMPLES * 2;
-                let mut last_send = std::time::Instant::now();
-                let keepalive_interval = Duration::from_secs(5);
 
                 loop {
                     if cancelled.load(Ordering::SeqCst) {
@@ -246,7 +240,6 @@ impl AssemblyAIClient {
                                 if ws_tx.blocking_send(WsCommand::Audio(data)).is_err() {
                                     break;
                                 }
-                                last_send = std::time::Instant::now();
                             }
                         }
                         Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
@@ -255,13 +248,6 @@ impl AssemblyAIClient {
                                 if ws_tx.blocking_send(WsCommand::Audio(data)).is_err() {
                                     break;
                                 }
-                                last_send = std::time::Instant::now();
-                            }
-                            if last_send.elapsed() >= keepalive_interval {
-                                if ws_tx.blocking_send(WsCommand::KeepAlive).is_err() {
-                                    break;
-                                }
-                                last_send = std::time::Instant::now();
                             }
                         }
                         Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
@@ -284,14 +270,6 @@ impl AssemblyAIClient {
                     WsCommand::Audio(data) => {
                         if let Err(e) = write.send(Message::Binary(data.into())).await {
                             log::error!("AssemblyAIClient ws_writer: audio send error: {e}");
-                            send_err.store(true, Ordering::SeqCst);
-                            break;
-                        }
-                    }
-                    WsCommand::KeepAlive => {
-                        let ka = serde_json::json!({"type": "KeepAlive"}).to_string();
-                        if let Err(e) = write.send(Message::Text(ka.into())).await {
-                            log::error!("AssemblyAIClient ws_writer: keepalive error: {e}");
                             send_err.store(true, Ordering::SeqCst);
                             break;
                         }
@@ -405,21 +383,59 @@ async fn parse_and_send(
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
 
+            // AssemblyAI v3 Turn messages include a `words` array with
+            // per-word text/start/end/confidence. Map to shared `Word`.
+            let words = json
+                .get("words")
+                .and_then(|w| w.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|w| {
+                            let text = w.get("text").and_then(|v| v.as_str())?.to_string();
+                            let start_ms = w.get("start").and_then(serde_json::Value::as_f64)?;
+                            let end_ms = w.get("end").and_then(serde_json::Value::as_f64)?;
+                            let confidence = w
+                                .get("confidence")
+                                .and_then(serde_json::Value::as_f64)
+                                .unwrap_or(0.0);
+                            Some(Word {
+                                text,
+                                start: start_ms / 1000.0,
+                                end: end_ms / 1000.0,
+                                confidence,
+                                punctuated_word: None,
+                            })
+                        })
+                        .collect::<Vec<Word>>()
+                })
+                .unwrap_or_default();
+
+            // Turn-level confidence: prefer `end_of_turn_confidence`, else average word confidence.
+            let confidence = json
+                .get("end_of_turn_confidence")
+                .and_then(serde_json::Value::as_f64)
+                .or_else(|| {
+                    if words.is_empty() {
+                        None
+                    } else {
+                        let sum: f64 = words.iter().map(|w| w.confidence).sum();
+                        Some(sum / words.len() as f64)
+                    }
+                })
+                .unwrap_or(0.0);
+
             if end_of_turn {
                 let _ = event_tx
                     .send(TranscriptEvent::Final {
                         transcript,
-                        confidence: 1.0,
+                        confidence,
                         speech_final: true,
-                        words: Vec::new(),
+                        words,
                     })
                     .await;
             } else {
                 let _ = event_tx
-                    .send(TranscriptEvent::Partial {
-                        transcript,
-                        words: Vec::new(),
-                    })
+                    .send(TranscriptEvent::Partial { transcript, words })
                     .await;
             }
             Ok(false)
