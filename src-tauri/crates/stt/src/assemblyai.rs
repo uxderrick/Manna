@@ -51,6 +51,46 @@ impl AssemblyAIClient {
     pub fn stop(&self) {
         self.cancelled.store(true, Ordering::SeqCst);
     }
+
+    /// Build the AssemblyAI WebSocket URL with query parameters and keyterm boosting.
+    fn build_url(&self) -> Result<Url, SttError> {
+        let mut url = Url::parse("wss://streaming.assemblyai.com/v3/ws")
+            .map_err(|e| SttError::ConnectionFailed(e.to_string()))?;
+
+        {
+            let mut q = url.query_pairs_mut();
+            q.append_pair("sample_rate", &self.config.sample_rate.to_string());
+            q.append_pair("encoding", "pcm_s16le");
+            q.append_pair("format_turns", "true");
+
+            // Reuse the same keyterm priority list as Deepgram.
+            // AssemblyAI accepts a single `keyterms_prompt` query param with
+            // comma-separated phrases. Cap at 100 to match Deepgram budget.
+            let core_terms = [
+                "Jesus",
+                "Christ",
+                "God",
+                "Lord",
+                "Holy Spirit",
+            ];
+            let bible_terms = bible_keyterms();
+            let mut seen = std::collections::HashSet::new();
+            let mut all: Vec<String> = Vec::new();
+            for term in core_terms.iter().map(|s| (*s).to_string()).chain(bible_terms.into_iter()) {
+                if seen.insert(term.clone()) {
+                    all.push(term);
+                }
+                if all.len() >= 100 {
+                    break;
+                }
+            }
+            q.append_pair("keyterms_prompt", &all.join(","));
+            log::info!("AssemblyAI keyterms_prompt: {} terms", all.len());
+        }
+
+        log::info!("AssemblyAI WebSocket URL: {}", url.as_str());
+        Ok(url)
+    }
 }
 
 #[async_trait::async_trait]
