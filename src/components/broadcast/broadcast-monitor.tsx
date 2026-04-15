@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, CheckIcon } from "lucide-react"
 import { useBroadcastStore, useBibleStore, useSessionStore } from "@/stores"
 import { toVerseRenderData, retranslateBroadcastVerses } from "@/hooks/use-broadcast"
 import { bibleActions } from "@/hooks/use-bible"
@@ -142,16 +143,18 @@ export function BroadcastMonitor() {
         <button
           onClick={() => stepVerse(-1)}
           disabled={!hasVerse}
-          className="flex-1 rounded border border-white/8 bg-white/4 py-1 text-[9px] font-medium text-white/40 transition-colors hover:bg-white/8 disabled:opacity-25"
+          className="flex flex-1 items-center justify-center gap-1 rounded border border-white/8 bg-white/4 py-1 text-[9px] font-medium text-white/40 transition-colors hover:bg-white/8 disabled:opacity-25"
         >
-          ◀ Prev
+          <ChevronLeftIcon className="size-2.5" />
+          Prev
         </button>
         <button
           onClick={() => stepVerse(1)}
           disabled={!hasVerse}
-          className="flex-1 rounded border border-white/8 bg-white/4 py-1 text-[9px] font-medium text-white/40 transition-colors hover:bg-white/8 disabled:opacity-25"
+          className="flex flex-1 items-center justify-center gap-1 rounded border border-white/8 bg-white/4 py-1 text-[9px] font-medium text-white/40 transition-colors hover:bg-white/8 disabled:opacity-25"
         >
-          Next ▶
+          Next
+          <ChevronRightIcon className="size-2.5" />
         </button>
       </div>
 
@@ -250,7 +253,9 @@ export function BroadcastMonitor() {
                     <span className="text-[5px] font-medium text-white/80">{t.name}</span>
                   </div>
                   {isActive && (
-                    <div className="absolute right-0.5 top-0.5 flex size-3 items-center justify-center rounded-full bg-primary text-[6px] text-primary-foreground">✓</div>
+                    <div className="absolute right-0.5 top-0.5 flex size-3 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                      <CheckIcon className="size-2" strokeWidth={3} />
+                    </div>
                   )}
                 </button>
               )
@@ -306,7 +311,7 @@ function AccordionSection({ title, subtitle, children, defaultOpen = false }: {
             <span className="text-[10px] font-medium text-white/60">{subtitle}</span>
           )}
         </div>
-        <span className={`text-[8px] text-white/25 transition-transform ${open ? "" : "-rotate-90"}`}>▼</span>
+        <ChevronDownIcon className={`size-3 text-white/25 transition-transform ${open ? "" : "-rotate-90"}`} />
       </button>
       {open && (
         <div className="px-3 pb-3 pt-1.5">

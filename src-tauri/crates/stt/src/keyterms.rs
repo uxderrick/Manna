@@ -159,3 +159,28 @@ pub fn bible_keyterms() -> Vec<String> {
 
     terms
 }
+
+/// Returns the deduplicated priority keyterm list used for both Deepgram and
+/// AssemblyAI keyword boosting, capped at `max` entries.
+///
+/// Order: core theology-critical terms first (always retained), then
+/// [`bible_keyterms`] (names/books/translations/theological vocabulary).
+pub fn priority_keyterms(max: usize) -> Vec<String> {
+    const CORE_TERMS: [&str; 5] = ["Jesus", "Christ", "God", "Lord", "Holy Spirit"];
+
+    let mut seen = std::collections::HashSet::new();
+    let mut out: Vec<String> = Vec::new();
+    for term in CORE_TERMS
+        .iter()
+        .map(|s| (*s).to_string())
+        .chain(bible_keyterms())
+    {
+        if seen.insert(term.clone()) {
+            out.push(term);
+        }
+        if out.len() >= max {
+            break;
+        }
+    }
+    out
+}

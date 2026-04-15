@@ -77,16 +77,23 @@ export function SessionDetail({ sessionId, sessionTitle, onBack }: SessionDetail
   const [summaryCopied, setSummaryCopied] = useState(false)
   const exportRef = useRef<HTMLDivElement>(null)
 
-  // Close dropdown on outside click
+  // Close export dropdown on outside click or Escape.
   useEffect(() => {
     if (!exportOpen) return
-    const handler = (e: MouseEvent) => {
+    const onPointer = (e: MouseEvent) => {
       if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
         setExportOpen(false)
       }
     }
-    document.addEventListener("mousedown", handler)
-    return () => document.removeEventListener("mousedown", handler)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExportOpen(false)
+    }
+    document.addEventListener("mousedown", onPointer)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onPointer)
+      document.removeEventListener("keydown", onKey)
+    }
   }, [exportOpen])
 
   useEffect(() => {

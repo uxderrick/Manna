@@ -138,6 +138,14 @@ export function SearchPanel() {
     }
   }, [currentChapter, selectedVerseId, selectedVerse])
 
+  // Scroll the selected verse into view when it changes.
+  useEffect(() => {
+    if (!effectiveSelectedVerseId) return
+    document
+      .getElementById(`verse-${effectiveSelectedVerseId}`)
+      ?.scrollIntoView({ block: "nearest", behavior: "smooth" })
+  }, [effectiveSelectedVerseId])
+
   const applyNavigationSelection = useCallback(
     (book: Book, navChapter: number) => {
       setActiveTab("book")
@@ -569,7 +577,6 @@ export function SearchPanel() {
                 return (
                 <div
                   key={verse.id}
-                  ref={verse.id === effectiveSelectedVerseId ? (el) => el?.scrollIntoView({ block: "nearest", behavior: "smooth" }) : undefined}
                   id={`verse-${verse.id}`}
                   onClick={() => handleVerseClick(verse)}
                   className={cn(
