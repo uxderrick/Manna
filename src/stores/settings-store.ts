@@ -43,7 +43,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   confidenceThreshold: 0.8,
   cooldownMs: 2500,
   onboardingComplete: false,
-  sttProvider: "assemblyai",
+  sttProvider: "deepgram",
 
   setDeepgramApiKey: (deepgramApiKey) => set({ deepgramApiKey }),
   setAssemblyAiApiKey: (assemblyAiApiKey) => set({ assemblyAiApiKey }),
@@ -74,42 +74,38 @@ async function getStore(): Promise<Store> {
 export async function hydrateSettings(): Promise<void> {
   try {
     const store = await getStore()
-    const deepgramApiKey = await store.get<string>("deepgramApiKey")
-    const sttProvider = await store.get<SttProvider>("sttProvider")
-    const onboardingComplete = await store.get<boolean>("onboardingComplete")
-    const gain = await store.get<number>("gain")
-    const audioDeviceId = await store.get<string>("audioDeviceId")
-    if (deepgramApiKey) {
-      useSettingsStore.getState().setDeepgramApiKey(deepgramApiKey)
-    }
-    const assemblyAiApiKey = await store.get<string>("assemblyAiApiKey")
-    if (assemblyAiApiKey) {
-      useSettingsStore.getState().setAssemblyAiApiKey(assemblyAiApiKey)
-    }
-    if (sttProvider) {
-      useSettingsStore.getState().setSttProvider(sttProvider)
-    }
-    if (onboardingComplete) {
-      useSettingsStore.getState().setOnboardingComplete(true)
-    }
-    if (gain != null) {
-      useSettingsStore.getState().setGain(gain)
-    }
-    if (audioDeviceId) {
-      useSettingsStore.getState().setAudioDeviceId(audioDeviceId)
-    }
-    const claudeApiKey = await store.get<string>("claudeApiKey")
-    if (claudeApiKey) {
-      useSettingsStore.getState().setClaudeApiKey(claudeApiKey)
-    }
-    const autoMode = await store.get<boolean>("autoMode")
-    if (autoMode != null) {
-      useSettingsStore.getState().setAutoMode(autoMode)
-    }
-    const confidenceThreshold = await store.get<number>("confidenceThreshold")
-    if (confidenceThreshold != null) {
-      useSettingsStore.getState().setConfidenceThreshold(confidenceThreshold)
-    }
+    const [
+      deepgramApiKey,
+      assemblyAiApiKey,
+      claudeApiKey,
+      sttProvider,
+      onboardingComplete,
+      gain,
+      audioDeviceId,
+      autoMode,
+      confidenceThreshold,
+    ] = await Promise.all([
+      store.get<string>("deepgramApiKey"),
+      store.get<string>("assemblyAiApiKey"),
+      store.get<string>("claudeApiKey"),
+      store.get<SttProvider>("sttProvider"),
+      store.get<boolean>("onboardingComplete"),
+      store.get<number>("gain"),
+      store.get<string>("audioDeviceId"),
+      store.get<boolean>("autoMode"),
+      store.get<number>("confidenceThreshold"),
+    ])
+
+    const s = useSettingsStore.getState()
+    if (deepgramApiKey) s.setDeepgramApiKey(deepgramApiKey)
+    if (assemblyAiApiKey) s.setAssemblyAiApiKey(assemblyAiApiKey)
+    if (claudeApiKey) s.setClaudeApiKey(claudeApiKey)
+    if (sttProvider) s.setSttProvider(sttProvider)
+    if (onboardingComplete) s.setOnboardingComplete(true)
+    if (gain != null) s.setGain(gain)
+    if (audioDeviceId) s.setAudioDeviceId(audioDeviceId)
+    if (autoMode != null) s.setAutoMode(autoMode)
+    if (confidenceThreshold != null) s.setConfidenceThreshold(confidenceThreshold)
   } catch {
     console.warn("[settings] Failed to load persisted settings, using defaults")
   }
