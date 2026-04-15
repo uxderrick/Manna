@@ -32,10 +32,16 @@ pub async fn start_transcription(
     provider: Option<String>,
 ) -> Result<(), String> {
     // ── 1. Guard: already running? ──────────────────────────────────────
+    // Idempotent: if already running, return Ok. The frontend may call Start
+    // after a perceived disconnect (e.g. Deepgram silence-close) while the
+    // backend is still happily reconnecting — rejecting with an error strands
+    // the user. A no-op start keeps UI and backend in sync.
     let (stt_active, audio_active) = {
         let app_state = state.lock().map_err(|e| e.to_string())?;
         if app_state.stt_active.load(Ordering::Relaxed) {
-            return Err("Transcription is already running".into());
+            log::info!("start_transcription called but already running — no-op");
+            let _ = app.emit("stt_connected", ());
+            return Ok(());
         }
         (app_state.stt_active.clone(), app_state.audio_active.clone())
     };
@@ -96,6 +102,35 @@ pub async fn start_transcription(
             return Err(
                 "Whisper support not compiled. Rebuild with --features whisper".into(),
             );
+        }
+        "assemblyai" => {
+            let resolved_api_key = if api_key.is_empty() {
+                std::env::var("ASSEMBLYAI_API_KEY").unwrap_or_default()
+            } else {
+                api_key
+            };
+
+            if resolved_api_key.is_empty() {
+                return Err(
+                    "No AssemblyAI API key provided. Set it in Settings or via ASSEMBLYAI_API_KEY env var."
+                        .into(),
+                );
+            }
+
+            log::info!(
+                "Starting AssemblyAI transcription: api_key={}..., device_id={device_id:?}, gain={gain:?}",
+                &resolved_api_key[..8.min(resolved_api_key.len())]
+            );
+
+            let stt_config = SttConfig {
+                api_key: resolved_api_key,
+                model: "universal-streaming".to_string(),
+                sample_rate: 16_000,
+                encoding: "pcm_s16le".to_string(),
+                language: None,
+            };
+
+            Box::new(rhema_stt::AssemblyAIClient::new(stt_config))
         }
         _ => {
             // Deepgram (default)
@@ -356,6 +391,9 @@ pub async fn start_transcription(
             }
         }
 
+        // Always notify frontend that transcription has stopped
+        let _ = event_app.emit("stt_disconnected", ());
+        evt_active.store(false, Ordering::SeqCst);
         log::info!("Transcript event consumer task exited");
     });
 
