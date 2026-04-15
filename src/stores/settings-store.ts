@@ -1,10 +1,11 @@
 import { create } from "zustand"
 import { load, type Store } from "@tauri-apps/plugin-store"
 
-type SttProvider = "deepgram" | "whisper"
+type SttProvider = "deepgram" | "whisper" | "assemblyai"
 
 interface SettingsState {
   deepgramApiKey: string | null
+  assemblyAiApiKey: string | null
   openaiApiKey: string | null
   claudeApiKey: string | null
   activeTranslationId: number
@@ -17,6 +18,7 @@ interface SettingsState {
   sttProvider: SttProvider
 
   setDeepgramApiKey: (key: string | null) => void
+  setAssemblyAiApiKey: (key: string | null) => void
   setOpenaiApiKey: (key: string | null) => void
   setClaudeApiKey: (key: string | null) => void
   setActiveTranslationId: (id: number) => void
@@ -31,6 +33,7 @@ interface SettingsState {
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   deepgramApiKey: null,
+  assemblyAiApiKey: null,
   openaiApiKey: null,
   claudeApiKey: null,
   activeTranslationId: 1,
@@ -43,6 +46,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   sttProvider: "deepgram",
 
   setDeepgramApiKey: (deepgramApiKey) => set({ deepgramApiKey }),
+  setAssemblyAiApiKey: (assemblyAiApiKey) => set({ assemblyAiApiKey }),
   setOpenaiApiKey: (openaiApiKey) => set({ openaiApiKey }),
   setClaudeApiKey: (claudeApiKey) => set({ claudeApiKey }),
   setActiveTranslationId: (activeTranslationId) => set({ activeTranslationId }),
@@ -77,6 +81,10 @@ export async function hydrateSettings(): Promise<void> {
     const audioDeviceId = await store.get<string>("audioDeviceId")
     if (deepgramApiKey) {
       useSettingsStore.getState().setDeepgramApiKey(deepgramApiKey)
+    }
+    const assemblyAiApiKey = await store.get<string>("assemblyAiApiKey")
+    if (assemblyAiApiKey) {
+      useSettingsStore.getState().setAssemblyAiApiKey(assemblyAiApiKey)
     }
     if (sttProvider) {
       useSettingsStore.getState().setSttProvider(sttProvider)
@@ -160,6 +168,21 @@ export async function persistDeepgramApiKey(key: string | null): Promise<void> {
     }
   } catch {
     console.warn("[settings] Failed to persist Deepgram API key")
+  }
+}
+
+/** Persist the AssemblyAI API key to disk. */
+export async function persistAssemblyAiApiKey(key: string | null): Promise<void> {
+  useSettingsStore.getState().setAssemblyAiApiKey(key)
+  try {
+    const store = await getStore()
+    if (key) {
+      await store.set("assemblyAiApiKey", key)
+    } else {
+      await store.delete("assemblyAiApiKey")
+    }
+  } catch {
+    console.warn("[settings] Failed to persist AssemblyAI API key")
   }
 }
 
