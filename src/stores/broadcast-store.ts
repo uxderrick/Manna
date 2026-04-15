@@ -31,6 +31,7 @@ interface BroadcastState {
   setLive: (live: boolean) => void
   setPreviewVerse: (verse: VerseRenderData | null) => void
   setLiveVerse: (verse: VerseRenderData | null) => void
+  addToHistory: (verse: VerseRenderData) => void
   goLive: () => void
   clearScreen: () => void
   syncBroadcastOutput: () => void
@@ -56,34 +57,27 @@ interface BroadcastState {
   dismissAnnouncement: () => void
 }
 
-function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): Record<string, unknown> {
-  const keys = path.split(".")
-  const isIndex = (key: string) => /^\d+$/.test(key)
-  const result: Record<string, unknown> = Array.isArray(obj) ? [...obj] as unknown as Record<string, unknown> : { ...obj }
+type Nested = Record<string, unknown> | unknown[]
 
-  let current: Record<string, unknown> | unknown[] = result
-  for (let i = 0; i < keys.length - 1; i++) {
-    const key = keys[i]
-    const nextKey = keys[i + 1]
-    const currentIndex = isIndex(key) ? Number(key) : key
-    const existing = (current as Record<string, unknown> | unknown[])[currentIndex as keyof typeof current]
-    const nextContainer = Array.isArray(existing)
-      ? [...existing]
-      : existing && typeof existing === "object"
-        ? { ...(existing as Record<string, unknown>) }
-        : isIndex(nextKey)
-          ? []
-          : {}
+/** Immutably set a dot-path value, cloning each container along the way.
+ *  Numeric path segments index into arrays (e.g. `"items.0.label"`). */
+function setNestedValue<T extends Nested>(obj: T, path: string, value: unknown): T {
+  const [head, ...rest] = path.split(".")
+  const isIndex = /^\d+$/.test(head)
+  const key = (isIndex ? Number(head) : head) as keyof Nested
+  const next: Nested = Array.isArray(obj) ? [...obj] : { ...obj }
 
-    ;(current as Record<string, unknown> | unknown[])[currentIndex as keyof typeof current] = nextContainer as never
-    current = nextContainer as Record<string, unknown> | unknown[]
+  if (rest.length === 0) {
+    (next as Record<string | number, unknown>)[key as string | number] = value
+  } else {
+    const child = (obj as Record<string | number, unknown>)[key as string | number]
+    const childContainer: Nested =
+      child && typeof child === "object" ? (child as Nested) : /^\d+$/.test(rest[0]) ? [] : {}
+    (next as Record<string | number, unknown>)[key as string | number] =
+      setNestedValue(childContainer, rest.join("."), value)
   }
 
-  const lastKey = keys[keys.length - 1]
-  const lastIndex = isIndex(lastKey) ? Number(lastKey) : lastKey
-  ;(current as Record<string, unknown> | unknown[])[lastIndex as keyof typeof current] = value as never
-
-  return result
+  return next as T
 }
 
 export const useBroadcastStore = create<BroadcastState>((set, get) => ({
@@ -165,15 +159,13 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   setPreviewVerse: (previewVerse) => set({ previewVerse }),
   setLiveVerse: (liveVerse) => {
     set({ liveVerse, isLive: liveVerse !== null })
-    // Record to history (avoid duplicates of same verse consecutively)
-    if (liveVerse) {
-      const { history } = get()
-      const lastRef = history[0]?.verse.reference
-      if (lastRef !== liveVerse.reference) {
-        set({ history: [{ verse: liveVerse, presentedAt: Date.now() }, ...history].slice(0, 50) })
-      }
-    }
+    if (liveVerse) get().addToHistory(liveVerse)
     get().syncBroadcastOutput()
+  },
+  addToHistory: (verse) => {
+    const { history } = get()
+    if (history[0]?.verse.reference === verse.reference) return
+    set({ history: [{ verse, presentedAt: Date.now() }, ...history].slice(0, 50) })
   },
   goLive: () => {
     // Always ensure broadcast window is open
@@ -220,7 +212,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   updateDraftNested: (path, value) =>
     set((s) => ({
       draftTheme: s.draftTheme
-        ? { ...(setNestedValue(s.draftTheme as unknown as Record<string, unknown>, path, value) as unknown as BroadcastTheme), updatedAt: Date.now() }
+        ? { ...setNestedValue(s.draftTheme as unknown as Record<string, unknown>, path, value), updatedAt: Date.now() } as BroadcastTheme
         : null,
     })),
   saveDraft: () => {

@@ -16,14 +16,13 @@ import { toVerseRenderData, retranslateBroadcastVerses } from "@/hooks/use-broad
 import type { TranscriptSegment } from "@/types"
 import type { DetectionResult } from "@/types"
 
-// Auto-broadcast cooldown — prevents rapid flickering between verses
-let lastAutoBroadcastAt = 0
-
 export function TranscriptPanel() {
   const segments = useTranscriptStore((s) => s.segments)
   const currentPartial = useTranscriptStore((s) => s.currentPartial)
   const isTranscribing = useTranscriptStore((s) => s.isTranscribing)
   const scrollRef = useRef<HTMLDivElement>(null)
+  // Auto-broadcast cooldown — prevents rapid flickering between verses.
+  const lastAutoBroadcastAtRef = useRef(0)
 
   // Listen for Tauri events
   useTauriEvent<{ rms: number; peak: number }>("audio_level", (payload) => {
@@ -127,17 +126,10 @@ export function TranscriptPanel() {
       if (d.confidence >= 0.99 && d.book_number > 0) {
         const trans = useBibleStore.getState().translations
           .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-        const verseData = {
+        useBroadcastStore.getState().addToHistory({
           reference: `${d.book_name} ${d.chapter}:${d.verse} (${trans})`,
           segments: [{ text: d.verse_text || "" }],
-        }
-        const { history } = useBroadcastStore.getState()
-        const lastRef = history[0]?.verse.reference
-        if (lastRef !== verseData.reference) {
-          useBroadcastStore.setState({
-            history: [{ verse: verseData, presentedAt: Date.now() }, ...history].slice(0, 50)
-          })
-        }
+        })
       }
     }
 
@@ -172,7 +164,7 @@ export function TranscriptPanel() {
     const { autoMode, confidenceThreshold, cooldownMs } = useSettingsStore.getState()
     if (autoMode) {
       const now = Date.now()
-      if (now - lastAutoBroadcastAt < cooldownMs) return // cooldown active
+      if (now - lastAutoBroadcastAtRef.current < cooldownMs) return // cooldown active
 
       // Find the best detection that meets the threshold
       const best = detections
@@ -180,7 +172,7 @@ export function TranscriptPanel() {
         .sort((a, b) => b.confidence - a.confidence)[0]
 
       if (best) {
-        lastAutoBroadcastAt = now
+        lastAutoBroadcastAtRef.current = now
         const verse = {
           id: 0,
           translation_id: useBibleStore.getState().activeTranslationId,
