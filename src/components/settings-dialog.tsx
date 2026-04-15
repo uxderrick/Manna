@@ -42,7 +42,7 @@ import {
   GraduationCapIcon,
   BrainCircuitIcon,
 } from "lucide-react"
-import { useSettingsStore, persistDeepgramApiKey, persistClaudeApiKey, persistAutoMode, persistConfidenceThreshold } from "@/stores"
+import { useSettingsStore, persistDeepgramApiKey, persistAssemblyAiApiKey, persistClaudeApiKey, persistAutoMode, persistConfidenceThreshold } from "@/stores"
 import { useTutorialStore } from "@/stores/tutorial-store"
 import { useSettingsDialogStore } from "@/lib/settings-dialog"
 import type { DeviceInfo } from "@/types/audio"
@@ -202,16 +202,23 @@ function SpeechSection() {
     sttProvider,
     setSttProvider,
     deepgramApiKey,
-    setDeepgramApiKey,
+    assemblyAiApiKey,
   } = useSettingsStore()
 
-  const [keyValue, setKeyValue] = useState(deepgramApiKey ?? "")
-  const [saved, setSaved] = useState(false)
+  const [deepgramKeyValue, setDeepgramKeyValue] = useState(deepgramApiKey ?? "")
+  const [assemblyKeyValue, setAssemblyKeyValue] = useState(assemblyAiApiKey ?? "")
+  const [savedProvider, setSavedProvider] = useState<null | "deepgram" | "assemblyai">(null)
 
-  const handleSaveKey = () => {
-    persistDeepgramApiKey(keyValue || null)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  const handleSaveDeepgramKey = () => {
+    persistDeepgramApiKey(deepgramKeyValue || null)
+    setSavedProvider("deepgram")
+    setTimeout(() => setSavedProvider(null), 2000)
+  }
+
+  const handleSaveAssemblyKey = () => {
+    persistAssemblyAiApiKey(assemblyKeyValue || null)
+    setSavedProvider("assemblyai")
+    setTimeout(() => setSavedProvider(null), 2000)
   }
 
   return (
@@ -224,7 +231,7 @@ function SpeechSection() {
 
         <RadioGroup
           value={sttProvider}
-          onValueChange={(v) => setSttProvider(v as "deepgram" | "whisper")}
+          onValueChange={(v) => setSttProvider(v as "deepgram" | "assemblyai" | "whisper")}
           className="gap-3"
         >
           {/* Deepgram (cloud) */}
@@ -242,6 +249,25 @@ function SpeechSection() {
                 Uses Deepgram Nova-3 for real-time streaming transcription.
                 Requires an API key and internet connection. Best accuracy with
                 keyword boosting for Bible terms.
+              </p>
+            </div>
+          </label>
+
+          {/* AssemblyAI (cloud) */}
+          <label
+            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors has-data-[state=checked]:border-primary/50 has-data-[state=checked]:bg-primary/5 has-data-[state=checked]:ring-1 has-data-[state=checked]:ring-primary/20 ${
+              sttProvider !== "assemblyai" ? "hover:border-muted-foreground/25" : ""
+            }`}
+          >
+            <RadioGroupItem value="assemblyai" className="mt-0.5" />
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-foreground">
+                Cloud (AssemblyAI)
+              </span>
+              <p className="text-[0.625rem] leading-relaxed text-muted-foreground">
+                Uses AssemblyAI Universal-Streaming. Cheaper than Deepgram
+                ($0.15/hr), strong proper-noun accuracy via keyterms prompting.
+                Requires an API key and internet connection.
               </p>
             </div>
           </label>
@@ -283,12 +309,12 @@ function SpeechSection() {
             <Input
               type="password"
               placeholder="Enter your Deepgram API key..."
-              value={keyValue}
-              onChange={(e) => setKeyValue(e.target.value)}
+              value={deepgramKeyValue}
+              onChange={(e) => setDeepgramKeyValue(e.target.value)}
               className="flex-1 text-xs"
             />
-            <Button size="sm" onClick={handleSaveKey}>
-              {saved ? (
+            <Button size="sm" onClick={handleSaveDeepgramKey}>
+              {savedProvider === "deepgram" ? (
                 <>
                   <CheckIcon className="size-3" />
                   Saved
@@ -301,6 +327,45 @@ function SpeechSection() {
           <p className="text-[0.625rem] text-muted-foreground">
             Required for live transcription. Get a key at{" "}
             <span className="text-primary">deepgram.com</span>
+          </p>
+        </div>
+      )}
+
+      {/* AssemblyAI settings — show when assemblyai is selected */}
+      {sttProvider === "assemblyai" && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              AssemblyAI API Key
+            </label>
+            {assemblyAiApiKey && (
+              <Badge variant="outline" className="text-[0.5rem]">
+                Key configured
+              </Badge>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Input
+              type="password"
+              placeholder="Enter your AssemblyAI API key..."
+              value={assemblyKeyValue}
+              onChange={(e) => setAssemblyKeyValue(e.target.value)}
+              className="flex-1 text-xs"
+            />
+            <Button size="sm" onClick={handleSaveAssemblyKey}>
+              {savedProvider === "assemblyai" ? (
+                <>
+                  <CheckIcon className="size-3" />
+                  Saved
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </div>
+          <p className="text-[0.625rem] text-muted-foreground">
+            Required for live transcription. Get a key at{" "}
+            <span className="text-primary">assemblyai.com</span>
           </p>
         </div>
       )}
@@ -541,6 +606,9 @@ function BibleSection() {
       // Update frontend stores so all panels use the new translation
       const { useBibleStore } = await import("@/stores")
       useBibleStore.getState().setActiveTranslation(id)
+      const abbr = useBibleStore.getState().translations.find(t => t.id === id)?.abbreviation ?? ""
+      const { retranslateBroadcastVerses } = await import("@/hooks/use-broadcast")
+      await retranslateBroadcastVerses(id, abbr)
     } catch (e) {
       console.error("Failed to set translation:", e)
     }
