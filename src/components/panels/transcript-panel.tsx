@@ -31,15 +31,18 @@ export function TranscriptPanel() {
   })
 
   // Connection status events.
-  // Backend emits `stt_disconnected` on EVERY Deepgram close — including silence
-  // timeouts that auto-reconnect. So `stt_disconnected` is NOT terminal; only
-  // `stt_error` is. Keep `isTranscribing` true across reconnects.
+  // `stt_reconnecting` fires on transient drops (e.g. Deepgram silence timeout).
+  // Only `stt_error` and terminal `stt_disconnected` flip `isTranscribing` off.
   useTauriEvent("stt_connected", () => {
     useTranscriptStore.getState().setConnectionStatus("connected")
     useTranscriptStore.getState().setTranscribing(true)
   })
+  useTauriEvent("stt_reconnecting", () => {
+    useTranscriptStore.getState().setConnectionStatus("reconnecting")
+  })
   useTauriEvent("stt_disconnected", () => {
     useTranscriptStore.getState().setConnectionStatus("disconnected")
+    useTranscriptStore.getState().setTranscribing(false)
     useTranscriptStore.getState().setPartial("")
   })
   useTauriEvent<string>("stt_error", () => {

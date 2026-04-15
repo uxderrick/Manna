@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import type { TranscriptSegment } from "@/types"
 
-type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error"
+type ConnectionStatus = "disconnected" | "connecting" | "connected" | "reconnecting" | "error"
 
 interface TranscriptState {
   segments: TranscriptSegment[]

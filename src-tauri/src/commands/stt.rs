@@ -384,6 +384,10 @@ pub async fn start_transcription(
                     log::info!("[STT] Connected");
                     let _ = event_app.emit("stt_connected", ());
                 }
+                TranscriptEvent::Reconnecting => {
+                    log::info!("[STT] Reconnecting");
+                    let _ = event_app.emit("stt_reconnecting", ());
+                }
                 TranscriptEvent::Disconnected => {
                     log::warn!("[STT] Disconnected");
                     let _ = event_app.emit("stt_disconnected", ());
