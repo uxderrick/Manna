@@ -76,10 +76,7 @@ Real-time sermon verse detection — these are rhema's core. Manna inherits them
 
 ### Detection
 
-| Change | File(s) |
-|---|---|
-| **Fix:** removed bogus `"one" → 100` mapping in `parse_tens` that caused "chapter one" to misparse as 100 | `detection/src/reading_mode.rs` |
-| Reading-mode refinements | `detection/src/reading_mode.rs` |
+Manna rewrote parts of reading-mode (upstream's is ~1,062 lines; Manna's is ~797 lines — different approach, smaller surface). Includes spoken-number parsing (`parse_tens` + units), not present upstream.
 
 ### Branding + tooling
 
