@@ -134,3 +134,70 @@
 - Upgrade to EmbeddingGemma-300M for multilingual + smaller size
 - Cloud hosting (thin client + cloud hybrid)
 - Remote control web UI redesign
+- **Ship DMG/EXE releases** via GitHub Actions — bundle rhema.db inside app, prompt for API key on first launch, make ONNX semantic search optional
+- **Simplify setup docs** — add clear timeline/bandwidth expectations, GPU detection warning, "minimal setup" path that skips ONNX + embeddings precompute
+- **Songs tab** — Wave 2 feature, still placeholder (ghs.json hymns data already bundled in src-tauri/)
+- **Planner tab** — not yet scoped
+
+## Session: 2026-04-14 — Voice Commands, Broadcast Sync, STT Reliability
+
+### Voice Verse Navigation (Ordinals)
+
+- Generalized `extract_verse_number` in [reading_mode.rs](src-tauri/crates/detection/src/reading_mode.rs) to handle arbitrary ordinals before "verse".
+- Supports: spoken 1–20 ("first"…"twentieth"), hyphenated compounds ("twenty-first"), two-word compounds ("twenty first verse"), digit-suffix ("21st", "100th").
+- Calls `parse_ordinal` and `parse_tens` helpers.
+
+### Translation Real-time Sync to TV/Broadcast
+
+- Problem: changing translation (via voice, search-panel selector, settings dialog, or broadcast-monitor toggle) updated the Bible store but NOT the live/preview verse on the TV/broadcast output. Only changing scripture re-fetched verse text.
+- Fix: extracted `retranslateBroadcastVerses(translationId, abbreviation)` helper in [use-broadcast.ts](src/hooks/use-broadcast.ts). Re-fetches current live + preview verses in the new translation via `invoke("get_verse", ...)` and calls `setLiveVerse` / `setPreviewVerse` to trigger the store's sync-to-broadcast emit.
+- Wired into all four translation-switch call sites: broadcast-monitor toggle, search-panel select (2 occurrences), settings-dialog select, and the voice command listener in transcript-panel.
+
+### Broadcast Event Sync (Tauri `emitTo` → `emit`)
+
+- Problem: even after re-fetch was wired, broadcast window still lagged — changes worked a few times then stopped. Root cause: Tauri v2's `emitTo(label, ...)` has known reliability bugs under rapid updates ([#11379](https://github.com/tauri-apps/tauri/issues/11379)).
+- Fix: switched from `emitTo("broadcast", "broadcast:verse-update", ...)` to plain `emit("broadcast:verse-update:${outputId}", ...)` with output-id in the event name. Updated listener in [broadcast-output.tsx](src/broadcast-output.tsx) and the test fixture.
+
+### Deepgram Keyterm Audit
+
+- Problem: "Peter" transcribed as "beta". Keyterm list only had "1 Peter" / "2 Peter" / "First Peter" — Deepgram keyterm boosting doesn't substring-match.
+- Fix: added bare proper names (Peter, Paul, Moses, David, etc.) and translation abbreviations (NIV, ESV, …) at the top of `bible_keyterms()` in [keyterms.rs](src-tauri/crates/stt/src/keyterms.rs), before the 100-term cap in [deepgram.rs](src-tauri/crates/stt/src/deepgram.rs) can evict them.
+- Removed incorrect `:3` intensifier suffixes — Nova-3 Keyterm Prompting doesn't support them (that's Keywords-only).
+
+### STT Reliability — "Session ends abruptly"
+
+Systematic-debugging skill invoked. Symptoms: UI flipped to empty state during live transcription; clicking Start again returned "Transcription is already running."
+
+Root causes (two stacked bugs):
+
+1. **Frontend killed its own UI on every Deepgram reconnect.** Deepgram silence-closes fire `stt_disconnected`, but the backend auto-reconnects. Frontend treated every `stt_disconnected` as terminal, flipping `isTranscribing=false`. Empty state renders when `detections.length === 0 && !isTranscribing`.
+
+2. **`start_transcription` rejected with "already running"** because `stt_active=true` in the backend even while the UI looked ended.
+
+Fixes:
+
+- [transcript-panel.tsx](src/components/panels/transcript-panel.tsx): `stt_disconnected` no longer flips `isTranscribing=false` — only `stt_error` does (truly terminal). `stt_connected` re-asserts `isTranscribing=true` on reconnect.
+- [stt.rs](src-tauri/src/commands/stt.rs): `start_transcription` is now idempotent — if already running, re-emit `stt_connected` and return Ok instead of erroring.
+- [deepgram.rs](src-tauri/crates/stt/src/deepgram.rs): reconnect loop detects when the audio source is dropped (via `audio_rx.try_recv()` returning `TryRecvError::Disconnected`) and exits cleanly instead of reconnecting into a dead channel.
+
+### Open Items / Future Work
+
+- [ ] Store `SttProvider` handle in `AppState` so `stop_transcription` can call `provider.stop()` directly (currently relies on audio channel drop to indirectly cancel Deepgram).
+- [ ] Convert remaining `emitTo` calls in [broadcast-settings.tsx](src/components/broadcast/broadcast-settings.tsx) (NDI config) to plain `emit` with output-scoped event names for consistency.
+- [ ] Add integration test covering the Deepgram silence-close → reconnect → UI-stays-live scenario.
+- [ ] End-to-end verify: cold-start the app, start a session, speak continuously for 30+ seconds, stop speaking for 15+ seconds (forcing a silence-close reconnect), resume speaking, verify detections still flow and UI never shows empty state.
+
+## Session: 2026-04-15 — AssemblyAI STT Provider
+
+- Added AssemblyAI Universal-Streaming as third STT provider alongside Deepgram and Whisper.
+- Implementation: new `AssemblyAIClient` in `rhema-stt` crate, mirrors `DeepgramClient` structure for reconnect semantics.
+- Event shape: translates `Turn` messages to existing `TranscriptEvent::Partial` / `Final`, so detection pipeline and frontend are unchanged.
+- Keyterms: reuses existing `bible_keyterms()` list via AssemblyAI's `keyterms_prompt` query param.
+- Settings: new `assemblyAiApiKey` field in Zustand store, hydrated + persisted via Tauri plugin-store.
+- Keepalive: sends `{"type": "KeepAlive"}` every 5s during silence to prevent idle close (matches Deepgram pattern).
+- Duplicate-event fix: `parse_and_send` returns `Result<bool, SttError>` where `Termination` returns `Ok(true)` to break the receiver loop — outer loop emits the single `Disconnected` event.
+- Call-site key selection: toolbar + resume-session-dialog pick between `deepgramApiKey` / `assemblyAiApiKey` based on `settings.sttProvider`.
+- Verified: `cargo check` clean, TypeScript clean, 11/11 vitest pass.
+
+Spec: `docs/superpowers/specs/2026-04-15-assemblyai-provider-design.md`
+Plan: `docs/superpowers/plans/2026-04-15-assemblyai-provider.md`
