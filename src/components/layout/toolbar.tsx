@@ -86,8 +86,14 @@ export function Toolbar() {
       // Start transcription
       useTranscriptStore.getState().setConnectionStatus("connecting")
       const settings = useSettingsStore.getState()
+      const providerKey =
+        settings.sttProvider === "deepgram"
+          ? (deepgramApiKey ?? "")
+          : settings.sttProvider === "assemblyai"
+            ? (settings.assemblyAiApiKey ?? "")
+            : ""
       await invoke("start_transcription", {
-        apiKey: settings.sttProvider === "deepgram" ? (deepgramApiKey ?? "") : "",
+        apiKey: providerKey,
         deviceId: settings.audioDeviceId,
         gain: settings.gain,
         provider: settings.sttProvider,
