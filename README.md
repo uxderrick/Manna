@@ -8,55 +8,22 @@ Manna listens to a live sermon audio feed, transcribes speech in real time, dete
 
 ---
 
-## Features
+## What Manna adds
 
-### Core
+> For the core detection pipeline, NDI output, theme designer, and Bible DB — see the upstream [openbezal/rhema](https://github.com/openbezal/rhema). Manna builds the church-livestream workflow and reliability layer on top.
 
-- **Real-time speech-to-text** — pluggable providers: Deepgram, **AssemblyAI**, or local Whisper
-- **Multi-strategy verse detection**
-  - Direct reference parsing (Aho-Corasick automaton + fuzzy matching)
-  - Semantic search (Qwen3-0.6B ONNX embeddings + HNSW vector index)
-  - Quotation matching against known verse text
-  - Cloud booster (optional, OpenAI / Claude)
-  - Sermon context tracking + sentence buffering
-  - **Reading-mode detection** — tracks when a pastor is reading a passage vs referencing it
-- **SQLite Bible database** with FTS5 full-text search
-- **Multiple translations** — KJV, NIV, ESV, NASB, NKJV, NLT, AMP + Spanish, French, Portuguese
-- **Cross-reference lookup** (340k+ refs from openbible.info)
-- **NDI broadcast output** for live production integration
-- **Theme designer** — visual canvas editor for verse overlays: backgrounds (solid, gradient, image), text styling, positioning, shadows, outlines
+- **Second STT provider** — AssemblyAI Universal-Streaming, alongside upstream Deepgram + Whisper
+- **One-click API-key verifier** — HTTP auth probe + WebSocket handshake, inline ✓ / ✗ with reason
+- **Persistent sessions** — transcript, detections, notes saved per service in a dedicated SQLite layer, resumable across restarts
+- **Start Service flow** with pre-flight checklist (mic / key / network)
+- **Sermon toolbox** — planner merged into queue, notes panel, history panel, analytics panel, cross-reference panel
+- **AI sermon summary** via Claude for export
+- **Command palette** (cmdk), native app menu, welcome / about / announcement dialogs, Vaul drawers, theme library
+- **Shared WebSocket runtime** — Deepgram + AssemblyAI share one connect/reconnect loop
+- **Proper reconnect semantics** — `stt_reconnecting` separated from `stt_disconnected`, so transient drops don't tear down the UI
+- **Detection fix** — "chapter one" no longer misparses as 100
 
-### Sermon workflow (Manna additions)
-
-- **Start Service** — one-click flow: creates a session, runs the pre-flight checklist (mic + API key + network), starts transcription
-- **Pre-flight checklist** — verifies audio device, STT provider API key (per-provider), and network before each service
-- **API-key verifier** — Settings → Speech has a **Test** button next to each key field; runs an HTTP auth probe and WebSocket handshake against the provider, returns inline ✓ / ✗ with reason
-- **Persistent sessions** (new `rhema-notes` SQLite layer, separate from the Bible DB) — transcript, detections, and notes saved per service, resumable across app restarts
-- **Sessions panel** — auto-named with date/time, editable titles, newest-first
-- **Session detail / resume / end dialogs** — full lifecycle UI
-- **Sermon Planner** merged into the Queue — search, add, and reorder scriptures before or during a service
-- **History panel** + **Analytics panel** — verse history (99%+ confidence auto-add) and per-session / aggregate stats
-- **Sermon notes** — per-session note panel with export drawer (clipboard, markdown, JSON, print)
-- **AI sermon summary** — summarises the transcript via Claude (`claude-haiku-4-5`, with fallback) for export
-- **Cross-reference panel** — side-by-side lookup while a verse is live
-- **Smarter auto-broadcast** — confidence threshold + cooldown
-- **Voice navigation** — contains-match phrasing (not exact) for more forgiving control
-
-### App shell (Manna additions)
-
-- **Command palette** (cmdk) — jump to any action, panel, or setting from the keyboard
-- **Native app menu** + `use-menu-events` hook bridging menu items to in-app actions
-- **Workspace + tabbed panels + toolbar** layout refactor
-- **Welcome / About / Announcement dialogs**
-- **Vaul drawers** for long-form flows (export, distribute summary, end session)
-- **Theme library** with a curated set of built-in broadcast themes
-
-### Reliability
-
-- **Shared WebSocket runtime** — Deepgram and AssemblyAI clients share the same connect/reconnect loop (`ws_runtime.rs`), factored out of the old provider-specific code
-- **Auto-reconnect** for both STT providers (exponential backoff, audio-drop detection)
-- **`Reconnecting` event** distinct from `Disconnected` — the UI keeps transcription state across transient drops instead of tearing down
-- **Idempotent start/stop** — reloading the dev client while audio is running doesn't strand the backend
+**→ See [docs/wiki/Manna-vs-Rhema.md](docs/wiki/Manna-vs-Rhema.md) for the full feature comparison with file pointers.**
 
 ---
 
