@@ -315,8 +315,10 @@ impl AssemblyAIClient {
 
                 match msg_result {
                     Ok(Message::Text(text)) => {
-                        if let Err(e) = parse_and_send(&text, &event_tx).await {
-                            log::warn!("AssemblyAIClient receiver: parse error: {e}");
+                        match parse_and_send(&text, &event_tx).await {
+                            Ok(true) => break,
+                            Ok(false) => {}
+                            Err(e) => log::warn!("AssemblyAIClient receiver: parse error: {e}"),
                         }
                     }
                     Ok(Message::Close(_)) => {
@@ -360,7 +362,7 @@ impl AssemblyAIClient {
 async fn parse_and_send(
     text: &str,
     event_tx: &mpsc::Sender<TranscriptEvent>,
-) -> Result<(), SttError> {
+) -> Result<bool, SttError> {
     let json: serde_json::Value =
         serde_json::from_str(text).map_err(|e| SttError::ParseError(e.to_string()))?;
 
@@ -369,7 +371,7 @@ async fn parse_and_send(
         let _ = event_tx
             .send(TranscriptEvent::Error(format!("AssemblyAI: {err}")))
             .await;
-        return Ok(());
+        return Ok(false);
     }
 
     let msg_type = json
@@ -380,11 +382,11 @@ async fn parse_and_send(
     match msg_type {
         "Begin" => {
             // Connected already emitted on WebSocket open — ignore.
-            Ok(())
+            Ok(false)
         }
         "Termination" => {
-            let _ = event_tx.send(TranscriptEvent::Disconnected).await;
-            Ok(())
+            // Clean server close — outer reconnect loop will emit Disconnected.
+            Ok(true)
         }
         "Turn" => {
             let transcript = json
@@ -395,7 +397,7 @@ async fn parse_and_send(
                 .to_string();
 
             if transcript.is_empty() {
-                return Ok(());
+                return Ok(false);
             }
 
             let end_of_turn = json
@@ -420,11 +422,11 @@ async fn parse_and_send(
                     })
                     .await;
             }
-            Ok(())
+            Ok(false)
         }
         _ => {
             // Unknown message type — ignore silently.
-            Ok(())
+            Ok(false)
         }
     }
 }
