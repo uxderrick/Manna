@@ -4,6 +4,19 @@
 pub fn bible_keyterms() -> Vec<String> {
     let mut terms: Vec<String> = Vec::new();
 
+    // Highest priority first — these are most commonly misheard.
+    // Bare proper names that Deepgram hears wrong ("Peter" → "beta").
+    let bare_names = [
+        "Peter", "Paul", "Moses", "Abraham", "Isaac", "Jacob", "Joseph",
+        "David", "Solomon", "Elijah", "Elisha", "Mary", "Martha", "Lazarus",
+        "Barnabas", "Zacchaeus", "Nicodemus",
+    ];
+    terms.extend(bare_names.iter().map(ToString::to_string));
+
+    // Translation abbreviations — misheard as everyday words.
+    let translations = ["NIV", "ESV", "NASB", "NKJV", "NLT", "KJV", "AMP"];
+    terms.extend(translations.iter().map(ToString::to_string));
+
     // 66 Bible book names
     let books = [
         "Genesis",

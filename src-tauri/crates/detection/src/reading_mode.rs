@@ -411,6 +411,25 @@ impl Default for ReadingMode {
 /// Matches phrases like "let's go to verse five", "give me verse 4",
 /// "verse three", or bare numbers like "3.".
 fn extract_verse_number(text: &str) -> Option<i32> {
+    // Ordinal-before-verse: "second verse", "twenty-first verse", "twenty first verse"
+    if let Some(pos) = text.find(" verse") {
+        let before = &text[..pos];
+        let words: Vec<&str> = before.split_whitespace().collect();
+        if let Some(last) = words.last() {
+            if let Some(n) = parse_ordinal(last) {
+                // Check for two-word compound like "twenty first"
+                if words.len() >= 2 {
+                    if let Some(t) = parse_tens(words[words.len() - 2]) {
+                        if n < 10 {
+                            return Some(t + n);
+                        }
+                    }
+                }
+                return Some(n);
+            }
+        }
+    }
+
     // Find "verse N" or "verses N" anywhere in the text
     for keyword in &["verse ", "verses "] {
         if let Some(pos) = text.find(keyword) {
@@ -433,6 +452,72 @@ fn extract_verse_number(text: &str) -> Option<i32> {
     }
 
     None
+}
+
+/// Parse a tens word ("twenty" → 20, "thirty" → 30, etc.) Returns None for non-tens words.
+fn parse_tens(word: &str) -> Option<i32> {
+    match word.to_lowercase().as_str() {
+        "twenty" => Some(20),
+        "thirty" => Some(30),
+        "forty" => Some(40),
+        "fifty" => Some(50),
+        "sixty" => Some(60),
+        "seventy" => Some(70),
+        "eighty" => Some(80),
+        "ninety" => Some(90),
+        "one" => Some(100),
+        "hundred" => Some(100),
+        _ => None,
+    }
+}
+
+/// Parse a spoken ordinal ("second", "twenty-first") or digit ordinal ("2nd", "21st").
+fn parse_ordinal(word: &str) -> Option<i32> {
+    let w = word.trim_end_matches(['.', ',']).to_lowercase();
+    // Hyphenated compound: "twenty-first", "thirty-second"
+    if let Some((tens, ones)) = w.split_once('-') {
+        if let (Some(t), Some(o)) = (parse_tens(tens), parse_ordinal(ones)) {
+            if o < 10 {
+                return Some(t + o);
+            }
+        }
+    }
+    let n = match w.as_str() {
+        "first" | "1st" => 1,
+        "second" | "2nd" => 2,
+        "third" | "3rd" => 3,
+        "fourth" | "4th" => 4,
+        "fifth" | "5th" => 5,
+        "sixth" | "6th" => 6,
+        "seventh" | "7th" => 7,
+        "eighth" | "8th" => 8,
+        "ninth" | "9th" => 9,
+        "tenth" | "10th" => 10,
+        "eleventh" | "11th" => 11,
+        "twelfth" | "12th" => 12,
+        "thirteenth" | "13th" => 13,
+        "fourteenth" | "14th" => 14,
+        "fifteenth" | "15th" => 15,
+        "sixteenth" | "16th" => 16,
+        "seventeenth" | "17th" => 17,
+        "eighteenth" | "18th" => 18,
+        "nineteenth" | "19th" => 19,
+        "twentieth" | "20th" => 20,
+        _ => {
+            // Digit-suffix ordinals like "21st", "32nd", "43rd", "44th"
+            for suffix in &["st", "nd", "rd", "th"] {
+                if let Some(stripped) = w.strip_suffix(suffix) {
+                    if let Ok(n) = stripped.parse::<i32>() {
+                        if n > 0 && n <= 176 {
+                            return Some(n);
+                        }
+                    }
+                }
+            }
+            return None;
+        }
+    };
+    Some(n)
 }
 
 /// Parse a number (digit or spoken word) from the start of `text`.

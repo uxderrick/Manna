@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import { emitTo } from "@tauri-apps/api/event"
+import { emit } from "@tauri-apps/api/event"
 import { invoke } from "@tauri-apps/api/core"
 import type { BroadcastTheme, VerseRenderData } from "@/types"
 import { BUILTIN_THEMES } from "@/lib/builtin-themes"
@@ -138,11 +138,13 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   syncBroadcastOutputFor: (outputId: string) => {
     const s = get()
     const themeId = outputId === "alt" ? s.altActiveThemeId : s.activeThemeId
-    const label = outputId === "alt" ? "broadcast-alt" : "broadcast"
     const theme = s.themes.find((t) => t.id === themeId) ?? s.themes[0]
     if (!theme) return
 
-    void emitTo(label, "broadcast:verse-update", {
+    // Use plain `emit` instead of `emitTo(label, ...)` — Tauri v2 has known
+    // reliability issues with label-targeted emits (tauri-apps/tauri#11379).
+    // Broadcast windows filter by outputId in the payload instead.
+    void emit(`broadcast:verse-update:${outputId}`, {
       theme,
       verse: s.liveVerse,
     }).catch(() => {})

@@ -235,9 +235,14 @@ export function SessionsPanel() {
               onClick={async () => {
                 try {
                   await invoke("delete_session", { id: contextMenu.sessionId })
-                  const updated = await invoke<SermonSession[]>("list_sessions")
-                  useSessionStore.getState().setSessions(updated)
-                } catch {}
+                  // If deleting the active session, clear it
+                  if (useSessionStore.getState().activeSession?.id === contextMenu.sessionId) {
+                    useSessionStore.getState().setActiveSession(null)
+                  }
+                  loadSessions()
+                } catch (e) {
+                  console.error("Failed to delete session:", e)
+                }
                 setContextMenu(null)
               }}
             >

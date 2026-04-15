@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeftIcon, BookOpenIcon, MicIcon, BarChart3Icon, DownloadIcon, ClipboardIcon, FileTextIcon, FileJsonIcon, PrinterIcon, SparklesIcon, LoaderIcon, CopyIcon, CheckIcon } from "lucide-react"
+import { ArrowLeftIcon, BookOpenIcon, MicIcon, BarChart3Icon, DownloadIcon, ClipboardIcon, FileTextIcon, FileJsonIcon, PrinterIcon, SparklesIcon, LoaderIcon, CopyIcon, CheckIcon, StopCircleIcon } from "lucide-react"
 import { summarizeTranscript } from "@/lib/summarize"
-import type { SessionDetection, SessionTranscriptSegment, SessionNote } from "@/types/session"
+import type { SermonSession, SessionDetection, SessionTranscriptSegment, SessionNote } from "@/types/session"
 
 interface SessionDetailProps {
   sessionId: number
@@ -65,6 +65,7 @@ function downloadFile(content: string, filename: string, mime: string) {
 
 export function SessionDetail({ sessionId, sessionTitle, onBack }: SessionDetailProps) {
   const [tab, setTab] = useState<DetailTab>("detections")
+  const [session, setSession] = useState<SermonSession | null>(null)
   const [detections, setDetections] = useState<SessionDetection[]>([])
   const [transcript, setTranscript] = useState<SessionTranscriptSegment[]>([])
   const [notes, setNotes] = useState<SessionNote[]>([])
@@ -91,16 +92,27 @@ export function SessionDetail({ sessionId, sessionTitle, onBack }: SessionDetail
   useEffect(() => {
     setLoading(true)
     Promise.all([
+      invoke<SermonSession>("get_session", { id: sessionId }),
       invoke<SessionDetection[]>("get_session_detections", { sessionId }),
       invoke<SessionTranscriptSegment[]>("get_session_transcript", { sessionId }),
       invoke<SessionNote[]>("get_session_notes", { sessionId }),
-    ]).then(([dets, trans, n]) => {
+    ]).then(([sess, dets, trans, n]) => {
+      setSession(sess)
       setDetections(dets)
       setTranscript(trans)
       setNotes(n)
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [sessionId])
+
+  const handleEndSession = async () => {
+    try {
+      await invoke("end_session", { id: sessionId })
+      setSession((s) => s ? { ...s, status: "completed" as const } : null)
+    } catch (e) {
+      console.error("Failed to end session:", e)
+    }
+  }
 
   const handleCopyClipboard = () => {
     const text = buildMarkdown(sessionTitle, detections, notes, transcript)
@@ -165,6 +177,24 @@ export function SessionDetail({ sessionId, sessionTitle, onBack }: SessionDetail
           <ArrowLeftIcon className="size-3.5" />
         </Button>
         <span className="min-w-0 flex-1 truncate text-sm font-semibold">{sessionTitle}</span>
+        {session?.status === "live" && (
+          <Badge variant="outline" className="shrink-0 border-amber-500/30 bg-amber-500/10 text-[9px] text-amber-500">
+            Still Live
+          </Badge>
+        )}
+
+        {/* End session for orphaned live sessions */}
+        {session?.status === "live" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 gap-1 text-destructive hover:text-destructive"
+            onClick={handleEndSession}
+          >
+            <StopCircleIcon className="size-3" />
+            End Session
+          </Button>
+        )}
 
         {/* Export dropdown */}
         <div className="relative" ref={exportRef}>

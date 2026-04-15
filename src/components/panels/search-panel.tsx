@@ -41,7 +41,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useBible, bibleActions } from "@/hooks/use-bible"
-import { toVerseRenderData } from "@/hooks/use-broadcast"
+import { toVerseRenderData, retranslateBroadcastVerses } from "@/hooks/use-broadcast"
 import { useBibleStore, useBroadcastStore, useQueueStore } from "@/stores"
 import type { Book, Verse } from "@/types"
 import { Input } from "@/components/ui/input"
@@ -468,6 +468,8 @@ export function SearchPanel() {
                 try {
                   await invoke("set_active_translation", { translationId: id })
                   useBibleStore.getState().setActiveTranslation(id)
+                  const abbr = useBibleStore.getState().translations.find(t => t.id === id)?.abbreviation ?? ""
+                  await retranslateBroadcastVerses(id, abbr)
                 } catch (err) { console.error(err) }
               }}
             >
@@ -498,6 +500,8 @@ export function SearchPanel() {
                   try {
                     await invoke("set_active_translation", { translationId: id })
                     useBibleStore.getState().setActiveTranslation(id)
+                    const abbr = useBibleStore.getState().translations.find(t => t.id === id)?.abbreviation ?? ""
+                    await retranslateBroadcastVerses(id, abbr)
                   } catch (err) { console.error(err) }
                 }}
               >

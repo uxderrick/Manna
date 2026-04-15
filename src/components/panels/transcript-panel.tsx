@@ -12,7 +12,7 @@ import {
 } from "@/stores"
 import { useTauriEvent } from "@/hooks/use-tauri-event"
 import { bibleActions } from "@/hooks/use-bible"
-import { toVerseRenderData } from "@/hooks/use-broadcast"
+import { toVerseRenderData, retranslateBroadcastVerses } from "@/hooks/use-broadcast"
 import type { TranscriptSegment } from "@/types"
 import type { DetectionResult } from "@/types"
 
@@ -30,13 +30,16 @@ export function TranscriptPanel() {
     useAudioStore.getState().setLevel(payload)
   })
 
-  // Connection status events
+  // Connection status events.
+  // Backend emits `stt_disconnected` on EVERY Deepgram close — including silence
+  // timeouts that auto-reconnect. So `stt_disconnected` is NOT terminal; only
+  // `stt_error` is. Keep `isTranscribing` true across reconnects.
   useTauriEvent("stt_connected", () => {
     useTranscriptStore.getState().setConnectionStatus("connected")
+    useTranscriptStore.getState().setTranscribing(true)
   })
   useTauriEvent("stt_disconnected", () => {
     useTranscriptStore.getState().setConnectionStatus("disconnected")
-    useTranscriptStore.getState().setTranscribing(false)
     useTranscriptStore.getState().setPartial("")
   })
   useTauriEvent<string>("stt_error", () => {
@@ -87,6 +90,7 @@ export function TranscriptPanel() {
     "translation_command",
     (data) => {
       useBibleStore.getState().setActiveTranslation(data.translation_id)
+      retranslateBroadcastVerses(data.translation_id, data.abbreviation).catch(() => {})
       console.log(`[VOICE] Translation switched to ${data.abbreviation}`)
     }
   )

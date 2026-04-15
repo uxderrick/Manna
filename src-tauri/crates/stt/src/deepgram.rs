@@ -130,15 +130,19 @@ impl DeepgramClient {
                         log::info!("DeepgramClient: connection closed normally (cancelled)");
                         break;
                     }
-                    log::info!("DeepgramClient: server closed connection, reconnecting...");
-                    let _ = event_tx.send(TranscriptEvent::Disconnected).await;
-                    attempts += 1;
-                    if attempts >= MAX_RECONNECT_ATTEMPTS {
-                        log::error!("DeepgramClient: max reconnection attempts after clean close");
+                    // Detect dropped audio source: if the crossbeam channel has
+                    // no more senders (upstream `stop_transcription` dropped
+                    // the audio fanout), don't reconnect into a dead channel.
+                    if matches!(audio_rx.try_recv(), Err(crossbeam_channel::TryRecvError::Disconnected)) {
+                        log::info!("DeepgramClient: audio source closed, stopping reconnect loop");
                         break;
                     }
-                    let delay = std::time::Duration::from_millis(500 * u64::from(attempts));
-                    tokio::time::sleep(delay).await;
+                    log::info!("DeepgramClient: server closed connection, reconnecting...");
+                    let _ = event_tx.send(TranscriptEvent::Disconnected).await;
+                    // Reset attempts — the connection was working, server just closed it
+                    // (e.g. silence timeout). Fresh reconnect budget.
+                    attempts = 0;
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                     continue;
                 }
                 Err(e) => {

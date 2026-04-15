@@ -128,3 +128,39 @@ Running `nohup bun run tauri dev` can cause the Tauri window to not display prop
 
 - Run in foreground
 - Use `& disown` instead of `nohup`
+
+## 16. Deepgram Silence-Close vs Frontend "Ended" State
+
+Deepgram closes WebSocket connections after ~10–12 s of silence. The backend handles this by reconnecting automatically (reset `attempts=0`, retry). But the backend emits `TranscriptEvent::Disconnected` → `stt_disconnected` to the frontend on every close.
+
+If the frontend treats `stt_disconnected` as terminal (flipping `isTranscribing=false`), the UI renders the empty state on the detections panel (`detections.length === 0 && !isTranscribing`) even though the backend is alive and reconnecting.
+
+**Fix:** `stt_disconnected` is a soft event — only clear the partial transcript and connection status, not `isTranscribing`. Re-assert `isTranscribing=true` on `stt_connected` so reconnects restore the UI. Only `stt_error` (max reconnect attempts, fatal) should flip `isTranscribing=false`.
+
+## 17. Idempotent `start_transcription`
+
+When the UI perceived a disconnect (see #16), users would click Start again. The backend's `stt_active=true` guard then returned "Transcription is already running" — stranding the user with a broken state.
+
+**Fix:** Made `start_transcription` idempotent. If `stt_active=true`, re-emit `stt_connected` and return Ok instead of erroring. UI re-syncs with backend reality.
+
+## 18. Deepgram Reconnect Loop After `stop_transcription`
+
+`stop_transcription` sets `stt_active=false`, which drops the audio fanout thread. But the Deepgram client has its own `cancelled: Arc<AtomicBool>` flag that was never set — and combined with "reset attempts=0 on clean close" (intended for silence reconnects), the Deepgram outer loop would reconnect forever into a dead audio channel.
+
+**Fix:** In the Deepgram reconnect loop, before retrying, trial-recv the audio channel. If `TryRecvError::Disconnected`, the audio source is gone — break out instead of reconnecting.
+
+Long-term improvement: store a handle to the `SttProvider` in `AppState` so `stop_transcription` can call `provider.stop()` directly and set `cancelled=true` explicitly.
+
+## 19. Tauri v2 `emitTo(label, ...)` Is Flaky for Rapid Updates
+
+When updating a secondary window (e.g. broadcast output) via `emitTo("broadcast", ...)`, events get dropped or mis-routed under rapid-fire emission. Documented issues: [#11379](https://github.com/tauri-apps/tauri/issues/11379), [#11561](https://github.com/tauri-apps/tauri/issues/11561), [#9296](https://github.com/tauri-apps/tauri/issues/9296).
+
+**Fix:** Switch to plain `emit("broadcast:verse-update:${outputId}", ...)` with a unique event name per output. Each window listens on its specific event name instead of relying on Tauri's label routing.
+
+## 20. Deepgram Nova-3 Keyterms vs Keywords
+
+Nova-3 uses **Keyterm Prompting** (multi-word phrases, plain strings). The older **Keywords** feature supported `word:N` intensifier syntax — **Keyterms do NOT**. If you pass `"Peter:3"` as a keyterm to Nova-3, the boost is ignored (or worse, treated as a literal string).
+
+Keyterm limit: 500 tokens ≈ 100 keyterms per request. Order matters when you have more keyterms than the cap — put the highest-priority ones (commonly misheard bare names, translation abbreviations) first. Full phrases like "1 Peter" don't boost bare "Peter" — you need bare "Peter" as its own keyterm.
+
+Sources: [Deepgram Keyterm docs](https://developers.deepgram.com/docs/keyterm), [Deepgram Keywords docs](https://developers.deepgram.com/docs/keywords).
