@@ -6,6 +6,24 @@ If a feature isn't listed under **Manna additions** or **Manna changes**, assume
 
 ---
 
+## UI redesign
+
+The most visible difference. Manna is not a reskin — it's a different layout, panel system, color scheme, and interaction model.
+
+| Dimension | Rhema (upstream) | Manna |
+| --- | --- | --- |
+| **Layout** | Fixed CSS grid (`gridTemplateRows: 56px 2fr 3fr`, 4 columns). All 6 panels visible at once, no resizing. | `react-resizable-panels` workspace with draggable dividers. 13 panel slots behind a tabbed panel bar — show what you need, hide the rest. |
+| **Panels** | 6: transcript, preview, live-output, queue, search, detections | 13: +sessions, session-detail, notes, history, analytics, cross-reference, planner |
+| **Color palette** | Green-lime primary `oklch(0.53 0.16 131)` on pure white `oklch(1 0 0)` | Warm earth-tone primary `oklch(0.45 0.1 155)` on warm off-white `oklch(0.965 0.008 75)`. Full dark-mode overhaul with different hue/chroma. |
+| **Motion** | No easing tokens | `--ease-spring` (playful overshoot), `--ease-smooth` (pro entrance), `--ease-snap` (snappy response) + duration tokens (`--duration-fast` 150ms through `--duration-slower` 500ms) |
+| **Dialogs / drawers** | 2 files (settings-dialog, ui/dialog) | 10 dialog/drawer components + 6 Zustand store files. Vaul drawer primitive for long-form flows (export, distribute, end session). |
+| **Settings** | Same 7 section names, ~800 lines | Same 7 sections, ~1,036 lines. Speech section expanded from ~115 → ~290 lines (AssemblyAI, provider picker, Test button + verify flow). |
+| **Keyboard** | None | Command palette (cmdk) + native app menu with keyboard shortcuts bridged to in-app actions |
+| **Broadcast monitor** | Not present | Operator preview component that mirrors the broadcast window inside the app |
+| **Themes** | 3 built-in themes (~238 lines) | Expanded theme library (~562 lines) with theme-library browser panel |
+
+---
+
 ## Shared with upstream rhema
 
 Real-time sermon verse detection — these are rhema's core. Manna inherits them unchanged (or lightly refactored):

@@ -10,20 +10,37 @@ Manna listens to a live sermon audio feed, transcribes speech in real time, dete
 
 ## What Manna adds
 
-> For the core detection pipeline, NDI output, theme designer, and Bible DB — see the upstream [openbezal/rhema](https://github.com/openbezal/rhema). Manna builds the church-livestream workflow and reliability layer on top.
+> Built on [openbezal/rhema](https://github.com/openbezal/rhema) (core detection pipeline, NDI output, theme designer, Bible DB). Manna is a full UI redesign plus a church-livestream workflow and reliability layer.
 
-- **Second STT provider** — AssemblyAI Universal-Streaming, alongside upstream Deepgram + Whisper
-- **One-click API-key verifier** — HTTP auth probe + WebSocket handshake, inline ✓ / ✗ with reason
-- **Persistent sessions** — transcript, detections, notes saved per service in a dedicated SQLite layer, resumable across restarts
-- **Start Service flow** with pre-flight checklist (mic / key / network)
-- **Sermon toolbox** — planner merged into queue, notes panel, history panel, analytics panel, cross-reference panel
+<!-- screenshots: add before/after images here -->
+
+### Redesigned UI
+
+Rhema ships a fixed 4-column CSS grid with 6 hardcoded panels. Manna replaces this with:
+
+- **Resizable panel workspace** (`react-resizable-panels`) with draggable dividers — 13 panel slots, switchable via a tabbed panel bar
+- **Warm earth-tone OKLCH palette** — Manna shifts from rhema's green-lime primary (`oklch(0.53 0.16 131)` on pure white) to a warmer scheme (`oklch(0.45 0.1 155)` on warm off-white `oklch(0.965 0.008 75)`) with a full dark-mode overhaul
+- **Motion system** — spring, smooth, and snap easing curves with duration tokens (`--ease-spring`, `--duration-fast`, etc.), not present upstream
+- **10 dialogs / drawers** (upstream has 2) — welcome, about, announcement, resume session, end session, export notes, distribute summary, plus Vaul drawer primitives
+- **Command palette** (cmdk) for keyboard-driven navigation
+- **Native app menu** bridged to in-app actions
+
+### Sermon workflow
+
+- **Persistent sessions** — transcript, detections, notes saved per service (SQLite), resumable across restarts
+- **Start Service** one-click flow with pre-flight checklist (mic / API key / network)
+- **7 new panels:** sessions, session detail, notes, history, analytics, cross-reference, planner (merged into queue)
 - **AI sermon summary** via Claude for export
-- **Command palette** (cmdk), native app menu, welcome / about / announcement dialogs, Vaul drawers, theme library
-- **Shared WebSocket runtime** — Deepgram + AssemblyAI share one connect/reconnect loop
-- **Proper reconnect semantics** — `stt_reconnecting` separated from `stt_disconnected`, so transient drops don't tear down the UI
-- **Detection fix** — "chapter one" no longer misparses as 100
+- **Session export** — clipboard, markdown, JSON, print
 
-**→ See [docs/wiki/Manna-vs-Rhema.md](docs/wiki/Manna-vs-Rhema.md) for the full feature comparison with file pointers.**
+### STT + reliability
+
+- **AssemblyAI Universal-Streaming** as a second provider, alongside Deepgram + Whisper
+- **One-click API-key verifier** — HTTP auth probe + WebSocket handshake, inline ✓ / ✗
+- **Shared WebSocket runtime** — Deepgram + AssemblyAI share one connect/reconnect loop
+- **Proper reconnect semantics** — `stt_reconnecting` vs `stt_disconnected` so transient drops don't tear down the UI
+
+**→ [Full feature comparison with file pointers](docs/wiki/Manna-vs-Rhema.md)**
 
 ---
 
