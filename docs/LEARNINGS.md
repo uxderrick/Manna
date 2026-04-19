@@ -164,3 +164,149 @@ Nova-3 uses **Keyterm Prompting** (multi-word phrases, plain strings). The older
 Keyterm limit: 500 tokens ≈ 100 keyterms per request. Order matters when you have more keyterms than the cap — put the highest-priority ones (commonly misheard bare names, translation abbreviations) first. Full phrases like "1 Peter" don't boost bare "Peter" — you need bare "Peter" as its own keyterm.
 
 Sources: [Deepgram Keyterm docs](https://developers.deepgram.com/docs/keyterm), [Deepgram Keywords docs](https://developers.deepgram.com/docs/keywords).
+
+## 21. Drain STT Event Channel After Stop
+
+The transcript consumer task had two exit conditions:
+
+```rust
+while let Some(event) = event_rx.recv().await {
+    if !evt_active.load(Ordering::SeqCst) { break; }   // ← premature
+    match event { ... }
+}
+```
+
+`stop_transcription` flips `stt_active=false` immediately, but the WebSocket receiver keeps running for 100–500 ms after that (reading buffered frames off the socket, parsing, forwarding to `event_tx`). With the early-break guard in place, those late-arriving `Turn` / `Final` events got dropped on the floor: users saw nothing on screen from short test sessions.
+
+**Fix:** remove the flag check inside the loop. Let it drain until `event_rx.recv()` returns `None` (sender dropped when the provider task finally exits). The downstream `emit` calls are cheap even for a stopped UI — and the frontend's `stt_disconnected` handler already clears the partial.
+
+**General rule:** if a producer and a stop-flag race, prefer letting the channel drain on sender-drop rather than having the consumer poll the flag. Polling the flag is almost always a bug that drops tail events.
+
+## 22. UI "Started" State Should Follow Backend `Connected`, Not `invoke` Return
+
+Previous pattern:
+
+```tsx
+await invoke("start_transcription", ...)
+useTranscriptStore.getState().setTranscribing(true)   // ← too eager
+```
+
+`invoke("start_transcription")` returns as soon as the Rust command spawns the provider and audio tasks — **before** the WebSocket upgrade completes. On cold TLS/DNS that handshake takes 10–21 s. With the line above, the button immediately flips to "End Service" while the backend is still connecting. Users think it's live, click End, kill the session mid-handshake.
+
+**Fix:** remove the local optimistic update. Let the backend's `stt_connected` event be the single source of truth — `transcript-panel.tsx` already listens and calls `setTranscribing(true)` on that event. The button correctly stays in "Connecting…" (disabled) until the WS upgrade succeeds.
+
+**General rule:** for async backend handshakes, UI state transitions should be driven by the backend's "ready" event, not the return of the "start" invoke. The invoke return just means "I accepted the request."
+
+## 23. Reqwest Rustls HTTP/2 Cold Start on macOS
+
+The AssemblyAI key-verify `http_probe` was failing with an opaque `network: error sending request for url` on cold app starts, even though `curl` to the same endpoint worked fine. Root causes:
+
+1. **6s `timeout` was too tight** for cold DNS + TLS handshake.
+2. **No explicit `connect_timeout`** — reqwest defaults let DNS/TLS chew up the whole timeout budget.
+3. **HTTP/2 negotiation via rustls** sometimes fails on the first request after a cold start (no shared ALPN cache, no session resumption). Subsequent requests work.
+4. **Opaque error formatting** — `format!("{e}")` on a `reqwest::Error` doesn't include the error's `source()` chain, so the user sees "network: error sending request" with no hint at the root cause.
+
+**Fix:**
+
+```rust
+let client = reqwest::Client::builder()
+    .timeout(PROBE_TIMEOUT)                               // 15 s
+    .connect_timeout(Duration::from_secs(10))
+    .http1_only()                                         // sidestep rustls H2 cold-start
+    .build()?;
+
+// walk the error source() chain for useful detail
+.map_err(|e| {
+    use std::error::Error;
+    let mut detail = format!("network: {e}");
+    let mut src: Option<&dyn Error> = Error::source(&e);
+    while let Some(s) = src {
+        detail.push_str(&format!(" → {s}"));
+        src = s.source();
+    }
+    detail
+})?;
+```
+
+`http1_only()` is safe for a 6 KB JSON verification probe — HTTP/2 multiplexing buys nothing here. For production audio streaming use the default negotiation.
+
+## 24. dotenvy Does Not Load `.env.local` by Default
+
+`dotenvy::dotenv()` + `dotenvy::from_filename("../.env")` **do not** pick up `.env.local` — you have to list it explicitly:
+
+```rust
+dotenvy::dotenv().ok();
+dotenvy::from_filename("../.env").ok();
+dotenvy::from_filename("../.env.local").ok();   // required for Next.js-style conventions
+```
+
+Many devs (and AI assistants) assume `.env.local` is loaded automatically because Next.js / Vite / Create React App all do it. Rust's `dotenvy` does not.
+
+## 25. `Arc<dyn Trait>` Over `Box<dyn Trait>` for Shared Lifecycle Handles
+
+When a Tauri command spawns an async task that owns a trait object (e.g. `Box<dyn SttProvider>`) and a second command needs to reach that same object (e.g. `stop_transcription` calling `provider.stop()`), `Box` forces a choice: store the handle in state and never move it into the task, or move it into the task and lose access.
+
+`Arc<dyn SttProvider>` solves both: clone the `Arc` into `AppState`, move a second clone into the task. Both sides see the same underlying provider; `.stop()` from the stop-command flips the provider's internal `cancelled` AtomicBool, which the async task observes.
+
+The trait must be `Send + Sync` for `Arc<dyn T>` to cross threads — already true for `SttProvider` because async_trait requires it.
+
+**Pattern:**
+
+```rust
+let provider: Arc<dyn SttProvider> = Arc::new(DeepgramClient::new(cfg));
+app_state.stt_provider = Some(provider.clone());     // stop-command handle
+tauri::async_runtime::spawn(async move {
+    provider.start(audio_rx, event_tx).await;        // owns its own clone
+});
+
+// Later, from stop_transcription:
+if let Some(provider) = app_state.stt_provider.take() {
+    provider.stop();    // flips cancelled; task exits on next iteration
+}
+```
+
+Direct cancellation is deterministic. Relying on downstream side-effects (e.g. drop fanout → drop audio channel → WS reader notices disconnected channel → exits) introduces timing windows where events get lost.
+
+## 26. Prewarm TLS / Connection Pools at App Startup
+
+On a cold app launch, the first HTTPS request to a new host pays 6–10s for DNS + TLS handshake (especially with `rustls` and HTTP/2 ALPN negotiation on macOS). If this first request is a user-initiated action like "verify API key," it looks broken.
+
+Fix: spawn a background task on app startup that HEADs each host the app will later call. The response is discarded; the side effect is that DNS is cached, TLS session tickets are negotiated, and the connection pool has a keepalive slot ready.
+
+```rust
+tauri::async_runtime::spawn(async {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .connect_timeout(Duration::from_secs(5))
+        .http1_only()
+        .build().unwrap();
+    for host in &["https://api.deepgram.com", "https://api.assemblyai.com"] {
+        let _ = client.head(host).send().await;
+    }
+});
+```
+
+Silent failure is fine — warmup is best-effort. If a host is unreachable at launch, the user will see the real error later when they actually call it. Don't block app startup on this.
+
+## 27. UI State Must Follow Backend Event, Not Local Optimism, for Long Handshakes
+
+Covered in learning #22 as a bug fix. Generalizing: for any async operation where the backend's "accepted" signal is much earlier than "ready" (WebSocket handshakes, NDI streams, model loads), the UI must subscribe to the "ready" event and not mirror state locally on `invoke` return.
+
+Common smell:
+
+```tsx
+await invoke("start_X")
+store.setActive(true)   // ← lies if X takes >1s to actually start
+```
+
+Correct pattern:
+
+```tsx
+await invoke("start_X")
+store.setStatus("connecting")   // accurate intermediate state
+
+// elsewhere, backend emits "x_ready":
+useTauriEvent("x_ready", () => store.setActive(true))
+```
+
+Test the state machine with a regression test that simulates the event sequence ([transcript-store.test.ts](../src/stores/transcript-store.test.ts)). Catches re-introduction of the local-optimism smell in PR review.

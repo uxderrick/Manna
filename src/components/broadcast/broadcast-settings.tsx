@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { emitTo, listen } from "@tauri-apps/api/event"
+import { emit, listen } from "@tauri-apps/api/event"
 import { availableMonitors, getAllWindows, type Monitor } from '@tauri-apps/api/window'
 import {
   Dialog,
@@ -111,14 +111,13 @@ export function BroadcastSettings({
       frameRate: NdiFrameRate,
       resolution: NdiResolution,
     ) => {
-      const label = outputId === "alt" ? "broadcast-alt" : "broadcast"
       const dims =
         resolution === "r720p"
           ? { width: 1280, height: 720 }
           : resolution === "r4k"
             ? { width: 3840, height: 2160 }
             : { width: 1920, height: 1080 }
-      void emitTo(label, "broadcast:ndi-config", {
+      void emit(`broadcast:ndi-config:${outputId}`, {
         active,
         fps: ndiFrameRateToNumber(frameRate),
         width: dims.width,
@@ -250,7 +249,7 @@ export function BroadcastSettings({
         const session = await invoke<NdiSessionInfo>("start_ndi", { outputId: "main", request })
         setNdiActive(true)
         useBroadcastStore.getState().syncBroadcastOutputFor("main")
-        void emitTo("broadcast", "broadcast:ndi-config", {
+        void emit("broadcast:ndi-config:main", {
           active: true,
           fps: session.fps,
           width: session.width,
@@ -340,7 +339,7 @@ export function BroadcastSettings({
         const session = await invoke<NdiSessionInfo>("start_ndi", { outputId: "alt", request })
         setAltNdiActive(true)
         useBroadcastStore.getState().syncBroadcastOutputFor("alt")
-        void emitTo("broadcast-alt", "broadcast:ndi-config", {
+        void emit("broadcast:ndi-config:alt", {
           active: true,
           fps: session.fps,
           width: session.width,

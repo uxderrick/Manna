@@ -201,3 +201,66 @@ Fixes:
 
 Spec: `docs/superpowers/specs/2026-04-15-assemblyai-provider-design.md`
 Plan: `docs/superpowers/plans/2026-04-15-assemblyai-provider.md`
+
+## Session: 2026-04-19 — Transcription Start/Stop Fixes
+
+User report: "transcription not working." Logs showed AssemblyAI `Turn` events arriving 100–300 ms after `Transcription stop requested`, consumer task exiting before forwarding them — late transcripts dropped on every short test session. Separate: first-time WS upgrade took 10–21 s on cold TLS/DNS, with UI showing "End Service" immediately after `invoke` returned (before `stt_connected`), so users stopped mid-connect.
+
+### Fixes
+
+- **Consumer drop-on-stop** ([src-tauri/src/commands/stt.rs:295](src-tauri/src/commands/stt.rs#L295)): removed early `break` on `evt_active` check inside the event loop. Loop now drains until provider task drops the sender, so Turn/Final events that arrive after the stop flag flips still reach the frontend.
+- **Premature "End Service" button state** ([src/components/layout/toolbar.tsx:101](src/components/layout/toolbar.tsx#L101), [src/components/resume-session-dialog.tsx:58](src/components/resume-session-dialog.tsx#L58)): removed local `setTranscribing(true)` after `invoke("start_transcription")`. Backend `stt_connected` event is now the single source of truth — button stays "Connecting…" (disabled) until WS upgrade completes.
+- **AssemblyAI key verify network error** ([src-tauri/src/commands/stt.rs:928-951](src-tauri/src/commands/stt.rs#L928)): `http_probe` was failing with opaque `network: error sending request` on cold start. Bumped `PROBE_TIMEOUT` 6s → 15s, added explicit 10s `connect_timeout`, forced `http1_only()` (sidestep reqwest rustls HTTP/2 cold-start issues), and walked the error `source()` chain so the UI shows the root cause.
+- **Env var loading** ([src-tauri/src/lib.rs:17-20](src-tauri/src/lib.rs#L17)): `dotenvy` was loading `.env` / `src-tauri/.env` but not `.env.local`. Added `from_filename("../.env.local")` so local dev keys are picked up.
+
+### Follow-ups from this session
+
+- [x] Store `SttProvider` handle in `AppState` so `stop_transcription` can call `provider.stop()` directly — done later this session.
+- [x] "Connecting…" badge needs a visible progress indicator — `Loader2Icon` spinner added, tooltip hint for cold-start wait.
+- [x] Warming the reqwest/rustls connection pool at app startup — done later this session.
+
+## Session: 2026-04-19 (cont) — Tech Debt Sweep
+
+Cleared 6 tech-debt items in one pass. All compile clean, vitest 16/16 pass.
+
+### 1. `emitTo` → scoped `emit` in broadcast-settings.tsx
+
+- [broadcast-settings.tsx](src/components/broadcast/broadcast-settings.tsx): replaced three `emitTo(label, "broadcast:ndi-config", ...)` call sites with `emit("broadcast:ndi-config:${outputId}", ...)`.
+- [broadcast-output.tsx](src/broadcast-output.tsx): listener now subscribes to the scoped event name matching its `OUTPUT_ID`.
+- Removes exposure to Tauri v2 `emitTo` reliability bugs (learning #19) for the NDI config path. `broadcast:output-ready` stays on `emitTo` — low volume, different direction (broadcast → main).
+
+### 2. Connection pool warmup at startup
+
+- [lib.rs](src-tauri/src/lib.rs): new `warm_connection_pool()` helper spawned from the Tauri `setup` closure. Sends HEAD requests to Deepgram, AssemblyAI, and Anthropic hosts on launch.
+- Uses 10s timeout + 5s connect timeout + `http1_only()`. Failures ignored — warmup is best-effort.
+- First user-initiated verify / summary call no longer eats 6–10s of cold TLS handshake.
+
+### 3. "Connecting…" spinner
+
+- [toolbar.tsx](src/components/layout/toolbar.tsx): Start Service button now shows `Loader2Icon` with `animate-spin` while `connectionStatus === "connecting"`. Tooltip: "Connecting to STT provider (first launch can take 10–20s)". Visual feedback during the 10–21s cold-start window.
+
+### 4. `SttProvider` handle in `AppState`
+
+- [state.rs](src-tauri/src/state.rs): new `stt_provider: Option<Arc<dyn SttProvider>>` field.
+- [stt.rs](src-tauri/src/commands/stt.rs):
+  - `Box<dyn SttProvider>` → `Arc<dyn SttProvider>` at construction. All three providers (Whisper / AssemblyAI / Deepgram) wrap in `Arc::new`.
+  - `start_transcription` clones the `Arc` into `AppState` before moving it into the provider task.
+  - `stop_transcription` now calls `provider.stop()` on the stored handle, flipping each provider's internal `cancelled` AtomicBool. No longer relies on the audio channel drop chain to propagate cancellation.
+- Cleaner stop semantics; late-event drain fix (earlier this session) now has a deterministic companion for the provider side.
+
+### 5. Transcript-store reconnect regression test
+
+- New [transcript-store.test.ts](src/stores/transcript-store.test.ts) with 5 cases covering learnings #16 + #17:
+  - `stt_connected` flips `isTranscribing=true`
+  - `stt_disconnected` does NOT flip `isTranscribing=false` (regression guard)
+  - Full silence-close → reconnect cycle keeps UI alive
+  - `stt_error` is terminal — flips `isTranscribing=false`
+  - 5 back-to-back disconnect/reconnect cycles preserve state
+- Test mirrors the handler logic in [transcript-panel.tsx](src/components/panels/transcript-panel.tsx) so any future change that re-introduces the "flip on disconnect" bug fails the test.
+- Vitest suite now 16 tests across 4 files.
+
+### 6. E2E framework sketch
+
+- [2026-04-19-stt-e2e-framework-design.md](docs/superpowers/specs/2026-04-19-stt-e2e-framework-design.md): design-only doc for the speak/silence/resume scenario.
+- Stack: Playwright + Tauri v2 + BlackHole virtual mic + pre-recorded WAV fixtures. Zustand store snooping for assertions.
+- 1-day build split into 4 × 0.5-day phases. Open questions for user: Deepgram credits in CI? Whisper coverage in v1?

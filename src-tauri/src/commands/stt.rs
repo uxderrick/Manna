@@ -1,7 +1,7 @@
 #![expect(clippy::needless_pass_by_value, reason = "Tauri command extractors require pass-by-value")]
 
 use std::sync::atomic::Ordering;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -49,7 +49,7 @@ pub async fn start_transcription(
     let provider_name = provider.as_deref().unwrap_or("deepgram");
 
     // ── 2. Build the STT provider ───────────────────────────────────────
-    let stt_provider: Box<dyn SttProvider> = match provider_name {
+    let stt_provider: Arc<dyn SttProvider> = match provider_name {
         #[cfg(feature = "whisper")]
         "whisper" => {
             // Resolve bundled Whisper model path.
@@ -91,7 +91,7 @@ pub async fn start_transcription(
                 model_path.display()
             );
 
-            Box::new(rhema_stt::WhisperProvider::new(
+            Arc::new(rhema_stt::WhisperProvider::new(
                 model_path,
                 None,
                 n_threads,
@@ -130,7 +130,7 @@ pub async fn start_transcription(
                 language: None,
             };
 
-            Box::new(rhema_stt::AssemblyAIClient::new(stt_config))
+            Arc::new(rhema_stt::AssemblyAIClient::new(stt_config))
         }
         _ => {
             // Deepgram (default)
@@ -160,12 +160,18 @@ pub async fn start_transcription(
                 language: None,
             };
 
-            Box::new(DeepgramClient::new(stt_config))
+            Arc::new(DeepgramClient::new(stt_config))
         }
     };
 
     stt_active.store(true, Ordering::SeqCst);
     audio_active.store(true, Ordering::SeqCst);
+
+    // Store provider handle so `stop_transcription` can call `.stop()` directly.
+    {
+        let mut app_state = state.lock().map_err(|e| e.to_string())?;
+        app_state.stt_provider = Some(stt_provider.clone());
+    }
 
     // ── 3. Prepare channels ─────────────────────────────────────────────
     let (audio_send_tx, audio_send_rx) = crossbeam_channel::bounded::<Vec<i16>>(64);
@@ -902,12 +908,19 @@ fn run_quotation_matching(app: &AppHandle, transcript: &str) {
 pub fn stop_transcription(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<(), String> {
-    let app_state = state.lock().map_err(|e| e.to_string())?;
+    let mut app_state = state.lock().map_err(|e| e.to_string())?;
 
     // Always reset flags — idempotent stop handles cases where the frontend
     // reloaded (e.g., hot reload during dev) while transcription was running.
     app_state.stt_active.store(false, Ordering::SeqCst);
     app_state.audio_active.store(false, Ordering::SeqCst);
+
+    // Direct provider cancellation — flips the WS client's internal
+    // `cancelled` flag so the reconnect loop exits immediately instead of
+    // waiting for the audio channel to disconnect via the fanout thread.
+    if let Some(provider) = app_state.stt_provider.take() {
+        provider.stop();
+    }
 
     log::info!("Transcription stop requested");
     Ok(())

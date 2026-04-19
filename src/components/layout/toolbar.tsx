@@ -14,7 +14,7 @@ import { LiveIndicator } from "@/components/ui/live-indicator"
 import { SettingsDialog } from "@/components/settings-dialog"
 import { ApiKeyPrompt } from "@/components/ui/api-key-prompt"
 import { PreflightChecklist } from "@/components/preflight-checklist"
-import { MicIcon, MicOffIcon } from "lucide-react"
+import { MicIcon, MicOffIcon, Loader2Icon } from "lucide-react"
 
 /* -------------------------------------------------------------------------- */
 /*  Elapsed timer                                                             */
@@ -172,8 +172,13 @@ export function Toolbar() {
             className="gap-1.5 rounded-full"
             onClick={handleStartServiceClick}
             disabled={connectionStatus === "connecting"}
+            title={connectionStatus === "connecting" ? "Connecting to STT provider (first launch can take 10–20s)" : undefined}
           >
-            <MicIcon className="size-3.5" />
+            {connectionStatus === "connecting" ? (
+              <Loader2Icon className="size-3.5 animate-spin" />
+            ) : (
+              <MicIcon className="size-3.5" />
+            )}
             {connectionStatus === "connecting" ? "Connecting…" : "Start Service"}
           </Button>
         )}

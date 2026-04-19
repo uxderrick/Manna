@@ -11,6 +11,50 @@ fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 
+/// Pre-warm the reqwest/rustls connection pool for API hosts used later.
+///
+/// Runs a single HEAD request per host at startup so the first user-initiated
+/// verify or summary call doesn't pay the 6–10s cold-TLS penalty. Failures are
+/// silently ignored — warmup is best-effort.
+async fn warm_connection_pool() {
+    const HOSTS: &[&str] = &[
+        "https://api.deepgram.com",
+        "https://api.assemblyai.com",
+        "https://api.anthropic.com",
+    ];
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .http1_only()
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            log::warn!("connection warmup: failed to build client: {e}");
+            return;
+        }
+    };
+    let tasks: Vec<_> = HOSTS
+        .iter()
+        .map(|host| {
+            let client = client.clone();
+            let host = (*host).to_string();
+            tokio::spawn(async move {
+                match client.head(&host).send().await {
+                    Ok(resp) => log::info!(
+                        "connection warmup: {host} → HTTP {}",
+                        resp.status().as_u16()
+                    ),
+                    Err(e) => log::info!("connection warmup: {host} failed: {e}"),
+                }
+            })
+        })
+        .collect();
+    for t in tasks {
+        let _ = t.await;
+    }
+}
+
 #[expect(clippy::too_many_lines, reason = "app setup is inherently complex")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -222,6 +266,13 @@ pub fn run() {
 
             let menu = menu::build(app)?;
             app.set_menu(menu)?;
+
+            // Warm TLS/HTTP connection pool to STT + AI hosts in the background.
+            // First cold request eats 6–10s of DNS + TLS handshake; prewarming
+            // makes subsequent user-initiated verify/summarize calls snappy.
+            tauri::async_runtime::spawn(async {
+                warm_connection_pool().await;
+            });
 
             Ok(())
         })

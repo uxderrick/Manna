@@ -183,7 +183,7 @@ function BroadcastCanvas() {
       pushNdiBurst()
     })
 
-    const unlistenNdiConfig = currentWindow.listen<NdiConfigEventPayload>("broadcast:ndi-config", (event) => {
+    const unlistenNdiConfig = currentWindow.listen<NdiConfigEventPayload>(`broadcast:ndi-config:${OUTPUT_ID}`, (event) => {
       ndiConfigRef.current = event.payload
       logDebug("Received broadcast:ndi-config", event.payload)
       // Push burst when NDI becomes active
