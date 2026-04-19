@@ -293,10 +293,6 @@ pub async fn start_transcription(
         let mut sentence_buf = rhema_detection::SentenceBuffer::new();
 
         while let Some(event) = event_rx.recv().await {
-            if !evt_active.load(Ordering::SeqCst) {
-                break;
-            }
-
             match event {
                 TranscriptEvent::Partial { transcript, .. } => {
                     if !transcript.is_empty() {
@@ -929,11 +925,13 @@ pub struct VerifyResult {
     pub detail: String,
 }
 
-const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(6);
+const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 
 async fn http_probe(url: &str, auth: &str) -> Result<(), String> {
     let client = reqwest::Client::builder()
         .timeout(PROBE_TIMEOUT)
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .http1_only()
         .build()
         .map_err(|e| e.to_string())?;
     let resp = client
@@ -941,7 +939,16 @@ async fn http_probe(url: &str, auth: &str) -> Result<(), String> {
         .header("Authorization", auth)
         .send()
         .await
-        .map_err(|e| format!("network: {e}"))?;
+        .map_err(|e| {
+            use std::error::Error;
+            let mut detail = format!("network: {e}");
+            let mut src: Option<&dyn Error> = Error::source(&e);
+            while let Some(s) = src {
+                detail.push_str(&format!(" → {s}"));
+                src = s.source();
+            }
+            detail
+        })?;
     let status = resp.status();
     if status.is_success() {
         Ok(())

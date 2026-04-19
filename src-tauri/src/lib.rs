@@ -14,9 +14,10 @@ fn quit_app(app: tauri::AppHandle) {
 #[expect(clippy::too_many_lines, reason = "app setup is inherently complex")]
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Load .env file — try src-tauri/.env first, then project root ../.env
+    // Load .env files — src-tauri/.env, project root ../.env, and ../.env.local
     dotenvy::dotenv().ok();
     dotenvy::from_filename("../.env").ok();
+    dotenvy::from_filename("../.env.local").ok();
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()

@@ -98,7 +98,6 @@ export function Toolbar() {
         gain: settings.gain,
         provider: settings.sttProvider,
       })
-      useTranscriptStore.getState().setTranscribing(true)
     } catch (e) {
       const errorMsg = String(e)
       useTranscriptStore.getState().setConnectionStatus("error")

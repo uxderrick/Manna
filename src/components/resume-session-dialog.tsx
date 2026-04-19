@@ -55,7 +55,6 @@ export function ResumeSessionDialog() {
           gain: settings.gain,
           provider: settings.sttProvider,
         })
-        useTranscriptStore.getState().setTranscribing(true)
       } catch (e) {
         console.error("Failed to start transcription on resume:", e)
         useTranscriptStore.getState().setConnectionStatus("error")
