@@ -100,14 +100,20 @@ export function Workspace() {
   const panelTabs = usePanelTabsStore()
   const isTranscribing = useTranscriptStore((s) => s.isTranscribing)
 
-  // Cmd/Ctrl+G — open song jump dialog
+  // Cmd/Ctrl+G — open song jump dialog.
+  // Skip when user is typing in an input/textarea/contentEditable so we
+  // don't hijack native Find-Next or break text composition.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey
-      if (mod && e.key.toLowerCase() === "g") {
-        e.preventDefault()
-        setSongJumpOpen(true)
+      if (!mod || e.key.toLowerCase() !== "g") return
+      const target = e.target as HTMLElement | null
+      if (target) {
+        const tag = target.tagName
+        if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) return
       }
+      e.preventDefault()
+      setSongJumpOpen(true)
     }
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
