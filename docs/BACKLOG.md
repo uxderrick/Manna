@@ -6,12 +6,13 @@ Unscheduled work. Grouped by type. Items pulled from EXECUTION.md history and th
 
 ## Features
 
-### Songs tab (Wave 2)
+### ~~Songs tab (Wave 2)~~ ✅ shipped (pending smoke test)
 
-- `ghs.json` (Ghana Hymn Society) data already bundled in `src-tauri/`
-- No UI yet — placeholder only
-- **Est:** 2–3 days (panel UI, search, queue integration, broadcast send)
-- **Priority:** medium — useful for service flow but not blocking live detection
+- Spec: `docs/superpowers/specs/2026-04-20-songs-tab-design.md`
+- Plan: `docs/superpowers/plans/2026-04-20-songs-tab.md`
+- Shipped: 260 GHS hymns seeded at startup, local fuzzy search (minisearch), Genius API lookup, paste-lyrics fallback, typed shared queue (verse + song-stanza union), per-hymn line-mode + auto-chorus toggles, Cmd+G quick-jump, queue auto-prune on song delete
+- 17 new Vitest unit tests passing (expandSong × 7, songMeta × 4, searchSongs × 6)
+- Manual smoke test pending in live Tauri app
 
 ### Planner tab
 
