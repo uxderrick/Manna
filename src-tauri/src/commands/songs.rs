@@ -145,20 +145,32 @@ pub async fn search_genius(token: String, query: String) -> Result<Vec<GeniusHit
 
 #[tauri::command]
 pub async fn fetch_genius_lyrics(url: String) -> Result<String, String> {
+    const MAX_BODY: usize = 2 * 1024 * 1024; // 2 MB — typical Genius page ~500KB
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
+        .connect_timeout(std::time::Duration::from_secs(5))
         .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
         .build()
         .map_err(|e| e.to_string())?;
 
-    let html = client
+    let resp = client
         .get(&url)
         .send()
         .await
-        .map_err(|e| format!("Network error: {e}"))?
-        .text()
-        .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Network error: {e}"))?;
+
+    // `.timeout()` above covers send + body read. `.bytes()` enforces the
+    // whole body is read within the 15s budget instead of hanging on a
+    // slow stream (unbounded `.text()` can stall for minutes on TCP-paced
+    // responses even when headers arrived quickly).
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    if bytes.len() > MAX_BODY {
+        return Err(format!(
+            "Genius response too large ({} bytes); refusing to parse.",
+            bytes.len()
+        ));
+    }
+    let html = String::from_utf8_lossy(&bytes).into_owned();
 
     let doc = scraper::Html::parse_document(&html);
     let sel = scraper::Selector::parse("[data-lyrics-container=\"true\"]")
