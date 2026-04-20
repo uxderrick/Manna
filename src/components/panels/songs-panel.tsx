@@ -16,7 +16,7 @@ type Tab = "local" | "genius"
 export function SongsPanel() {
   const songs = useSongStore((s) => s.songs)
   const enqueueSong = useQueueStore((s) => s.enqueueSong)
-  const jumpLiveSong = useQueueStore((s) => s.jumpLiveSong)
+  const presentSongLive = useQueueStore((s) => s.presentSongLive)
   const [query, setQuery] = useState("")
   const [tab, setTab] = useState<Tab>("local")
   const [pasteOpen, setPasteOpen] = useState(false)
@@ -77,7 +77,7 @@ export function SongsPanel() {
                   song={song}
                   onOpen={() => setDetailId(song.id)}
                   onAdd={() => enqueueSong(song.id)}
-                  onJump={() => jumpLiveSong(song.id)}
+                  onJump={() => presentSongLive(song.id)}
                 />
               ))}
             </ul>
@@ -113,12 +113,26 @@ function SongRow({
         )}
         {song.title}
       </button>
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-        <Button size="icon-xs" variant="ghost" onClick={onAdd} title="Add to queue">
-          <PlusIcon className="size-2.5" />
-        </Button>
-        <Button size="icon-xs" variant="ghost" onClick={onJump} title="Jump live">
+      <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <Button
+          size="xs"
+          variant="default"
+          onClick={(e) => { e.stopPropagation(); onJump() }}
+          className="h-6 gap-1 px-2 text-[10px]"
+          title="Broadcast immediately"
+        >
           <PlayIcon className="size-2.5" />
+          Go Live
+        </Button>
+        <Button
+          size="xs"
+          variant="outline"
+          onClick={(e) => { e.stopPropagation(); onAdd() }}
+          className="h-6 gap-1 px-2 text-[10px]"
+          title="Add to queue"
+        >
+          <PlusIcon className="size-2.5" />
+          RTQ
         </Button>
       </div>
     </li>

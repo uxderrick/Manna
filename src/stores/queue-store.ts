@@ -18,6 +18,7 @@ interface QueueState {
   enqueueSongStanza: (songId: string, stanzaId: string) => void
   jumpLiveSong: (songId: string) => void
   jumpToSongNumber: (num: number) => void
+  presentSongLive: (songId: string) => void
 }
 
 function stanzaIndexById(song: Song, stanzaId: string): number {
@@ -105,7 +106,31 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       .getState()
       .songs.find((s) => s.source === "ghs" && s.number === num)
     if (!song) return
-    get().jumpLiveSong(song.id)
+    get().presentSongLive(song.id)
+  },
+
+  presentSongLive: (songId) => {
+    const startLen = get().items.length
+    get().enqueueSong(songId)
+    const after = get().items.length
+    if (after === startLen) return
+    set({ activeIndex: startLen })
+
+    // Render first stanza straight to live output.
+    const firstItem = get().items[startLen]
+    if (!firstItem || firstItem.kind !== "song-stanza") return
+    void (async () => {
+      const [{ useBroadcastStore }, { songStanzaToRenderData }] = await Promise.all([
+        import("./broadcast-store"),
+        import("@/lib/song-to-render"),
+      ])
+      const song = useSongStore.getState().getSong(firstItem.songId)
+      const render = songStanzaToRenderData(firstItem, song)
+      if (render) {
+        useBroadcastStore.getState().setPreviewVerse(render)
+        useBroadcastStore.getState().goLive()
+      }
+    })()
   },
 }))
 
