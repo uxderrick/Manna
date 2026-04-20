@@ -21,6 +21,9 @@ fn seed_ghs_hymns(db: &SessionDb) -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|v| v.as_object())
         .ok_or("ghs.json missing hymns object")?;
 
+    // Atomic seed: either all 260 rows land, or none do. Prevents "partial
+    // seed" state that would permanently skip re-seeding on next startup.
+    db.begin_transaction()?;
     let mut seeded = 0_usize;
     for (num_str, hymn) in hymns {
         let number: i64 = num_str.parse().unwrap_or(0);
@@ -71,7 +74,7 @@ fn seed_ghs_hymns(db: &SessionDb) -> Result<(), Box<dyn std::error::Error>> {
         });
 
         let id = format!("ghs-{number}");
-        db.save_song(
+        if let Err(e) = db.save_song(
             &id,
             "ghs",
             Some(number),
@@ -79,10 +82,15 @@ fn seed_ghs_hymns(db: &SessionDb) -> Result<(), Box<dyn std::error::Error>> {
             None,
             &data.to_string(),
             GHS_SEED_VERSION,
-        )?;
+        ) {
+            // Roll back — no partial state persists.
+            let _ = db.rollback_transaction();
+            return Err(Box::new(e));
+        }
         seeded += 1;
     }
 
+    db.commit_transaction()?;
     log::info!("GHS hymn seed complete — {seeded} hymns (version {GHS_SEED_VERSION})");
     Ok(())
 }
@@ -294,13 +302,14 @@ pub fn run() {
                 let qwen_emb = base_dir.join("embeddings/kjv-qwen3-0.6b.bin");
                 let qwen_ids = base_dir.join("embeddings/kjv-qwen3-0.6b-ids.bin");
 
-                // Prefer Qwen3 (higher quality) over MiniLM (faster)
-                if qwen_fp32.exists() && qwen_emb.exists() {
-                    log::info!("Using Qwen3 FP32 embedding model (quality, 1024-dim)");
-                    (qwen_fp32, qwen_tok, qwen_emb, qwen_ids)
-                } else if qwen_int8.exists() && qwen_emb.exists() {
-                    log::info!("Using Qwen3 INT8 embedding model (quality, 1024-dim)");
+                // Prefer Qwen3 INT8 — 4× less RAM than FP32 for <1% MTEB loss.
+                // Matches upstream rhema default. FP32 only used if INT8 missing.
+                if qwen_int8.exists() && qwen_emb.exists() {
+                    log::info!("Using Qwen3 INT8 embedding model (quality, 1024-dim, 585MB)");
                     (qwen_int8, qwen_tok, qwen_emb, qwen_ids)
+                } else if qwen_fp32.exists() && qwen_emb.exists() {
+                    log::info!("Using Qwen3 FP32 embedding model (quality, 1024-dim, 1.1GB)");
+                    (qwen_fp32, qwen_tok, qwen_emb, qwen_ids)
                 } else if minilm_model.exists() && minilm_emb.exists() {
                     log::info!("Using MiniLM-L6-v2 embedding model (fast, 384-dim)");
                     (minilm_model, minilm_tok, minilm_emb, minilm_ids)

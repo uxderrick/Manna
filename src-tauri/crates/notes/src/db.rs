@@ -464,6 +464,23 @@ impl SessionDb {
         Ok(())
     }
 
+    // ── Transactions (for bulk seed idempotency) ──────────────
+
+    pub fn begin_transaction(&self) -> Result<()> {
+        self.conn.execute_batch("BEGIN")?;
+        Ok(())
+    }
+
+    pub fn commit_transaction(&self) -> Result<()> {
+        self.conn.execute_batch("COMMIT")?;
+        Ok(())
+    }
+
+    pub fn rollback_transaction(&self) -> Result<()> {
+        self.conn.execute_batch("ROLLBACK")?;
+        Ok(())
+    }
+
     pub fn max_ghs_seed_version(&self) -> Result<i64> {
         let v: i64 = self.conn.query_row(
             "SELECT COALESCE(MAX(seed_version), 0) FROM songs WHERE source = 'ghs'",
