@@ -50,19 +50,17 @@ Unscheduled work. Grouped by type. Items pulled from EXECUTION.md history and th
 - **Est:** 2+ weeks (infra, auth, billing model)
 - **Priority:** research-phase only
 
-### Overlay themes
+### ~~Overlay themes~~ ✅ shipped
 
-- Plan written: [docs/superpowers/plans/2026-04-13-overlay-themes.md](superpowers/plans/2026-04-13-overlay-themes.md)
-- Not executed
-- **Est:** see plan
-- **Priority:** medium — visual quality for broadcast output
+- Plan: [docs/superpowers/plans/2026-04-13-overlay-themes.md](superpowers/plans/2026-04-13-overlay-themes.md)
+- All 7 implementation tasks complete (type, 4 new themes, divider/centered-lines renderer, CanvasVerse monitors, DB CRUD, Tauri commands, hydration)
+- Task 8 smoke test pending live app verification
 
-### Verse history + analytics
+### ~~Verse history + analytics~~ ✅ shipped
 
-- Plan written: [docs/superpowers/plans/2026-04-14-verse-history-analytics.md](superpowers/plans/2026-04-14-verse-history-analytics.md)
-- Not executed
-- **Est:** see plan
-- **Priority:** medium — useful for post-service review
+- Plan: [docs/superpowers/plans/2026-04-14-verse-history-analytics.md](superpowers/plans/2026-04-14-verse-history-analytics.md)
+- Built: [analytics-panel.tsx](../src/components/panels/analytics-panel.tsx), [session-detail.tsx](../src/components/panels/session-detail.tsx), [analytics.rs](../src-tauri/src/commands/analytics.rs), workspace wiring
+- Plan checkboxes unmarked in file but implementation complete (verified 2026-04-19)
 
 ---
 
@@ -75,30 +73,28 @@ Unscheduled work. Grouped by type. Items pulled from EXECUTION.md history and th
 - **Est:** 1–2 hr per translation on MPS (Qwen3), ~1 day total
 - **Priority:** low — current approach works, ref mapping is lossless
 
-### EmbeddingGemma-300M model swap
+### ~~EmbeddingGemma-300M model swap~~ ❌ rejected 2026-04-19
 
-- Current: Qwen3-Embedding-0.6B (1024-dim, ~1.1GB)
-- Target: EmbeddingGemma-300M (768-dim matryoshka, ~600MB, multilingual 100+ languages)
-- Benefits: smaller disk/RAM, faster cold-load, supports non-English Bibles (Twi/Ga/Ewe), matryoshka truncation for 4× smaller index
-- **Est breakdown:**
-  - Download ONNX + tokenizer: 30 min (HF pre-built, ~600MB)
-  - Verify loads in `ort` crate (FP16/pooling may differ, see learning #7/#8): 1–2 hr
-  - Precompute KJV: 10–15 min (MPS)
-  - Precompute other English translations (9×): 1–2 hr
-  - Precompute multilingual (Twi/Ga/Ewe): 3–5 hr — requires sourcing scripture data first
-  - Threshold tuning vs Qwen3 scores (learning #14): 2–3 hr
-  - Multi-model toggle in settings (optional): 3–4 hr
-  - Docs + LEARNINGS entry: 30 min
-- **Totals:**
-  - English only, replace Qwen3: ~1 day (6–8 hr)
-  - English + multi-model toggle: ~2 days
-  - Full multilingual (need non-English Bibles sourced first): 3–5 days
-- **Unknowns:**
-  - Whether pre-built EmbeddingGemma ONNX exists in feature-extraction export (not generation). Last time with Qwen3, 2 of 3 HF repos had wrong export.
-  - Non-English Bible sourcing (Ghana Bible Society? scraping? copyright).
-- **Priority:**
-  - English-only perf boost: skip (Qwen3 works, not worth 8 hr)
-  - Twi/Ga/Ewe for Ghana church: worth 3–5 days once translations sourced
+Researched vs current Qwen3-Embedding-0.6B. **Gemma is a downgrade on retrieval — our core metric.**
+
+| Metric | Qwen3-0.6B | EmbeddingGemma-300M |
+|---|---|---|
+| MTEB Multilingual avg | 64.33 | 61.15 |
+| **MTEB Retrieval sub-score** | **64.64** | **~54** |
+| Context | 32K | 2K |
+| License | Apache-2.0 | Gemma (restricted) |
+| Size Q4 | 880MB | 190MB |
+
+Gemma wins on size (5×) and cleaner ONNX (no KV cache), but that's irrelevant on desktop. Only compelling for a future mobile companion app. Source: [research 2026-04-19], [EmbeddingGemma tech report](https://arxiv.org/abs/2509.20354), [Qwen3 MTEB tables](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B).
+
+### Qwen3-Embedding-4B upgrade (real upgrade path)
+
+- Current: Qwen3-Embedding-0.6B (MTEB Multilingual 64.33, Retrieval 64.64)
+- Target: Qwen3-Embedding-4B (MTEB Multilingual **69.45**, Retrieval **69.60**) — same family, Apache-2.0
+- Trade-off: ~4× RAM + ~4× cold-load time. Likely 4–6 GB RAM at inference, 4–8 GB ONNX file.
+- **Est:** ~1 day (download ONNX, verify `ort` loads, precompute KJV on MPS ~10 hr, threshold retune, docs)
+- **Priority:** low — 0.6B works well for live sermon detection. Only justifies if false-negative rate on paraphrased verses becomes a real complaint.
+- **Unknown:** whether ONNX feature-extraction export exists on HF without KV cache (learning #7).
 
 ---
 

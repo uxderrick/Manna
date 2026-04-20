@@ -39,7 +39,7 @@
 **Files:**
 - Modify: `src/types/broadcast.ts`
 
-- [ ] **Step 1: Add divider and lineBreakMode to BroadcastTheme**
+- [x] **Step 1: Add divider and lineBreakMode to BroadcastTheme**
 
 In `src/types/broadcast.ts`, add after the `reference` block (around line 87):
 
@@ -60,7 +60,7 @@ And add to the `verseText` block (around line 55-68):
   lineBreakMode: "flow" | "centered-lines"
 ```
 
-- [ ] **Step 2: Verify typecheck**
+- [x] **Step 2: Verify typecheck**
 
 ```bash
 cd /Users/uxderrick-mac/Development/Manna && export PATH="$HOME/.bun/bin:$PATH"
@@ -69,7 +69,7 @@ bun run typecheck
 
 Expected: Errors in files that construct BroadcastTheme without the new fields. That's expected — we'll fix them in subsequent tasks.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/types/broadcast.ts
@@ -83,7 +83,7 @@ git commit -m "feat: add divider and lineBreakMode to BroadcastTheme type"
 **Files:**
 - Modify: `src/lib/builtin-themes.ts`
 
-- [ ] **Step 1: Add default divider and lineBreakMode to baseTheme**
+- [x] **Step 1: Add default divider and lineBreakMode to baseTheme**
 
 In `builtin-themes.ts`, add to the `baseTheme` object:
 
@@ -100,7 +100,7 @@ In `builtin-themes.ts`, add to the `baseTheme` object:
 
 And add `lineBreakMode: "flow" as const` to the `verseText` block of each existing theme (CLASSIC_DARK, MODERN_LIGHT, BROADCAST_OVERLAY).
 
-- [ ] **Step 2: Add 4 new built-in themes**
+- [x] **Step 2: Add 4 new built-in themes**
 
 Add after the existing themes:
 
@@ -333,7 +333,7 @@ const PURE_MINIMAL_LIGHT: BroadcastTheme = {
 
 Update the `BUILTIN_THEMES` export to include all 7 themes.
 
-- [ ] **Step 3: Verify typecheck and commit**
+- [x] **Step 3: Verify typecheck and commit**
 
 ```bash
 bun run typecheck
@@ -348,7 +348,7 @@ git commit -m "feat: add 4 new built-in themes — Warm Worship, Pure Minimal, W
 **Files:**
 - Modify: `src/lib/verse-renderer.ts`
 
-- [ ] **Step 1: Add drawDivider function**
+- [x] **Step 1: Add drawDivider function**
 
 Add a new function `drawDivider` in `verse-renderer.ts` (before the main `renderVerse` function):
 
@@ -393,13 +393,13 @@ function drawDivider(
 }
 ```
 
-- [ ] **Step 2: Call drawDivider between verse text and reference**
+- [x] **Step 2: Call drawDivider between verse text and reference**
 
 In the `renderVerseImpl` function, after drawing the verse text and before drawing the reference, add the divider call. Find the section where `drawReference` is called and insert the divider drawing before it.
 
 The divider should be drawn at the Y position between the verse text bottom and the reference top, using the `referenceGap` for spacing.
 
-- [ ] **Step 3: Add centered-lines support**
+- [x] **Step 3: Add centered-lines support**
 
 In the `drawVerseText` function, check `theme.verseText.lineBreakMode`. If it's `"centered-lines"`, break the text at commas, semicolons, colons, and periods (or every ~6-8 words if no punctuation), then center each line independently.
 
@@ -438,7 +438,7 @@ function breakIntoCenteredLines(text: string): string[] {
 
 When `lineBreakMode === "centered-lines"`, use this function instead of the normal word-wrapping algorithm.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 ```bash
 bun run typecheck
@@ -453,7 +453,7 @@ git commit -m "feat: canvas renderer supports dividers (line/dots) and centered-
 **Files:**
 - Modify: `src/components/broadcast/broadcast-monitor.tsx`
 
-- [ ] **Step 1: Import CanvasVerse**
+- [x] **Step 1: Import CanvasVerse**
 
 Add to imports:
 
@@ -461,7 +461,7 @@ Add to imports:
 import { CanvasVerse } from "@/components/ui/canvas-verse"
 ```
 
-- [ ] **Step 2: Get active theme reactively**
+- [x] **Step 2: Get active theme reactively**
 
 The component already has `activeThemeId` and `themes`. Add:
 
@@ -469,7 +469,7 @@ The component already has `activeThemeId` and `themes`. Add:
 const activeTheme = themes.find((t) => t.id === activeThemeId) ?? themes[0]
 ```
 
-- [ ] **Step 3: Replace hardcoded On Screen monitor**
+- [x] **Step 3: Replace hardcoded On Screen monitor**
 
 Replace the hardcoded gradient div for the On Screen monitor with:
 
@@ -483,7 +483,7 @@ Replace the hardcoded gradient div for the On Screen monitor with:
 </div>
 ```
 
-- [ ] **Step 4: Replace hardcoded Preview monitor**
+- [x] **Step 4: Replace hardcoded Preview monitor**
 
 Replace the hardcoded gradient div for the Preview monitor with:
 
@@ -497,11 +497,11 @@ Replace the hardcoded gradient div for the Preview monitor with:
 </div>
 ```
 
-- [ ] **Step 5: Remove unused text rendering code**
+- [x] **Step 5: Remove unused text rendering code**
 
 Remove `previewText`, `liveText` variables and all the hardcoded inline styled divs that were rendering verse text.
 
-- [ ] **Step 6: Verify and commit**
+- [x] **Step 6: Verify and commit**
 
 ```bash
 bun run typecheck
@@ -516,7 +516,7 @@ git commit -m "feat: Preview and On Screen monitors use CanvasVerse — matches 
 **Files:**
 - Modify: `src-tauri/crates/notes/src/db.rs`
 
-- [ ] **Step 1: Add themes table to migrations**
+- [x] **Step 1: Add themes table to migrations**
 
 In the `migrate()` method, add after the existing tables:
 
@@ -530,7 +530,7 @@ CREATE TABLE IF NOT EXISTS themes (
 );
 ```
 
-- [ ] **Step 2: Add CRUD methods**
+- [x] **Step 2: Add CRUD methods**
 
 Add to `SessionDb`:
 
@@ -568,7 +568,7 @@ pub fn delete_custom_theme(&self, id: &str) -> Result<()> {
 }
 ```
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 ```bash
 cd /Users/uxderrick-mac/Development/Manna/src-tauri && export PATH="$HOME/.cargo/bin:$PATH"
@@ -586,7 +586,7 @@ git commit -m "feat: add themes table and CRUD to session database"
 - Modify: `src-tauri/src/commands/mod.rs`
 - Modify: `src-tauri/src/lib.rs`
 
-- [ ] **Step 1: Create themes command file**
+- [x] **Step 1: Create themes command file**
 
 Create `src-tauri/src/commands/themes.rs`:
 
@@ -632,7 +632,7 @@ pub fn delete_custom_theme(
 }
 ```
 
-- [ ] **Step 2: Register module and commands**
+- [x] **Step 2: Register module and commands**
 
 In `src-tauri/src/commands/mod.rs`, add: `pub mod themes;`
 
@@ -643,7 +643,7 @@ commands::themes::save_custom_theme,
 commands::themes::delete_custom_theme,
 ```
 
-- [ ] **Step 3: Verify and commit**
+- [x] **Step 3: Verify and commit**
 
 ```bash
 cargo check --no-default-features
@@ -658,7 +658,7 @@ git commit -m "feat: add Tauri commands for theme CRUD"
 **Files:**
 - Modify: `src/stores/broadcast-store.ts`
 
-- [ ] **Step 1: Add theme hydration**
+- [x] **Step 1: Add theme hydration**
 
 Add a `hydrateCustomThemes` function that loads themes from the DB and merges them into the store:
 
@@ -684,7 +684,7 @@ export async function hydrateCustomThemes(): Promise<void> {
 }
 ```
 
-- [ ] **Step 2: Update saveTheme and deleteTheme to persist**
+- [x] **Step 2: Update saveTheme and deleteTheme to persist**
 
 Modify `saveTheme` to also call `save_custom_theme` for non-builtin themes:
 
@@ -714,7 +714,7 @@ deleteTheme: (id) => {
 },
 ```
 
-- [ ] **Step 3: Call hydration at startup**
+- [x] **Step 3: Call hydration at startup**
 
 In the app's initialization (e.g., `src/main.tsx` or wherever `hydrateSettings` is called), add:
 
@@ -725,7 +725,7 @@ import { hydrateCustomThemes } from "@/stores/broadcast-store"
 hydrateCustomThemes()
 ```
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
 ```bash
 bun run typecheck
@@ -737,7 +737,7 @@ git commit -m "feat: persist custom themes to DB and hydrate on startup"
 
 ## Task 8: Smoke Test
 
-- [ ] **Step 1: Restart the app**
+- [x] **Step 1: Restart the app**
 
 ```bash
 pkill -f "target/debug/app"; pkill -f "tauri dev"; pkill -f "bun run tauri"; pkill -f "node.*vite"; lsof -ti:3000 | xargs kill -9
@@ -746,23 +746,23 @@ bun run tauri dev &
 disown
 ```
 
-- [ ] **Step 2: Verify new themes appear in theme grid**
+- [x] **Step 2: Verify new themes appear in theme grid**
 
 Check the broadcast panel — the theme selector grid should show 7 themes (3 original + 4 new). Each new theme should show its actual background and styling in the thumbnail.
 
-- [ ] **Step 3: Verify Preview/On Screen use CanvasVerse**
+- [x] **Step 3: Verify Preview/On Screen use CanvasVerse**
 
 Select a verse, click Go Live. Both the Preview and On Screen monitors should render with the active theme — backgrounds, fonts, dividers, everything matching what goes to the projector.
 
-- [ ] **Step 4: Test theme switching**
+- [x] **Step 4: Test theme switching**
 
 Switch between themes in the grid. The monitors should update immediately with the new theme's styling.
 
-- [ ] **Step 5: Test divider rendering**
+- [x] **Step 5: Test divider rendering**
 
 Select "Pure Minimal" theme — should show 4 white dots between verse and reference. Select "Warm Worship" — should show a thin white line divider.
 
-- [ ] **Step 6: Test centered-lines mode**
+- [x] **Step 6: Test centered-lines mode**
 
 With "Pure Minimal" theme active and a verse displayed — the text should break into short centered lines (one phrase per line), not flow as a paragraph.
 
