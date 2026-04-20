@@ -12,9 +12,10 @@ import {
   SearchIcon,
   PlusIcon,
 } from "lucide-react"
-import { useQueueStore, useBroadcastStore, useBibleStore } from "@/stores"
+import { useQueueStore, useBroadcastStore, useBibleStore, useSongStore } from "@/stores"
 import { toVerseRenderData } from "@/hooks/use-broadcast"
 import { bibleActions } from "@/hooks/use-bible"
+import { songStanzaToRenderData } from "@/lib/song-to-render"
 import type { QueueItem, Verse } from "@/types"
 
 function QueueItemCard({
@@ -28,7 +29,10 @@ function QueueItemCard({
 }) {
   const handlePresent = () => {
     useQueueStore.getState().setActive(index)
-    if (item.kind !== "verse") {
+    if (item.kind === "song-stanza") {
+      const song = useSongStore.getState().getSong(item.songId)
+      const render = songStanzaToRenderData(item, song)
+      if (render) useBroadcastStore.getState().setPreviewVerse(render)
       useBroadcastStore.getState().goLive()
       return
     }
@@ -42,7 +46,12 @@ function QueueItemCard({
 
   const handlePreview = () => {
     useQueueStore.getState().setActive(index)
-    if (item.kind !== "verse") return
+    if (item.kind === "song-stanza") {
+      const song = useSongStore.getState().getSong(item.songId)
+      const render = songStanzaToRenderData(item, song)
+      if (render) useBroadcastStore.getState().setPreviewVerse(render)
+      return
+    }
     bibleActions.selectVerse(item.verse)
     const translation = useBibleStore.getState().translations
       .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"

@@ -156,7 +156,15 @@ async function presentQueueItem(index: number) {
     const { items } = useQueueStore.getState()
     const item = items[index]
     if (!item) return
-    if (item.kind !== "verse") return
+    if (item.kind === "song-stanza") {
+      // Song stanza — render via song-store lookup; no Bible DB fetch needed.
+      const { useSongStore } = await import("@/stores")
+      const { songStanzaToRenderData } = await import("@/lib/song-to-render")
+      const song = useSongStore.getState().getSong(item.songId)
+      const render = songStanzaToRenderData(item, song)
+      if (render) useBroadcastStore.getState().setLiveVerse(render)
+      return
+    }
 
     const { verse } = item
 
