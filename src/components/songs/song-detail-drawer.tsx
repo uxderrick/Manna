@@ -96,7 +96,7 @@ export function SongDetailDrawer({
 
   return (
     <Drawer open={!!songId} onOpenChange={(open) => !open && onClose()}>
-      <DrawerContent className="mx-auto max-h-[55vh] max-w-2xl">
+      <DrawerContent className="left-1/2 right-auto max-h-[55vh] w-full max-w-2xl -translate-x-1/2">
         <DrawerHeader>
           <DrawerTitle>
             {song.number !== null ? `${song.number}. ` : ""}
