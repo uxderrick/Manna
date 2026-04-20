@@ -110,6 +110,25 @@ impl SessionDb {
             );
             CREATE INDEX IF NOT EXISTS idx_songs_title ON songs(title);
             CREATE INDEX IF NOT EXISTS idx_songs_source_number ON songs(source, number);
+
+            CREATE TABLE IF NOT EXISTS service_plan_templates (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT    NOT NULL,
+                notes       TEXT,
+                created_at  INTEGER NOT NULL,
+                updated_at  INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS service_plan_items (
+                id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+                plan_id                 INTEGER NOT NULL,
+                plan_kind               TEXT    NOT NULL CHECK (plan_kind IN ('template','session')),
+                order_index             REAL    NOT NULL,
+                item_type               TEXT    NOT NULL CHECK (item_type IN ('verse','song','announcement','section','blank')),
+                item_data               TEXT    NOT NULL,
+                auto_advance_seconds    INTEGER
+            );
+            CREATE INDEX IF NOT EXISTS idx_plan_items_scope ON service_plan_items (plan_id, plan_kind, order_index);
             ",
         )?;
 
