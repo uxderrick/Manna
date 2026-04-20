@@ -26,6 +26,8 @@ import { AnnouncementDialog } from "@/components/broadcast/announcement-dialog"
 import { ThemeDesigner } from "@/components/broadcast/theme-designer"
 import { SessionsPanel } from "@/components/panels/sessions-panel"
 import { NotesPanel } from "@/components/panels/notes-panel"
+import { SongsPanel } from "@/components/panels/songs-panel"
+import { SongJumpDialog } from "@/components/songs/song-jump-dialog"
 import { AnalyticsPanel } from "@/components/panels/analytics-panel"
 import { useAboutDialogStore } from "@/lib/about-dialog"
 import { useEndSessionDialogStore } from "@/lib/end-session-dialog"
@@ -92,10 +94,24 @@ const DEFAULT_LAYOUT = { left: 25, center: 25, right: 25, broadcast: 25 }
 
 export function Workspace() {
   const [transcriptCollapsed, setTranscriptCollapsed] = useState(true)
+  const [songJumpOpen, setSongJumpOpen] = useState(false)
   const { theme, setTheme } = useTheme()
   const mainGroupRef = useGroupRef()
   const panelTabs = usePanelTabsStore()
   const isTranscribing = useTranscriptStore((s) => s.isTranscribing)
+
+  // Cmd/Ctrl+G — open song jump dialog
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.key.toLowerCase() === "g") {
+        e.preventDefault()
+        setSongJumpOpen(true)
+      }
+    }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [])
 
   // Auto-open transcript when service starts
   useEffect(() => {
@@ -206,6 +222,7 @@ export function Workspace() {
       <DistributeSummaryDrawer />
       <AnnouncementDialog />
       <ThemeDesigner />
+      <SongJumpDialog open={songJumpOpen} onOpenChange={setSongJumpOpen} />
 
       {/* Toolbar */}
       <Toolbar />
@@ -226,7 +243,7 @@ export function Workspace() {
               { id: "search", label: "Search", content: <SearchPanel /> },
               { id: "sessions", label: "Sessions", content: <SessionsPanel /> },
               { id: "notes", label: "Notes", content: <NotesPanel /> },
-              { id: "songs", label: "Songs", content: <Placeholder label="Songs" /> },
+              { id: "songs", label: "Songs", content: <SongsPanel /> },
             ]}
           />
         </Panel>
