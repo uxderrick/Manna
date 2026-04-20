@@ -5,5 +5,6 @@ pub mod broadcast;
 pub mod detection;
 pub mod remote;
 pub mod session;
+pub mod songs;
 pub mod stt;
 pub mod themes;
