@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react"
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, CheckIcon } from "lucide-react"
-import { useBroadcastStore, useBibleStore, useSessionStore } from "@/stores"
+import { useBroadcastStore, useBibleStore, useSessionStore, useQueueStore, useSongStore } from "@/stores"
 import { toVerseRenderData, retranslateBroadcastVerses } from "@/hooks/use-broadcast"
 import { bibleActions } from "@/hooks/use-bible"
+import { songStanzaToRenderData } from "@/lib/song-to-render"
 import { invoke } from "@tauri-apps/api/core"
 import type { Verse } from "@/types"
 import { CanvasVerse } from "@/components/ui/canvas-verse"
@@ -51,6 +52,31 @@ export function BroadcastMonitor() {
   const stepVerse = async (delta: number) => {
     const current = isLive ? liveVerse : previewVerse
     if (!current) return
+
+    // Song-stanza path — advance queue activeIndex across song-stanza items
+    const queue = useQueueStore.getState()
+    const activeIdx = queue.activeIndex
+    if (activeIdx !== null && queue.items[activeIdx]?.kind === "song-stanza") {
+      const nextIdx = activeIdx + delta
+      if (nextIdx < 0 || nextIdx >= queue.items.length) return
+      const nextItem = queue.items[nextIdx]
+      queue.setActive(nextIdx)
+      if (nextItem.kind === "song-stanza") {
+        const song = useSongStore.getState().getSong(nextItem.songId)
+        const render = songStanzaToRenderData(nextItem, song)
+        if (render) {
+          if (isLive) useBroadcastStore.getState().setLiveVerse(render)
+          else useBroadcastStore.getState().setPreviewVerse(render)
+        }
+      } else if (nextItem.kind === "verse") {
+        const trans = useBibleStore.getState().translations
+          .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
+        const render = toVerseRenderData(nextItem.verse, trans)
+        if (isLive) useBroadcastStore.getState().setLiveVerse(render)
+        else useBroadcastStore.getState().setPreviewVerse(render)
+      }
+      return
+    }
 
     const parsed = parseRef(current.reference)
     if (!parsed) return
