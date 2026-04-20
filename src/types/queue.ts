@@ -19,5 +19,13 @@ export type QueueItem =
       kind: "song-stanza"
       songId: string
       stanzaId: string
+      /**
+       * Index into `expandSong(song)[]` at enqueue time. Stable handle for
+       * per-line (`line`/`stanza-pair` lineMode) navigation, where multiple
+       * queue items share the same `stanzaId` but point to different line chunks.
+       */
+      expandedIndex: number
       reference: string
+      /** Pre-rendered text for this specific expanded chunk. */
+      text: string
     })

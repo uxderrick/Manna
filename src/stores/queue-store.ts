@@ -53,7 +53,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     const song = useSongStore.getState().getSong(songId)
     if (!song) return
     const expanded = expandSong(song)
-    const newItems: QueueItem[] = expanded.map((exp) => {
+    const newItems: QueueItem[] = expanded.map((exp, expandedIndex) => {
       const stanza =
         exp.kind === "chorus"
           ? song.chorus!
@@ -67,7 +67,9 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         added_at: Date.now(),
         songId: song.id,
         stanzaId: exp.stanzaRefId,
+        expandedIndex,
         reference: songMeta(song, stanza, idx),
+        text: exp.text,
       }
     })
     set((s) => ({ items: [...s.items, ...newItems] }))
@@ -82,6 +84,10 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         : song.stanzas.find((s) => s.id === stanzaId)
     if (!stanza) return
     const idx = stanza.kind === "verse" ? stanzaIndexById(song, stanzaId) : 0
+    // Find first expanded chunk for this stanza to grab its pre-rendered text.
+    const expanded = expandSong(song)
+    const expandedIndex = expanded.findIndex((e) => e.stanzaRefId === stanzaId)
+    if (expandedIndex < 0) return
     const item: QueueItem = {
       kind: "song-stanza",
       id: newQueueId(),
@@ -89,7 +95,9 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       added_at: Date.now(),
       songId: song.id,
       stanzaId,
+      expandedIndex,
       reference: songMeta(song, stanza, idx),
+      text: expanded[expandedIndex].text,
     }
     set((s) => ({ items: [...s.items, item] }))
   },
