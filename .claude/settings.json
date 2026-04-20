@@ -4,7 +4,9 @@
       "Bash(lsof -ti :3000 -sTCP:LISTEN)",
       "Bash(ps -o command= -p 87978)",
       "Bash(ps -p 49877 -o command=)",
-      "Bash(kill 49877)"
+      "Bash(kill 49877)",
+      "Bash(ps -p 24709 -o command=)",
+      "Bash(kill 24709)"
     ]
   },
   "enabledPlugins": {
