@@ -48,6 +48,8 @@ export function SongDetailDrawer({
 
   async function handleDelete() {
     if (!song) return
+    const label = song.number !== null ? `Hymn ${song.number}` : song.title
+    if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return
     await deleteSong(song.id)
     onClose()
   }
