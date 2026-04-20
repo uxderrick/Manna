@@ -142,7 +142,9 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   },
 }))
 
-// Reactive: when a song is deleted from song-store, strip queue items referencing it.
+// Reactive: when a song is deleted from song-store, strip queue items
+// referencing it AND keep activeIndex pointing at the same item by id (items
+// before it shift left, so numeric index needs re-lookup).
 useSongStore.subscribe((state, prevState) => {
   if (state.songs.length >= prevState.songs.length) return
   const liveIds = new Set(state.songs.map((s) => s.id))
@@ -150,9 +152,18 @@ useSongStore.subscribe((state, prevState) => {
   const filtered = q.items.filter(
     (i) => i.kind !== "song-stanza" || liveIds.has(i.songId),
   )
-  if (filtered.length !== q.items.length) {
-    const newActive =
-      q.activeIndex !== null && q.activeIndex < filtered.length ? q.activeIndex : null
-    useQueueStore.setState({ items: filtered, activeIndex: newActive })
+  if (filtered.length === q.items.length) return
+
+  // Preserve active cursor: find the previously-active item in the new list
+  // by id. If it was itself removed, set active to null (live output will
+  // clear on next render cycle).
+  let newActive: number | null = null
+  if (q.activeIndex !== null) {
+    const prevActiveItem = q.items[q.activeIndex]
+    if (prevActiveItem) {
+      const idx = filtered.findIndex((i) => i.id === prevActiveItem.id)
+      newActive = idx >= 0 ? idx : null
+    }
   }
+  useQueueStore.setState({ items: filtered, activeIndex: newActive })
 })
