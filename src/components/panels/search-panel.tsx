@@ -630,6 +630,7 @@ export function SearchPanel() {
                           e.stopPropagation()
                           const wasEmpty = useQueueStore.getState().items.length === 0
                           useQueueStore.getState().addItem({
+                            kind: "verse",
                             id: crypto.randomUUID(),
                             verse,
                             reference: `${verse.book_name} ${verse.chapter}:${verse.verse}`,
@@ -770,6 +771,7 @@ export function SearchPanel() {
                           e.stopPropagation()
                           const wasEmpty = useQueueStore.getState().items.length === 0
                           useQueueStore.getState().addItem({
+                            kind: "verse",
                             id: crypto.randomUUID(),
                             verse: resultVerse,
                             reference: `${result.book_name} ${result.chapter}:${result.verse}`,

@@ -154,6 +154,7 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
             }
             const wasEmpty = useQueueStore.getState().items.length === 0
             useQueueStore.getState().addItem({
+              kind: "verse",
               id: crypto.randomUUID(),
               verse,
               reference: detection.verse_ref,

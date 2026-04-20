@@ -86,6 +86,7 @@ export function PlannerPanel() {
     const trans = translations.find(t => t.id === activeTranslationId)?.abbreviation ?? "KJV"
     for (const item of planned) {
       useQueueStore.getState().addItem({
+        kind: "verse",
         id: crypto.randomUUID(),
         verse: item.verse,
         reference: item.reference,

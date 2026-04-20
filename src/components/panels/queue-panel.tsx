@@ -28,6 +28,10 @@ function QueueItemCard({
 }) {
   const handlePresent = () => {
     useQueueStore.getState().setActive(index)
+    if (item.kind !== "verse") {
+      useBroadcastStore.getState().goLive()
+      return
+    }
     bibleActions.selectVerse(item.verse)
     const translation = useBibleStore.getState().translations
       .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
@@ -38,6 +42,7 @@ function QueueItemCard({
 
   const handlePreview = () => {
     useQueueStore.getState().setActive(index)
+    if (item.kind !== "verse") return
     bibleActions.selectVerse(item.verse)
     const translation = useBibleStore.getState().translations
       .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
@@ -71,7 +76,7 @@ function QueueItemCard({
             "line-clamp-1 font-serif text-[10px] leading-snug",
             isActive ? "text-primary-foreground/70" : "text-muted-foreground"
           )}>
-            {item.verse.text}
+            {item.kind === "verse" ? item.verse.text : <span className="italic">Hymn stanza</span>}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
@@ -126,6 +131,7 @@ export function QueuePanel() {
 
   const addVerseToQueue = (verse: Verse) => {
     useQueueStore.getState().addItem({
+      kind: "verse",
       id: crypto.randomUUID(),
       verse,
       reference: `${verse.book_name} ${verse.chapter}:${verse.verse}`,

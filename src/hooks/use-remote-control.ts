@@ -156,6 +156,7 @@ async function presentQueueItem(index: number) {
     const { items } = useQueueStore.getState()
     const item = items[index]
     if (!item) return
+    if (item.kind !== "verse") return
 
     const { verse } = item
 

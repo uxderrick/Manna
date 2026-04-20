@@ -63,6 +63,7 @@ function CrossRefCard({ crossRef }: { crossRef: ResolvedCrossRef }) {
       text: crossRef.verseText,
     }
     useQueueStore.getState().addItem({
+      kind: "verse",
       id: crypto.randomUUID(),
       verse,
       reference: `${crossRef.bookName} ${crossRef.chapter}:${crossRef.verse}`,
