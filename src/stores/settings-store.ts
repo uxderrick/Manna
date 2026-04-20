@@ -8,6 +8,7 @@ interface SettingsState {
   assemblyAiApiKey: string | null
   openaiApiKey: string | null
   claudeApiKey: string | null
+  geniusToken: string | null
   activeTranslationId: number
   audioDeviceId: string | null
   gain: number
@@ -21,6 +22,7 @@ interface SettingsState {
   setAssemblyAiApiKey: (key: string | null) => void
   setOpenaiApiKey: (key: string | null) => void
   setClaudeApiKey: (key: string | null) => void
+  setGeniusToken: (token: string | null) => void
   setActiveTranslationId: (id: number) => void
   setAudioDeviceId: (id: string | null) => void
   setGain: (gain: number) => void
@@ -36,6 +38,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   assemblyAiApiKey: null,
   openaiApiKey: null,
   claudeApiKey: null,
+  geniusToken: null,
   activeTranslationId: 1,
   audioDeviceId: null,
   gain: 1.0,
@@ -49,6 +52,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setAssemblyAiApiKey: (assemblyAiApiKey) => set({ assemblyAiApiKey }),
   setOpenaiApiKey: (openaiApiKey) => set({ openaiApiKey }),
   setClaudeApiKey: (claudeApiKey) => set({ claudeApiKey }),
+  setGeniusToken: (geniusToken) => set({ geniusToken }),
   setActiveTranslationId: (activeTranslationId) => set({ activeTranslationId }),
   setAudioDeviceId: (audioDeviceId) => set({ audioDeviceId }),
   setGain: (gain) => set({ gain }),
@@ -78,6 +82,7 @@ export async function hydrateSettings(): Promise<void> {
       deepgramApiKey,
       assemblyAiApiKey,
       claudeApiKey,
+      geniusToken,
       sttProvider,
       onboardingComplete,
       gain,
@@ -88,6 +93,7 @@ export async function hydrateSettings(): Promise<void> {
       store.get<string>("deepgramApiKey"),
       store.get<string>("assemblyAiApiKey"),
       store.get<string>("claudeApiKey"),
+      store.get<string>("geniusToken"),
       store.get<SttProvider>("sttProvider"),
       store.get<boolean>("onboardingComplete"),
       store.get<number>("gain"),
@@ -100,6 +106,7 @@ export async function hydrateSettings(): Promise<void> {
     if (deepgramApiKey) s.setDeepgramApiKey(deepgramApiKey)
     if (assemblyAiApiKey) s.setAssemblyAiApiKey(assemblyAiApiKey)
     if (claudeApiKey) s.setClaudeApiKey(claudeApiKey)
+    if (geniusToken) s.setGeniusToken(geniusToken)
     if (sttProvider) s.setSttProvider(sttProvider)
     if (onboardingComplete) s.setOnboardingComplete(true)
     if (gain != null) s.setGain(gain)
@@ -194,6 +201,21 @@ export async function persistClaudeApiKey(key: string | null): Promise<void> {
     }
   } catch {
     console.warn("[settings] Failed to persist Claude API key")
+  }
+}
+
+/** Persist the Genius API token to disk. */
+export async function persistGeniusToken(token: string | null): Promise<void> {
+  useSettingsStore.getState().setGeniusToken(token)
+  try {
+    const store = await getStore()
+    if (token) {
+      await store.set("geniusToken", token)
+    } else {
+      await store.delete("geniusToken")
+    }
+  } catch {
+    console.warn("[settings] Failed to persist Genius token")
   }
 }
 
