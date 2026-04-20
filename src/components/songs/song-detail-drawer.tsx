@@ -33,7 +33,7 @@ export function SongDetailDrawer({
 
   const enqueueSong = useQueueStore((s) => s.enqueueSong)
   const enqueueSongStanza = useQueueStore((s) => s.enqueueSongStanza)
-  const jumpLiveSong = useQueueStore((s) => s.jumpLiveSong)
+  const presentSongLive = useQueueStore((s) => s.presentSongLive)
 
   // If a drawer is open with a songId that no longer resolves (deleted
   // mid-interaction by another client/sync), close ourselves.
@@ -163,16 +163,22 @@ export function SongDetailDrawer({
             <Button
               variant="default"
               className="flex-1"
-              onClick={() => enqueueSong(song.id)}
+              onClick={() => {
+                presentSongLive(song.id)
+                onClose()
+              }}
             >
-              Add all to queue
+              Go Live
             </Button>
             <Button
-              variant="secondary"
+              variant="outline"
               className="flex-1"
-              onClick={() => jumpLiveSong(song.id)}
+              onClick={() => {
+                enqueueSong(song.id)
+                onClose()
+              }}
             >
-              Jump live
+              Add to queue
             </Button>
           </div>
           {canDelete ? (
