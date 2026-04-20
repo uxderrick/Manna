@@ -6,6 +6,8 @@ export type {
 } from "./transcript"
 export type { Translation, Book, Verse, CrossReference } from "./bible"
 export type { QueueItem } from "./queue"
+export type { Song, SongStanza, SongSource, LineMode, GeniusHit } from "./song"
+export { GHS_SEED_VERSION } from "./song"
 export type { DetectionResult, DetectionStatus } from "./detection"
 export type { BroadcastTheme, VerseRenderData, VerseSegment, RenderOptions } from "./broadcast"
 export type {
