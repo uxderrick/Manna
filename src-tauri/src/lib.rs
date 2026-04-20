@@ -6,6 +6,87 @@ mod state;
 use rhema_notes::SessionDb;
 use std::sync::Mutex;
 
+const GHS_SEED_VERSION: i64 = 1;
+const GHS_JSON: &str = include_str!("../ghs.json");
+
+fn seed_ghs_hymns(db: &SessionDb) -> Result<(), Box<dyn std::error::Error>> {
+    let current = db.max_ghs_seed_version().unwrap_or(0);
+    if current >= GHS_SEED_VERSION {
+        return Ok(());
+    }
+
+    let parsed: serde_json::Value = serde_json::from_str(GHS_JSON)?;
+    let hymns = parsed
+        .get("hymns")
+        .and_then(|v| v.as_object())
+        .ok_or("ghs.json missing hymns object")?;
+
+    let mut seeded = 0_usize;
+    for (num_str, hymn) in hymns {
+        let number: i64 = num_str.parse().unwrap_or(0);
+        let title = hymn
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let chorus_str = hymn.get("chorus").and_then(|v| v.as_str()).unwrap_or("");
+        let verses: Vec<String> = hymn
+            .get("verses")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(ToString::to_string))
+                    .filter(|s| !s.trim().is_empty())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let stanzas_json: Vec<serde_json::Value> = verses
+            .iter()
+            .enumerate()
+            .map(|(i, text)| {
+                serde_json::json!({
+                    "id": format!("v{}", i + 1),
+                    "kind": "verse",
+                    "lines": text.lines().collect::<Vec<_>>(),
+                })
+            })
+            .collect();
+
+        let chorus_json = if chorus_str.trim().is_empty() {
+            serde_json::Value::Null
+        } else {
+            serde_json::json!({
+                "id": "ch",
+                "kind": "chorus",
+                "lines": chorus_str.lines().collect::<Vec<_>>(),
+            })
+        };
+
+        let data = serde_json::json!({
+            "stanzas": stanzas_json,
+            "chorus": chorus_json,
+            "autoChorus": true,
+            "lineMode": "stanza-full",
+        });
+
+        let id = format!("ghs-{number}");
+        db.save_song(
+            &id,
+            "ghs",
+            Some(number),
+            &title,
+            None,
+            &data.to_string(),
+            GHS_SEED_VERSION,
+        )?;
+        seeded += 1;
+    }
+
+    log::info!("GHS hymn seed complete — {seeded} hymns (version {GHS_SEED_VERSION})");
+    Ok(())
+}
+
 #[tauri::command]
 fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
@@ -268,6 +349,18 @@ pub fn run() {
                 }
             } else {
                 log::info!("ONNX model not found. Semantic search disabled. Run 'bun run download:model' to download.");
+            }
+
+            // Seed GHS hymns into songs table (idempotent via seed_version check)
+            if let Some(db_state) = app.try_state::<Mutex<SessionDb>>() {
+                match db_state.lock() {
+                    Ok(db) => {
+                        if let Err(e) = seed_ghs_hymns(&db) {
+                            log::warn!("GHS seed failed: {e}");
+                        }
+                    }
+                    Err(e) => log::warn!("GHS seed: could not acquire DB lock: {e}"),
+                }
             }
 
             let menu = menu::build(app)?;
