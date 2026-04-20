@@ -155,6 +155,11 @@ export const useSongStore = create<SongStore>((set, get) => ({
 // (first occurrence wins); everything else is a verse.
 
 const CHORUS_HEADER_RE = /^\s*(chorus|refrain|pre-chorus|pre chorus)\b/i
+// Only recognize section markers that name a known song-structure role. This
+// prevents promotional preamble text containing `[Intro]`, `[Produced by …]`,
+// or `[Spoken]` from being mistaken for song content.
+const SECTION_HEADER_RE =
+  /^\s*(verse|chorus|refrain|pre-chorus|pre chorus|bridge|outro|intro|hook|interlude)\b/i
 
 interface ParsedLyrics {
   stanzas: import("@/types").SongStanza[]
@@ -162,9 +167,13 @@ interface ParsedLyrics {
 }
 
 export function parseGeniusLyrics(raw: string): ParsedLyrics {
-  // Strip header junk — everything before first "[...]" section marker.
-  const firstBracket = raw.search(/\[[^\]]+\]/)
-  const body = firstBracket >= 0 ? raw.slice(firstBracket) : raw
+  // Strip header junk by locating the first *song-structure* marker — not
+  // just any `[...]` token, which could match promotional preamble.
+  const songMarker = raw.match(
+    /\[\s*(?:verse|chorus|refrain|pre-chorus|pre chorus|bridge|outro|intro|hook|interlude)\b[^\]]*\]/i,
+  )
+  const firstBracket = songMarker?.index ?? raw.search(/\[[^\]]+\]/)
+  const body = firstBracket !== undefined && firstBracket >= 0 ? raw.slice(firstBracket) : raw
 
   // Split on `[Header]` markers, keeping them as delimiters.
   const parts = body.split(/\[([^\]]+)\]/g)
@@ -184,8 +193,15 @@ export function parseGeniusLyrics(raw: string): ParsedLyrics {
       .filter((l) => l.length > 0)
     if (lines.length === 0) continue
 
+    // Skip sections whose header isn't a known song-structure role (drops
+    // e.g. `[Produced by X]` or other promotional metadata brackets).
+    if (!SECTION_HEADER_RE.test(header)) continue
+
     if (CHORUS_HEADER_RE.test(header) && !chorus) {
       chorus = { id: "ch", kind: "chorus", lines }
+    } else if (CHORUS_HEADER_RE.test(header)) {
+      // Subsequent chorus/refrain markers — skip, first wins
+      continue
     } else {
       verseIdx += 1
       stanzas.push({ id: `v${verseIdx}`, kind: "verse", lines })

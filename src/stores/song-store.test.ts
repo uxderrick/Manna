@@ -72,6 +72,46 @@ Refrain line`
     expect(chorus!.lines).toEqual(["Refrain line"])
   })
 
+  test("preamble with [Intro] marker — [Intro] is valid section, content preserved", () => {
+    const raw = `35 Contributors [Intro]
+Real intro line
+
+[Verse 1]
+Amazing Grace`
+    const { stanzas } = parseGeniusLyrics(raw)
+    // Both [Intro] and [Verse 1] recognized as song sections
+    expect(stanzas.length).toBe(2)
+    expect(stanzas[0].lines).toEqual(["Real intro line"])
+    expect(stanzas[1].lines).toEqual(["Amazing Grace"])
+    // Preamble "35 Contributors" never promoted — it was before the first bracket
+    expect(stanzas.some((s) => s.lines.some((l) => l.includes("Contributors")))).toBe(false)
+  })
+
+  test("non-structure brackets like [Produced by X] are skipped", () => {
+    const raw = `[Produced by Kanye]
+ignore this metadata
+
+[Verse 1]
+Real verse line`
+    const { stanzas } = parseGeniusLyrics(raw)
+    expect(stanzas.length).toBe(1)
+    expect(stanzas[0].lines).toEqual(["Real verse line"])
+  })
+
+  test("[Bridge] and [Outro] treated as verses", () => {
+    const raw = `[Verse 1]
+Verse text
+
+[Bridge]
+Bridge text
+
+[Outro]
+Outro text`
+    const { stanzas } = parseGeniusLyrics(raw)
+    expect(stanzas.length).toBe(3)
+    expect(stanzas.map((s) => s.lines[0])).toEqual(["Verse text", "Bridge text", "Outro text"])
+  })
+
   test("fallback: no brackets → split on blank lines", () => {
     const raw = `Line A1
 Line A2
