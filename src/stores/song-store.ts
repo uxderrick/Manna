@@ -119,16 +119,9 @@ export const useSongStore = create<SongStore>((set, get) => ({
 
   geniusImport: async (hit) => {
     const lyrics = await invoke<string>("fetch_genius_lyrics", { url: hit.url })
-    const stanzas = lyrics
-      .split(/\n{2,}/)
-      .map((block, i) => ({
-        id: `v${i + 1}`,
-        kind: "verse" as const,
-        lines: block.split("\n").filter((l) => l.trim().length > 0),
-      }))
-      .filter((s) => s.lines.length > 0)
+    const { stanzas, chorus } = parseGeniusLyrics(lyrics)
 
-    if (stanzas.length === 0) {
+    if (stanzas.length === 0 && !chorus) {
       throw new Error("No stanzas parsed from Genius — paste manually.")
     }
 
@@ -139,11 +132,79 @@ export const useSongStore = create<SongStore>((set, get) => ({
       title: hit.title,
       author: hit.artist,
       stanzas,
-      chorus: null,
-      autoChorus: false,
+      chorus,
+      autoChorus: Boolean(chorus),
       lineMode: "stanza-full",
     }
     await get().saveSong(song)
     return song
   },
 }))
+
+// ── Genius lyrics parser ──────────────────────────────────────────────────
+//
+// Genius lyrics HTML renders as flat text like:
+//   "35 Contributors Amazing Grace Lyrics...Read More [Verse 1]
+//    Amazing Grace, how sweet the sound
+//    ...
+//    [Chorus]
+//    'Twas grace..."
+//
+// Strategy: drop header junk before first `[...]` marker, then split on `[...]`
+// headers. Sections whose header matches Chorus/Refrain/Bridge go to `chorus`
+// (first occurrence wins); everything else is a verse.
+
+const CHORUS_HEADER_RE = /^\s*(chorus|refrain|pre-chorus|pre chorus)\b/i
+
+interface ParsedLyrics {
+  stanzas: import("@/types").SongStanza[]
+  chorus: import("@/types").SongStanza | null
+}
+
+export function parseGeniusLyrics(raw: string): ParsedLyrics {
+  // Strip header junk — everything before first "[...]" section marker.
+  const firstBracket = raw.search(/\[[^\]]+\]/)
+  const body = firstBracket >= 0 ? raw.slice(firstBracket) : raw
+
+  // Split on `[Header]` markers, keeping them as delimiters.
+  const parts = body.split(/\[([^\]]+)\]/g)
+  // split result: [preamble, header1, body1, header2, body2, ...]
+  const stanzas: import("@/types").SongStanza[] = []
+  let chorus: import("@/types").SongStanza | null = null
+  let verseIdx = 0
+
+  for (let i = 1; i < parts.length; i += 2) {
+    const header = parts[i] ?? ""
+    const section = (parts[i + 1] ?? "").trim()
+    if (!section) continue
+
+    const lines = section
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0)
+    if (lines.length === 0) continue
+
+    if (CHORUS_HEADER_RE.test(header) && !chorus) {
+      chorus = { id: "ch", kind: "chorus", lines }
+    } else {
+      verseIdx += 1
+      stanzas.push({ id: `v${verseIdx}`, kind: "verse", lines })
+    }
+  }
+
+  // Fallback: if no bracket markers present, split on blank lines.
+  if (stanzas.length === 0 && !chorus) {
+    const blocks = raw
+      .split(/\n{2,}/)
+      .map((b) => b.trim())
+      .filter((b) => b.length > 0)
+    blocks.forEach((block, i) => {
+      const lines = block.split("\n").map((l) => l.trim()).filter(Boolean)
+      if (lines.length > 0) {
+        stanzas.push({ id: `v${i + 1}`, kind: "verse", lines })
+      }
+    })
+  }
+
+  return { stanzas, chorus }
+}
