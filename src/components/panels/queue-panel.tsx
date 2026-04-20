@@ -11,6 +11,8 @@ import {
   ListIcon,
   SearchIcon,
   PlusIcon,
+  BookOpenIcon,
+  MusicIcon,
 } from "lucide-react"
 import { useQueueStore, useBroadcastStore, useBibleStore, useSongStore } from "@/stores"
 import { toVerseRenderData } from "@/hooks/use-broadcast"
@@ -76,6 +78,9 @@ function QueueItemCard({
       <div className="flex items-start gap-2">
         <span className={cn("text-[9px] tabular-nums pt-0.5", isActive ? "text-primary-foreground/50" : "text-muted-foreground/50")}>
           {index + 1}
+        </span>
+        <span className={cn("shrink-0 pt-0.5", isActive ? "text-primary-foreground/70" : "text-muted-foreground/60")} aria-hidden>
+          {item.kind === "verse" ? <BookOpenIcon className="size-2.5" /> : <MusicIcon className="size-2.5" />}
         </span>
         <div className="min-w-0 flex-1">
           <span className={cn("text-[11px] font-semibold", isActive ? "text-primary-foreground" : "text-foreground")}>
