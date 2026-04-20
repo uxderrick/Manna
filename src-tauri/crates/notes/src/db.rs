@@ -96,6 +96,20 @@ impl SessionDb {
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
+
+            CREATE TABLE IF NOT EXISTS songs (
+                id TEXT PRIMARY KEY,
+                source TEXT NOT NULL,
+                number INTEGER,
+                title TEXT NOT NULL,
+                author TEXT,
+                data TEXT NOT NULL,
+                seed_version INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_songs_title ON songs(title);
+            CREATE INDEX IF NOT EXISTS idx_songs_source_number ON songs(source, number);
             ",
         )?;
 
@@ -379,6 +393,84 @@ impl SessionDb {
     pub fn delete_custom_theme(&self, id: &str) -> Result<()> {
         self.conn.execute("DELETE FROM themes WHERE id = ?1", params![id])?;
         Ok(())
+    }
+
+    // ── Songs ─────────────────────────────────────────────────
+
+    pub fn list_songs(
+        &self,
+    ) -> Result<Vec<(String, String, Option<i64>, String, Option<String>, String)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, source, number, title, author, data FROM songs ORDER BY source, number, title",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<i64>>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, String>(5)?,
+                ))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+
+    pub fn get_song(
+        &self,
+        id: &str,
+    ) -> Result<(String, String, Option<i64>, String, Option<String>, String)> {
+        Ok(self.conn.query_row(
+            "SELECT id, source, number, title, author, data FROM songs WHERE id = ?1",
+            params![id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<i64>>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, String>(5)?,
+                ))
+            },
+        )?)
+    }
+
+    pub fn save_song(
+        &self,
+        id: &str,
+        source: &str,
+        number: Option<i64>,
+        title: &str,
+        author: Option<&str>,
+        data: &str,
+        seed_version: i64,
+    ) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO songs (id, source, number, title, author, data, seed_version)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(id) DO UPDATE SET
+                source = ?2, number = ?3, title = ?4, author = ?5,
+                data = ?6, seed_version = ?7, updated_at = datetime('now')",
+            params![id, source, number, title, author, data, seed_version],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_song(&self, id: &str) -> Result<()> {
+        self.conn.execute("DELETE FROM songs WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn max_ghs_seed_version(&self) -> Result<i64> {
+        let v: i64 = self.conn.query_row(
+            "SELECT COALESCE(MAX(seed_version), 0) FROM songs WHERE source = 'ghs'",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(v)
     }
 
     // ── Analytics ─────────────────────────────────────────────
