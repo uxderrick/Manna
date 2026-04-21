@@ -23,6 +23,14 @@ impl SessionDb {
         Ok(db)
     }
 
+    pub(crate) fn conn(&self) -> &Connection {
+        &self.conn
+    }
+
+    pub(crate) fn conn_mut(&mut self) -> &mut Connection {
+        &mut self.conn
+    }
+
     /// Run schema migrations, creating tables if they do not exist.
     fn migrate(&self) -> Result<()> {
         self.conn.execute_batch("PRAGMA foreign_keys = ON;")?;
@@ -174,7 +182,7 @@ impl SessionDb {
                 params![id],
                 |row| Ok(row_to_session(row)),
             )?
-            .map_err(|_| SessionError::NotFound(id))
+            .map_err(|_| SessionError::NotFound(id.to_string()))
     }
 
     /// List all sessions ordered by date descending.
@@ -240,7 +248,7 @@ impl SessionDb {
             params![title, id],
         )?;
         if changed == 0 {
-            return Err(SessionError::NotFound(id));
+            return Err(SessionError::NotFound(id.to_string()));
         }
         Ok(())
     }
@@ -252,7 +260,7 @@ impl SessionDb {
         )?;
 
         if changed == 0 {
-            return Err(SessionError::NotFound(id));
+            return Err(SessionError::NotFound(id.to_string()));
         }
         Ok(())
     }
@@ -265,7 +273,7 @@ impl SessionDb {
         )?;
 
         if changed == 0 {
-            return Err(SessionError::NotFound(id));
+            return Err(SessionError::NotFound(id.to_string()));
         }
         Ok(())
     }

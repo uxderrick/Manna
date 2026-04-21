@@ -5,8 +5,8 @@ pub enum SessionError {
     #[error("Database error: {0}")]
     Database(#[from] rusqlite::Error),
 
-    #[error("Session not found: {0}")]
-    NotFound(i64),
+    #[error("not found: {0}")]
+    NotFound(String),
 
     #[error("Invalid session state transition: {from} -> {to}")]
     InvalidTransition { from: String, to: String },

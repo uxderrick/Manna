@@ -4,6 +4,7 @@ pub mod db;
 pub mod error;
 pub mod models;
 pub mod plan_models;
+pub mod plan_db;
 pub use plan_models::{Plan, PlanItem, PlanItemType, PlanKind, TemplateMeta};
 
 pub use db::SessionDb;
