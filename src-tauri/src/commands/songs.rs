@@ -13,6 +13,11 @@ pub struct SongRow {
     pub title: String,
     pub author: Option<String>,
     pub data: String,
+    pub tune: Option<String>,
+    pub meter: Option<String>,
+    #[serde(rename = "scriptureRef")]
+    pub scripture_ref: Option<String>,
+    pub category: Option<String>,
 }
 
 #[tauri::command]
@@ -22,13 +27,17 @@ pub fn list_songs(db: State<'_, DbState>) -> Result<Vec<SongRow>, String> {
         .list_songs()
         .map(|rows| {
             rows.into_iter()
-                .map(|(id, source, number, title, author, data)| SongRow {
+                .map(|(id, source, number, title, author, data, tune, meter, scripture_ref, category)| SongRow {
                     id,
                     source,
                     number,
                     title,
                     author,
                     data,
+                    tune,
+                    meter,
+                    scripture_ref,
+                    category,
                 })
                 .collect()
         })
@@ -40,17 +49,22 @@ pub fn get_song(db: State<'_, DbState>, id: String) -> Result<SongRow, String> {
     db.lock()
         .unwrap()
         .get_song(&id)
-        .map(|(id, source, number, title, author, data)| SongRow {
+        .map(|(id, source, number, title, author, data, tune, meter, scripture_ref, category)| SongRow {
             id,
             source,
             number,
             title,
             author,
             data,
+            tune,
+            meter,
+            scripture_ref,
+            category,
         })
         .map_err(|e| e.to_string())
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub fn save_song(
     db: State<'_, DbState>,

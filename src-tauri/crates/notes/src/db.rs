@@ -147,6 +147,20 @@ impl SessionDb {
             ",
         )?;
 
+        // Add songs metadata columns idempotently. SQLite can't ADD COLUMN IF NOT
+        // EXISTS, so attempts will fail on re-runs after the column is present —
+        // that's expected, ignore the error.
+        let add_col = |sql: &str| {
+            let _ = self.conn.execute(sql, []);
+        };
+        add_col("ALTER TABLE songs ADD COLUMN tune TEXT");
+        add_col("ALTER TABLE songs ADD COLUMN meter TEXT");
+        add_col("ALTER TABLE songs ADD COLUMN scripture_ref TEXT");
+        add_col("ALTER TABLE songs ADD COLUMN category TEXT");
+        self.conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_songs_scripture ON songs(scripture_ref);",
+        )?;
+
         Ok(())
     }
 
@@ -431,11 +445,17 @@ impl SessionDb {
 
     // ── Songs ─────────────────────────────────────────────────
 
+    #[allow(clippy::type_complexity)]
     pub fn list_songs(
         &self,
-    ) -> Result<Vec<(String, String, Option<i64>, String, Option<String>, String)>> {
+    ) -> Result<Vec<(
+        String, String, Option<i64>, String, Option<String>, String,
+        Option<String>, Option<String>, Option<String>, Option<String>,
+    )>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, source, number, title, author, data FROM songs ORDER BY source, number, title",
+            "SELECT id, source, number, title, author, data,
+                    tune, meter, scripture_ref, category
+             FROM songs ORDER BY source, number, title",
         )?;
         let rows = stmt
             .query_map([], |row| {
@@ -446,18 +466,28 @@ impl SessionDb {
                     row.get::<_, String>(3)?,
                     row.get::<_, Option<String>>(4)?,
                     row.get::<_, String>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, Option<String>>(9)?,
                 ))
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(rows)
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn get_song(
         &self,
         id: &str,
-    ) -> Result<(String, String, Option<i64>, String, Option<String>, String)> {
+    ) -> Result<(
+        String, String, Option<i64>, String, Option<String>, String,
+        Option<String>, Option<String>, Option<String>, Option<String>,
+    )> {
         Ok(self.conn.query_row(
-            "SELECT id, source, number, title, author, data FROM songs WHERE id = ?1",
+            "SELECT id, source, number, title, author, data,
+                    tune, meter, scripture_ref, category
+             FROM songs WHERE id = ?1",
             params![id],
             |row| {
                 Ok((
@@ -467,11 +497,16 @@ impl SessionDb {
                     row.get::<_, String>(3)?,
                     row.get::<_, Option<String>>(4)?,
                     row.get::<_, String>(5)?,
+                    row.get::<_, Option<String>>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, Option<String>>(9)?,
                 ))
             },
         )?)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn save_song(
         &self,
         id: &str,
@@ -482,13 +517,37 @@ impl SessionDb {
         data: &str,
         seed_version: i64,
     ) -> Result<()> {
+        self.save_song_with_meta(
+            id, source, number, title, author, data, seed_version,
+            None, None, None, None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn save_song_with_meta(
+        &self,
+        id: &str,
+        source: &str,
+        number: Option<i64>,
+        title: &str,
+        author: Option<&str>,
+        data: &str,
+        seed_version: i64,
+        tune: Option<&str>,
+        meter: Option<&str>,
+        scripture_ref: Option<&str>,
+        category: Option<&str>,
+    ) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO songs (id, source, number, title, author, data, seed_version)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            "INSERT INTO songs (id, source, number, title, author, data, seed_version, tune, meter, scripture_ref, category)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
              ON CONFLICT(id) DO UPDATE SET
                 source = ?2, number = ?3, title = ?4, author = ?5,
-                data = ?6, seed_version = ?7, updated_at = datetime('now')",
-            params![id, source, number, title, author, data, seed_version],
+                data = ?6, seed_version = ?7,
+                tune = ?8, meter = ?9, scripture_ref = ?10, category = ?11,
+                updated_at = datetime('now')",
+            params![id, source, number, title, author, data, seed_version,
+                    tune, meter, scripture_ref, category],
         )?;
         Ok(())
     }
@@ -496,6 +555,20 @@ impl SessionDb {
     pub fn delete_song(&self, id: &str) -> Result<()> {
         self.conn.execute("DELETE FROM songs WHERE id = ?1", params![id])?;
         Ok(())
+    }
+
+    pub fn delete_songs_by_source(&self, source: &str) -> Result<usize> {
+        let n = self.conn.execute("DELETE FROM songs WHERE source = ?1", params![source])?;
+        Ok(n)
+    }
+
+    pub fn count_songs_by_source(&self, source: &str) -> Result<i64> {
+        let n: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM songs WHERE source = ?1",
+            params![source],
+            |row| row.get(0),
+        )?;
+        Ok(n)
     }
 
     // ── Transactions (for bulk seed idempotency) ──────────────
@@ -515,13 +588,18 @@ impl SessionDb {
         Ok(())
     }
 
-    pub fn max_ghs_seed_version(&self) -> Result<i64> {
+    pub fn max_hymnal_seed_version(&self, source: &str) -> Result<i64> {
         let v: i64 = self.conn.query_row(
-            "SELECT COALESCE(MAX(seed_version), 0) FROM songs WHERE source = 'ghs'",
-            [],
+            "SELECT COALESCE(MAX(seed_version), 0) FROM songs WHERE source = ?1",
+            params![source],
             |row| row.get(0),
         )?;
         Ok(v)
+    }
+
+    /// Deprecated wrapper — use `max_hymnal_seed_version("ghs")` directly.
+    pub fn max_ghs_seed_version(&self) -> Result<i64> {
+        self.max_hymnal_seed_version("ghs")
     }
 
     // ── Analytics ─────────────────────────────────────────────
