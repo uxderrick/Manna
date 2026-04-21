@@ -100,11 +100,16 @@ impl SessionDb {
              ORDER BY order_index ASC",
         )?;
         let rows = stmt.query_map(params![plan_id, plan_kind.as_str()], |r| {
+            let id: i64 = r.get(0)?;
             let type_str: String = r.get(2)?;
-            let item_type = PlanItemType::from_str(&type_str)
-                .unwrap_or(PlanItemType::Blank);
+            let item_type = PlanItemType::from_str(&type_str).unwrap_or_else(|| {
+                log::warn!(
+                    "plan_db::get_plan: unknown item_type {type_str:?} for item id={id}, coercing to Blank"
+                );
+                PlanItemType::Blank
+            });
             Ok(PlanItem {
-                id: r.get(0)?,
+                id,
                 plan_id,
                 plan_kind,
                 order_index: r.get(1)?,
