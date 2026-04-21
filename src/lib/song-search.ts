@@ -30,9 +30,21 @@ function buildIndex(songs: Song[]): MiniSearch<IndexDoc> {
   return ms
 }
 
+const PREFIX_RE = /^(ghs|mhb|sankey|snk|sda)\s+(\d+)$/i
+
 export function searchSongs(songs: Song[], query: string): Song[] {
   const q = query.trim()
   if (!q) return songs
+
+  // "<source> <number>" scoped lookup — e.g. "mhb 42", "snk 150".
+  const prefixMatch = q.toLowerCase().match(PREFIX_RE)
+  if (prefixMatch) {
+    const rawSource = prefixMatch[1]
+    const source = rawSource === "snk" ? "sankey" : rawSource
+    const n = parseInt(prefixMatch[2], 10)
+    const direct = songs.find((s) => s.source === source && s.number === n)
+    if (direct) return [direct]
+  }
 
   if (/^\d+$/.test(q)) {
     const n = parseInt(q, 10)

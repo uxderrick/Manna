@@ -80,4 +80,74 @@ describe("searchSongs", () => {
     const out = searchSongs(songs, "xxxxyyyyzzzz")
     expect(out.length).toBe(0)
   })
+
+  test("'mhb 42' scoped hymnal number lookup", () => {
+    const multi: Song[] = [
+      ...songs,
+      {
+        id: "mhb-42",
+        source: "mhb",
+        number: 42,
+        title: "Amazing Grace MHB",
+        author: null,
+        stanzas: [],
+        chorus: null,
+        autoChorus: true,
+        lineMode: "stanza-full",
+        tune: null,
+        meter: null,
+        scriptureRef: null,
+        category: null,
+      },
+    ]
+    const out = searchSongs(multi, "mhb 42")
+    expect(out.length).toBe(1)
+    expect(out[0].id).toBe("mhb-42")
+  })
+
+  test("'snk 150' is alias for sankey", () => {
+    const multi: Song[] = [
+      ...songs,
+      {
+        id: "sankey-150",
+        source: "sankey",
+        number: 150,
+        title: "Sankey Song",
+        author: null,
+        stanzas: [],
+        chorus: null,
+        autoChorus: true,
+        lineMode: "stanza-full",
+        tune: null,
+        meter: null,
+        scriptureRef: null,
+        category: null,
+      },
+    ]
+    const out = searchSongs(multi, "snk 150")
+    expect(out[0]?.id).toBe("sankey-150")
+  })
+
+  test("'sda 1' scoped lookup", () => {
+    const multi: Song[] = [
+      ...songs,
+      {
+        id: "sda-1",
+        source: "sda",
+        number: 1,
+        title: "SDA Hymn",
+        author: null,
+        stanzas: [],
+        chorus: null,
+        autoChorus: true,
+        lineMode: "stanza-full",
+        tune: null,
+        meter: null,
+        scriptureRef: null,
+        category: null,
+      },
+    ]
+    const out = searchSongs(multi, "sda 1")
+    expect(out[0]?.id).toBe("sda-1")
+  })
 })

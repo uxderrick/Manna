@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { useSongStore, useQueueStore } from "@/stores"
 import type { LineMode, SongStanza } from "@/types"
+import { SourceBadge } from "@/components/songs/source-badge"
 
 const LINE_MODES: { value: LineMode; label: string }[] = [
   { value: "line", label: "Line" },
@@ -101,12 +102,26 @@ export function SongDetailDrawer({
       <DrawerContent className="left-1/2 right-auto max-h-[55vh] w-full max-w-2xl -translate-x-1/2">
         <DrawerHeader>
           <DrawerTitle>
+            <span className="mr-2 inline-flex align-middle">
+              <SourceBadge source={song.source} />
+            </span>
             {song.number !== null ? `${song.number}. ` : ""}
             {song.title}
           </DrawerTitle>
           {song.author ? (
             <DrawerDescription>{song.author}</DrawerDescription>
           ) : null}
+          {(song.tune || song.meter || song.scriptureRef) && (
+            <p className="text-xs text-muted-foreground">
+              {[
+                song.tune && `Tune: ${song.tune}`,
+                song.meter && `Meter: ${song.meter}`,
+                song.scriptureRef && `Ref: ${song.scriptureRef}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
         </DrawerHeader>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-4 pb-2">

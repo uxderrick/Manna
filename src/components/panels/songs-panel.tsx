@@ -5,22 +5,35 @@ import { Input } from "@/components/ui/input"
 import { PanelHeader } from "@/components/ui/panel-header"
 import { cn } from "@/lib/utils"
 import { searchSongs } from "@/lib/song-search"
-import { useQueueStore, useSongStore } from "@/stores"
+import { useQueueStore, useSongStore, useSettingsStore } from "@/stores"
 import type { Song } from "@/types"
 import { PasteLyricsDialog } from "@/components/songs/paste-lyrics-dialog"
 import { GeniusSearchResults } from "@/components/songs/genius-search-results"
 import { SongDetailDrawer } from "@/components/songs/song-detail-drawer"
+import { SourceBadge } from "@/components/songs/source-badge"
 
 type Tab = "local" | "genius"
 
 export function SongsPanel() {
-  const songs = useSongStore((s) => s.songs)
+  const allSongs = useSongStore((s) => s.songs)
+  const enabledHymnals = useSettingsStore((s) => s.enabledHymnals)
   const enqueueSong = useQueueStore((s) => s.enqueueSong)
   const presentSongLive = useQueueStore((s) => s.presentSongLive)
   const [query, setQuery] = useState("")
   const [tab, setTab] = useState<Tab>("local")
   const [pasteOpen, setPasteOpen] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
+
+  const songs = useMemo(
+    () =>
+      allSongs.filter(
+        (s) =>
+          s.source === "custom" ||
+          s.source === "genius" ||
+          enabledHymnals.includes(s.source),
+      ),
+    [allSongs, enabledHymnals],
+  )
 
   const filtered = useMemo(() => searchSongs(songs, query), [songs, query])
 
@@ -107,6 +120,7 @@ function SongRow({
   return (
     <li className="group flex items-center gap-2 px-3 py-2 transition-colors hover:bg-muted/40">
       <MusicIcon className="size-3 shrink-0 text-muted-foreground" />
+      <SourceBadge source={song.source} />
       <button onClick={onOpen} className="flex-1 truncate text-left text-xs">
         {song.number !== null && (
           <span className="mr-2 tabular-nums text-muted-foreground">{song.number}</span>
@@ -143,7 +157,7 @@ function EmptyLocal({ onPaste, onGenius }: { onPaste: () => void; onGenius: () =
   return (
     <div className="flex flex-col items-center justify-center gap-3 p-8 text-center text-xs text-muted-foreground">
       <MusicIcon className="size-8 text-muted-foreground/40" />
-      <p>No matches.</p>
+      <p>No matches. Try &quot;mhb 42&quot;, &quot;snk 150&quot;, or a hymn title.</p>
       <div className="flex gap-2">
         <Button size="sm" variant="outline" onClick={onGenius}>
           Search Genius
