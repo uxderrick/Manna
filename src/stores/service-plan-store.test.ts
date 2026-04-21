@@ -108,3 +108,26 @@ describe("service plan store", () => {
     expect(s.activeItemId).toBeNull()
   })
 })
+
+describe("service plan store — auto-advance", () => {
+  it("setPendingAdvance records timer id and deadline", () => {
+    const fakeTimer = setTimeout(() => {}, 1000)
+    useServicePlanStore.getState().setPendingAdvance(fakeTimer, Date.now() + 1000)
+    const s = useServicePlanStore.getState()
+    expect(s.pendingAdvanceTimerId).toBe(fakeTimer)
+    expect(s.pendingAdvanceDeadline).toBeGreaterThan(Date.now())
+    useServicePlanStore.getState().cancelPendingAdvance()
+    expect(useServicePlanStore.getState().pendingAdvanceTimerId).toBeNull()
+  })
+
+  it("setPlan cancels pending advance", () => {
+    const fakeTimer = setTimeout(() => {}, 1000)
+    useServicePlanStore.getState().setPendingAdvance(fakeTimer, Date.now() + 1000)
+    useServicePlanStore.getState().setPlan({
+      planId: 1,
+      planKind: "session",
+      items: [],
+    })
+    expect(useServicePlanStore.getState().pendingAdvanceTimerId).toBeNull()
+  })
+})

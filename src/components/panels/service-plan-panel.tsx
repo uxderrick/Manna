@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { CalendarDaysIcon, FolderIcon } from "lucide-react"
 import { useServicePlan } from "@/hooks/use-service-plan"
+import { useServicePlanStore } from "@/stores/service-plan-store"
 import { activatePlanItem } from "@/components/service-plan/activation-router"
 import { AddItemMenu } from "@/components/service-plan/add-item-menu"
 import { ServicePlanItem } from "./service-plan-item"
@@ -41,6 +42,28 @@ export function ServicePlanPanel() {
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [plan, activeItemId, setActiveItem])
+
+  /* Auto-advance: when active item has autoAdvanceSeconds, schedule timer. */
+  useEffect(() => {
+    const store = useServicePlanStore.getState()
+    store.cancelPendingAdvance()
+
+    if (!plan || activeItemId == null) return
+    const active = plan.items.find((i) => i.id === activeItemId)
+    if (!active || active.autoAdvanceSeconds == null || active.autoAdvanceSeconds <= 0) return
+
+    const ms = active.autoAdvanceSeconds * 1000
+    const deadline = Date.now() + ms
+    const timer = setTimeout(() => {
+      const next = useServicePlanStore.getState().nextPlayableAfter(active.id)
+      if (!next) return
+      useServicePlanStore.getState().setActiveItem(next.id)
+      activatePlanItem(next)
+    }, ms)
+    store.setPendingAdvance(timer, deadline)
+
+    return () => store.cancelPendingAdvance()
+  }, [plan, activeItemId])
 
   /* Drag: simple prev/next swap. Use HTML5 drag for v1 (no @dnd-kit hookup)
      to keep scope down. Future task can add keyboard-accessible drag. */
