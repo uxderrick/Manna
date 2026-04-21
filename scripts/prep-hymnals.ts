@@ -1,9 +1,14 @@
 import { fetchGhs } from "./hymnals/fetch-ghs"
+import { fetchMhb } from "./hymnals/fetch-mhb"
+import { fetchSankey } from "./hymnals/fetch-sankey"
+import { fetchSda } from "./hymnals/fetch-sda"
 import { writeHymnal } from "./hymnals/normalize"
 
 const adapters: Record<string, () => Promise<ReturnType<typeof fetchGhs>>> = {
   ghs: fetchGhs,
-  // sda, sankey, mhb added in later tasks
+  sda: fetchSda,
+  sankey: fetchSankey,
+  mhb: fetchMhb,
 }
 
 async function main() {
