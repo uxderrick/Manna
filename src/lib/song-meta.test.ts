@@ -12,6 +12,10 @@ const base: Song = {
   chorus: null,
   autoChorus: true,
   lineMode: "stanza-full",
+  tune: null,
+  meter: null,
+  scriptureRef: null,
+  category: null,
 }
 
 const verse: SongStanza = { id: "v1", kind: "verse", lines: [] }

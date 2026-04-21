@@ -13,6 +13,10 @@ const songs: Song[] = [
     chorus: null,
     autoChorus: true,
     lineMode: "stanza-full",
+    tune: null,
+    meter: null,
+    scriptureRef: null,
+    category: null,
   },
   {
     id: "ghs-42",
@@ -24,6 +28,10 @@ const songs: Song[] = [
     chorus: null,
     autoChorus: true,
     lineMode: "stanza-full",
+    tune: null,
+    meter: null,
+    scriptureRef: null,
+    category: null,
   },
   {
     id: "custom-1",
@@ -35,6 +43,10 @@ const songs: Song[] = [
     chorus: null,
     autoChorus: true,
     lineMode: "stanza-full",
+    tune: null,
+    meter: null,
+    scriptureRef: null,
+    category: null,
   },
 ]
 

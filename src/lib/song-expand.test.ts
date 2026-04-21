@@ -15,6 +15,10 @@ const makeSong = (overrides: Partial<Song> = {}): Song => ({
   chorus: { id: "ch", kind: "chorus", lines: ["Chorus 1", "Chorus 2"] },
   autoChorus: true,
   lineMode: "stanza-full",
+  tune: null,
+  meter: null,
+  scriptureRef: null,
+  category: null,
   ...overrides,
 })
 

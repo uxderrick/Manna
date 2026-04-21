@@ -9,6 +9,10 @@ interface SongRowRpc {
   title: string
   author: string | null
   data: string
+  tune?: string | null
+  meter?: string | null
+  scriptureRef?: string | null
+  category?: string | null
 }
 
 function rowToSong(row: SongRowRpc): Song {
@@ -28,6 +32,10 @@ function rowToSong(row: SongRowRpc): Song {
     chorus: inner.chorus,
     autoChorus: inner.autoChorus,
     lineMode: inner.lineMode,
+    tune: row.tune ?? null,
+    meter: row.meter ?? null,
+    scriptureRef: row.scriptureRef ?? null,
+    category: row.category ?? null,
   }
 }
 
@@ -135,6 +143,10 @@ export const useSongStore = create<SongStore>((set, get) => ({
       chorus,
       autoChorus: Boolean(chorus),
       lineMode: "stanza-full",
+      tune: null,
+      meter: null,
+      scriptureRef: null,
+      category: null,
     }
     await get().saveSong(song)
     return song

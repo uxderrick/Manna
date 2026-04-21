@@ -80,6 +80,10 @@ export function PasteLyricsDialog({
       chorus: null,
       autoChorus: false,
       lineMode: "stanza-full",
+      tune: null,
+      meter: null,
+      scriptureRef: null,
+      category: null,
     }
 
     setSaving(true)
