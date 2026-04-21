@@ -76,6 +76,14 @@ pub fn plan_add_item(
     order_index: f64,
     auto_advance_seconds: Option<i32>,
 ) -> Result<PlanItem, String> {
+    if !order_index.is_finite() {
+        return Err("order_index must be finite".into());
+    }
+    if let Some(s) = auto_advance_seconds {
+        if s < 0 {
+            return Err("auto_advance_seconds must be non-negative".into());
+        }
+    }
     let kind = PlanKind::from_str(&plan_kind).ok_or("invalid plan kind")?;
     let ty = PlanItemType::from_str(&item_type).ok_or("invalid item type")?;
     lock(&db)?
@@ -90,6 +98,11 @@ pub fn plan_update_item(
     item_data: String,
     auto_advance_seconds: Option<i32>,
 ) -> Result<(), String> {
+    if let Some(s) = auto_advance_seconds {
+        if s < 0 {
+            return Err("auto_advance_seconds must be non-negative".into());
+        }
+    }
     lock(&db)?
         .update_plan_item(item_id, &item_data, auto_advance_seconds)
         .map_err(|e| e.to_string())
@@ -101,6 +114,9 @@ pub fn plan_reorder_item(
     item_id: i64,
     new_order_index: f64,
 ) -> Result<(), String> {
+    if !new_order_index.is_finite() {
+        return Err("new_order_index must be finite".into());
+    }
     lock(&db)?
         .reorder_plan_item(item_id, new_order_index)
         .map_err(|e| e.to_string())
