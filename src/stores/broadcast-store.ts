@@ -250,16 +250,23 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   announcement: null,
   sendAnnouncement: (announcement) => {
     set({ announcement })
+    invoke("ensure_broadcast_window", { outputId: "main" }).catch(() => {})
+    void emit("broadcast:announcement:main", announcement).catch(() => {})
+    void emit("broadcast:announcement:alt", announcement).catch(() => {})
     if (announcement.duration) {
       setTimeout(() => {
         const current = get().announcement
         if (current && current.text === announcement.text) {
-          set({ announcement: null })
+          get().dismissAnnouncement()
         }
       }, announcement.duration * 1000)
     }
   },
-  dismissAnnouncement: () => set({ announcement: null }),
+  dismissAnnouncement: () => {
+    set({ announcement: null })
+    void emit("broadcast:announcement:main", null).catch(() => {})
+    void emit("broadcast:announcement:alt", null).catch(() => {})
+  },
 }))
 
 export async function hydrateCustomThemes(): Promise<void> {

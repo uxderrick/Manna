@@ -24,14 +24,47 @@ function uint8ToBase64(bytes: Uint8Array | Uint8ClampedArray): string {
 /** Read output ID from URL query param (?output=main or ?output=alt). Defaults to "main". */
 const OUTPUT_ID = new URLSearchParams(window.location.search).get("output") ?? "main"
 
+function drawAnnouncement(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  announcement: { text: string; position: "top" | "bottom"; style: "info" | "urgent" } | null,
+) {
+  if (!announcement) return
+
+  const bandHeight = Math.round(height * 0.12)
+  const y = announcement.position === "top" ? 0 : height - bandHeight
+  const bg = announcement.style === "urgent" ? "rgba(220, 38, 38, 0.92)" : "rgba(15, 23, 42, 0.85)"
+  const fg = "#ffffff"
+
+  ctx.fillStyle = bg
+  ctx.fillRect(0, y, width, bandHeight)
+
+  const fontSize = Math.round(bandHeight * 0.4)
+  ctx.fillStyle = fg
+  ctx.font = `600 ${fontSize}px system-ui, -apple-system, "Segoe UI", sans-serif`
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+  ctx.fillText(announcement.text, width / 2, y + bandHeight / 2, width - 80)
+}
+
 interface BroadcastPayload {
   theme: BroadcastTheme
   verse: VerseRenderData | null
 }
 
+interface AnnouncementPayload {
+  text: string
+  position: "top" | "bottom"
+  style: "info" | "urgent"
+  duration: number | null
+}
+
 function BroadcastCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const latestData = useRef<BroadcastPayload | null>(null)
+  const announcementRef = useRef<AnnouncementPayload | null>(null)
+  const announcementTimerRef = useRef<number | null>(null)
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map())
   const ndiConfigRef = useRef<NdiConfigEventPayload>({
     active: false,
@@ -78,6 +111,8 @@ function BroadcastCanvas() {
       ctx.fillRect(0, 0, canvas.width, canvas.height)
       logDebug("renderVerse returned null; drew fallback frame")
     }
+
+    drawAnnouncement(ctx, canvas.width, canvas.height, announcementRef.current)
   }, [logDebug])
 
   const preloadBackgroundImage = useCallback((theme: BroadcastTheme) => {
@@ -183,6 +218,25 @@ function BroadcastCanvas() {
       pushNdiBurst()
     })
 
+    const unlistenAnnouncement = currentWindow.listen<AnnouncementPayload | null>(`broadcast:announcement:${OUTPUT_ID}`, (event) => {
+      announcementRef.current = event.payload
+      if (announcementTimerRef.current !== null) {
+        clearTimeout(announcementTimerRef.current)
+        announcementTimerRef.current = null
+      }
+      if (event.payload && event.payload.duration) {
+        announcementTimerRef.current = window.setTimeout(() => {
+          announcementRef.current = null
+          announcementTimerRef.current = null
+          draw()
+          pushNdiBurst()
+        }, event.payload.duration * 1000)
+      }
+      logDebug("Received broadcast:announcement", event.payload)
+      draw()
+      pushNdiBurst()
+    })
+
     const unlistenNdiConfig = currentWindow.listen<NdiConfigEventPayload>(`broadcast:ndi-config:${OUTPUT_ID}`, (event) => {
       ndiConfigRef.current = event.payload
       logDebug("Received broadcast:ndi-config", event.payload)
@@ -216,7 +270,11 @@ function BroadcastCanvas() {
 
     return () => {
       unlisten.then((fn) => fn())
+      unlistenAnnouncement.then((fn) => fn())
       unlistenNdiConfig.then((fn) => fn())
+      if (announcementTimerRef.current !== null) {
+        clearTimeout(announcementTimerRef.current)
+      }
     }
   }, [draw, logDebug, preloadBackgroundImage, pushNdiFrame, pushNdiBurst])
 

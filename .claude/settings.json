@@ -31,7 +31,23 @@
       "Bash(python3 -c ' *)",
       "Bash(python3 -m pip install onnx --quiet --user)",
       "Bash(gh search *)",
-      "Bash(bunx tsc *)"
+      "Bash(bunx tsc *)",
+      "Bash(bun test *)",
+      "Bash(bunx vitest *)",
+      "Bash(git -C /Users/uxderrick-mac/Development/Manna add src/lib/song-meta.ts src/lib/song-meta.test.ts)",
+      "Bash(git -C /Users/uxderrick-mac/Development/Manna commit -m \"feat\\(songs\\): songMeta formatter with tests \\(TDD\\)\")",
+      "Bash(git -C /Users/uxderrick-mac/Development/Manna rev-parse HEAD)",
+      "Bash(pkill -f \"caffeinate -disu\")",
+      "Bash(ps -p 34360 -o command=)",
+      "Bash(kill 34360)",
+      "Bash(git -C /Users/uxderrick-mac/Development/Manna add src/stores/service-plan-store.ts src/stores/service-plan-store.test.ts)",
+      "Bash(git -C /Users/uxderrick-mac/Development/Manna commit -m 'feat\\(plan\\): Zustand store + 7 unit tests')",
+      "Bash(node -e \"const r = require\\('/Users/uxderrick-mac/Development/Manna/node_modules/radix-ui'\\); console.log\\(Object.keys\\(r\\).filter\\(k => k.toLowerCase\\(\\).includes\\('drop'\\)\\)\\)\")",
+      "Bash(node -e \"const r = require\\('/Users/uxderrick-mac/Development/Manna/node_modules/radix-ui'\\); const dm = r.DropdownMenu; console.log\\(Object.keys\\(dm\\)\\)\")",
+      "Bash(git -C /Users/uxderrick-mac/Development/Manna add src/stores/service-plan-store.test.ts src/components/panels/service-plan-panel.tsx)",
+      "Bash(git -C /Users/uxderrick-mac/Development/Manna commit -m 'feat\\(plan\\): auto-advance timer wiring + 2 new store tests')",
+      "Bash(echo \"---exit:$?\")",
+      "Bash(echo \"---EXIT: $?---\")"
     ]
   },
   "enabledPlugins": {
