@@ -17,6 +17,7 @@ interface SettingsState {
   cooldownMs: number
   onboardingComplete: boolean
   sttProvider: SttProvider
+  enabledHymnals: string[]
 
   setDeepgramApiKey: (key: string | null) => void
   setAssemblyAiApiKey: (key: string | null) => void
@@ -31,6 +32,7 @@ interface SettingsState {
   setCooldownMs: (ms: number) => void
   setOnboardingComplete: (complete: boolean) => void
   setSttProvider: (provider: SttProvider) => void
+  setEnabledHymnals: (ids: string[]) => void
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -47,6 +49,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   cooldownMs: 2500,
   onboardingComplete: false,
   sttProvider: "deepgram",
+  enabledHymnals: ["ghs", "mhb", "sankey", "sda"],
 
   setDeepgramApiKey: (deepgramApiKey) => set({ deepgramApiKey }),
   setAssemblyAiApiKey: (assemblyAiApiKey) => set({ assemblyAiApiKey }),
@@ -61,6 +64,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setCooldownMs: (cooldownMs) => set({ cooldownMs }),
   setOnboardingComplete: (onboardingComplete) => set({ onboardingComplete }),
   setSttProvider: (sttProvider) => set({ sttProvider }),
+  setEnabledHymnals: (enabledHymnals) => set({ enabledHymnals }),
 }))
 
 // ── Shared Tauri store instance ────────────────────────────────────────
@@ -89,6 +93,7 @@ export async function hydrateSettings(): Promise<void> {
       audioDeviceId,
       autoMode,
       confidenceThreshold,
+      enabledHymnals,
     ] = await Promise.all([
       store.get<string>("deepgramApiKey"),
       store.get<string>("assemblyAiApiKey"),
@@ -100,6 +105,7 @@ export async function hydrateSettings(): Promise<void> {
       store.get<string>("audioDeviceId"),
       store.get<boolean>("autoMode"),
       store.get<number>("confidenceThreshold"),
+      store.get<string[]>("enabledHymnals"),
     ])
 
     const s = useSettingsStore.getState()
@@ -113,6 +119,9 @@ export async function hydrateSettings(): Promise<void> {
     if (audioDeviceId) s.setAudioDeviceId(audioDeviceId)
     if (autoMode != null) s.setAutoMode(autoMode)
     if (confidenceThreshold != null) s.setConfidenceThreshold(confidenceThreshold)
+    if (Array.isArray(enabledHymnals) && enabledHymnals.length > 0) {
+      s.setEnabledHymnals(enabledHymnals)
+    }
   } catch {
     console.warn("[settings] Failed to load persisted settings, using defaults")
   }
@@ -249,6 +258,17 @@ export async function persistConfidenceThreshold(threshold: number): Promise<voi
     await store.set("confidenceThreshold", threshold)
   } catch {
     console.warn("[settings] Failed to persist confidence threshold")
+  }
+}
+
+/** Persist enabled hymnals list to disk. */
+export async function persistEnabledHymnals(ids: string[]): Promise<void> {
+  useSettingsStore.getState().setEnabledHymnals(ids)
+  try {
+    const store = await getStore()
+    await store.set("enabledHymnals", ids)
+  } catch {
+    console.warn("[settings] Failed to persist enabledHymnals")
   }
 }
 
