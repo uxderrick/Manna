@@ -7,84 +7,104 @@ mod state;
 use rhema_notes::SessionDb;
 use std::sync::Mutex;
 
-const GHS_SEED_VERSION: i64 = 1;
-const GHS_JSON: &str = include_str!("../ghs.json");
+use hymnals::{HymnalDef, HYMNALS};
 
-fn seed_ghs_hymns(db: &SessionDb) -> Result<(), Box<dyn std::error::Error>> {
-    let current = db.max_ghs_seed_version().unwrap_or(0);
-    if current >= GHS_SEED_VERSION {
+#[derive(serde::Deserialize)]
+struct NormalizedHymnalJson {
+    hymns: Vec<NormalizedHymn>,
+}
+
+#[derive(serde::Deserialize)]
+struct NormalizedHymn {
+    number: i64,
+    title: String,
+    #[serde(default)]
+    author: Option<String>,
+    #[serde(default)]
+    stanzas: Vec<Vec<String>>,
+    #[serde(default)]
+    chorus: Option<Vec<String>>,
+    #[serde(default)]
+    tune: Option<String>,
+    #[serde(default)]
+    meter: Option<String>,
+    #[serde(rename = "scriptureRef", default)]
+    scripture_ref: Option<String>,
+    #[serde(default)]
+    category: Option<String>,
+}
+
+fn seed_hymnals(db: &SessionDb, enabled: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    for def in HYMNALS {
+        if !enabled.iter().any(|e| e == def.id) {
+            continue;
+        }
+        let current = db.max_hymnal_seed_version(def.id).unwrap_or(0);
+        if current >= def.seed_version {
+            continue;
+        }
+        seed_one_hymnal(db, def)?;
+    }
+    Ok(())
+}
+
+fn seed_one_hymnal(db: &SessionDb, def: &HymnalDef) -> Result<(), Box<dyn std::error::Error>> {
+    let parsed: NormalizedHymnalJson = serde_json::from_str(def.json)?;
+    if parsed.hymns.is_empty() {
+        log::info!(
+            "Skipping seed for {} — hymnal JSON is empty (placeholder)",
+            def.id
+        );
         return Ok(());
     }
 
-    let parsed: serde_json::Value = serde_json::from_str(GHS_JSON)?;
-    let hymns = parsed
-        .get("hymns")
-        .and_then(|v| v.as_object())
-        .ok_or("ghs.json missing hymns object")?;
-
-    // Atomic seed: either all 260 rows land, or none do. Prevents "partial
-    // seed" state that would permanently skip re-seeding on next startup.
     db.begin_transaction()?;
     let mut seeded = 0_usize;
-    for (num_str, hymn) in hymns {
-        let number: i64 = num_str.parse().unwrap_or(0);
-        let title = hymn
-            .get("title")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        let chorus_str = hymn.get("chorus").and_then(|v| v.as_str()).unwrap_or("");
-        let verses: Vec<String> = hymn
-            .get("verses")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(ToString::to_string))
-                    .filter(|s| !s.trim().is_empty())
-                    .collect()
-            })
-            .unwrap_or_default();
-
-        let stanzas_json: Vec<serde_json::Value> = verses
+    for hymn in &parsed.hymns {
+        let stanzas_json: Vec<serde_json::Value> = hymn
+            .stanzas
             .iter()
             .enumerate()
-            .map(|(i, text)| {
+            .map(|(i, lines)| {
                 serde_json::json!({
                     "id": format!("v{}", i + 1),
                     "kind": "verse",
-                    "lines": text.lines().collect::<Vec<_>>(),
+                    "lines": lines,
                 })
             })
             .collect();
 
-        let chorus_json = if chorus_str.trim().is_empty() {
-            serde_json::Value::Null
-        } else {
-            serde_json::json!({
+        let chorus_json = match &hymn.chorus {
+            Some(lines) if !lines.is_empty() => serde_json::json!({
                 "id": "ch",
                 "kind": "chorus",
-                "lines": chorus_str.lines().collect::<Vec<_>>(),
-            })
+                "lines": lines,
+            }),
+            _ => serde_json::Value::Null,
         };
 
+        let has_chorus = !chorus_json.is_null();
         let data = serde_json::json!({
             "stanzas": stanzas_json,
             "chorus": chorus_json,
-            "autoChorus": true,
+            "autoChorus": has_chorus,
             "lineMode": "stanza-full",
         });
 
-        let id = format!("ghs-{number}");
-        if let Err(e) = db.save_song(
+        let id = format!("{}-{}", def.id, hymn.number);
+        if let Err(e) = db.save_song_with_meta(
             &id,
-            "ghs",
-            Some(number),
-            &title,
-            None,
+            def.id,
+            Some(hymn.number),
+            &hymn.title,
+            hymn.author.as_deref(),
             &data.to_string(),
-            GHS_SEED_VERSION,
+            def.seed_version,
+            hymn.tune.as_deref(),
+            hymn.meter.as_deref(),
+            hymn.scripture_ref.as_deref(),
+            hymn.category.as_deref(),
         ) {
-            // Roll back — no partial state persists.
             let _ = db.rollback_transaction();
             return Err(Box::new(e));
         }
@@ -92,8 +112,21 @@ fn seed_ghs_hymns(db: &SessionDb) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     db.commit_transaction()?;
-    log::info!("GHS hymn seed complete — {seeded} hymns (version {GHS_SEED_VERSION})");
+    log::info!(
+        "Seeded {} hymns from {} (version {})",
+        seeded,
+        def.id,
+        def.seed_version
+    );
     Ok(())
+}
+
+/// Public wrapper so `commands::hymnals::seed_hymnal` can invoke seeding.
+pub(crate) fn seed_one_hymnal_public(
+    db: &SessionDb,
+    def: &HymnalDef,
+) -> Result<(), Box<dyn std::error::Error>> {
+    seed_one_hymnal(db, def)
 }
 
 #[tauri::command]
@@ -374,15 +407,19 @@ pub fn run() {
                 log::info!("ONNX model not found. Semantic search disabled. Run 'bun run download:model' to download.");
             }
 
-            // Seed GHS hymns into songs table (idempotent via seed_version check)
+            // Seed hymnals into songs table — respects enabledHymnals setting,
+            // idempotent via per-hymnal seed_version check.
+            let enabled = read_enabled_hymnals(app).unwrap_or_else(|| {
+                HYMNALS.iter().map(|h| h.id.to_string()).collect()
+            });
             if let Some(db_state) = app.try_state::<Mutex<SessionDb>>() {
                 match db_state.lock() {
                     Ok(db) => {
-                        if let Err(e) = seed_ghs_hymns(&db) {
-                            log::warn!("GHS seed failed: {e}");
+                        if let Err(e) = seed_hymnals(&db, &enabled) {
+                            log::warn!("Hymnal seed failed: {e}");
                         }
                     }
-                    Err(e) => log::warn!("GHS seed: could not acquire DB lock: {e}"),
+                    Err(e) => log::warn!("Hymnal seed: could not acquire DB lock: {e}"),
                 }
             }
 
@@ -410,4 +447,18 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// Read `enabledHymnals` from tauri-plugin-store's settings.json.
+/// Returns `None` if not yet persisted (first launch).
+fn read_enabled_hymnals(app: &tauri::App) -> Option<Vec<String>> {
+    use tauri_plugin_store::StoreExt;
+    let store = app.store("settings.json").ok()?;
+    let value = store.get("enabledHymnals")?;
+    let array = value.as_array()?;
+    let ids: Vec<String> = array
+        .iter()
+        .filter_map(|v| v.as_str().map(String::from))
+        .collect();
+    if ids.is_empty() { None } else { Some(ids) }
 }
