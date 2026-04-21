@@ -264,3 +264,97 @@ Cleared 6 tech-debt items in one pass. All compile clean, vitest 16/16 pass.
 - [2026-04-19-stt-e2e-framework-design.md](docs/superpowers/specs/2026-04-19-stt-e2e-framework-design.md): design-only doc for the speak/silence/resume scenario.
 - Stack: Playwright + Tauri v2 + BlackHole virtual mic + pre-recorded WAV fixtures. Zustand store snooping for assertions.
 - 1-day build split into 4 × 0.5-day phases. Open questions for user: Deepgram credits in CI? Whisper coverage in v1?
+
+## Session: 2026-04-20 — Embedding Model Research + INT8 Default
+
+### EmbeddingGemma-300M evaluation
+
+Researched Google's EmbeddingGemma-300M as potential Qwen3 replacement. **Rejected** — downgrade on retrieval, our core metric.
+
+| Metric | Qwen3-0.6B | EmbeddingGemma-300M |
+|---|---|---|
+| MTEB Multilingual avg | 64.33 | 61.15 |
+| **MTEB Retrieval sub-score** | **64.64** | **~54** |
+| Context | 32K | 2K |
+| License | Apache-2.0 | Gemma (restricted) |
+| Size Q4 | 880MB | 190MB |
+
+Gemma wins on size + cleaner ONNX export (no KV cache), but irrelevant on desktop. Only compelling for future mobile companion app. Backlog entry marked rejected. Real upgrade path (if ever needed): Qwen3-Embedding-4B (MTEB Multilingual 69.45, Retrieval 69.60, Apache-2.0) — deferred, 4× RAM not justified yet.
+
+Sources: [EmbeddingGemma tech report](https://arxiv.org/abs/2509.20354), [Qwen3 MTEB tables](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B).
+
+### Upstream model parity check + INT8 default swap
+
+Verified upstream openbezal/rhema uses same model family (Qwen3-Embedding-0.6B, 1024-dim) — but defaults to **INT8** (`model_quantized.onnx`, 585MB) via `optimum-cli onnxruntime quantize --arm64`. Manna was defaulting to **FP32** (1.1GB) with INT8 as fallback.
+
+Rationale for the original FP32 choice (traced back to 2026-04-13 Wave 1D): cargo-culted "FP32 > INT8" assumption from generation-model quantization wisdom. For **embedding** models, INT8 quantization is near-lossless (<1% MTEB delta). Qwen's own repo ships INT8 as recommended deployment. No quality regression observed in testing.
+
+**Fix** ([src-tauri/src/lib.rs:297-304](src-tauri/src/lib.rs#L297)): flipped loader priority so INT8 is preferred over FP32. FP32 stays as fallback if INT8 missing.
+
+**Impact for low-spec church PCs:**
+
+- Disk: 1.1GB → 585MB (−47%)
+- RAM at inference: ~1GB → ~300MB (−70%)
+- Cold-load time: roughly halved
+- Retrieval accuracy: unchanged
+
+Confirmed live — running session switched from FP32 to INT8 via HMR at 22:23:16 UTC.
+
+**Reverted 2026-04-21.** Inspecting the INT8 ONNX inputs revealed `past_key_values.*` tensors — the bundled `model_quantized.onnx` is a **generation export**, not a feature-extraction export. Running it for embeddings silently produced wrong vectors (see learning #7 — exact same trap as `onnx-community/Qwen3-Embedding-0.6B-ONNX`). Loader priority reverted to FP32 first. INT8 demoted to warn-logged fallback until a proper feature-extraction quantization is generated. Proper fix: run `optimum-cli onnxruntime quantize --arm64` against the FP32 feature-extraction ONNX (not the default generation one) and replace the bundled file.
+
+## Session: 2026-04-21 — Service Plan shipped + INT8 bug
+
+### Service Plan / Playlist (Feature B)
+
+Full B→C→E→F competitor-parity roadmap started. Feature B done. 17 tasks shipped in one sitting via subagent-driven-development:
+
+- **Schema**: `service_plan_templates`, `service_plan_items` + cascade trigger on `sermon_sessions` delete
+- **Rust DB layer** (`rhema-notes/src/plan_db.rs`): 13 CRUD + copy-clone methods, `&mut self` for transaction paths
+- **Tauri commands**: 13 commands in `commands/service_plan.rs` with numeric input guards (finite order_index, non-negative auto_advance_seconds)
+- **Frontend types**: discriminated union `PlanItemPayload` with `parsePlanItem` safe decoder
+- **Zustand store**: plan state + active item + pending-advance timer; 9 unit tests (7 core + 2 timer)
+- **Invoke hook**: `useServicePlan()` with 8 actions + session-change auto-load
+- **Activation router**: routes verse/announcement → `setLiveVerse`; section → no-op; blank/corrupt → `setLiveVerse(null)`; song → `CustomEvent("plan:activate-song")` (loose coupling); 4 unit tests
+- **UI**: 5 new components (`service-plan-panel`, `service-plan-item`, `service-plan-item-editor`, `add-item-menu`, `template-manager`) + new `ui/dropdown-menu` primitive
+- **Workspace**: Plan tab added as first entry in right panel
+- **Tests**: 55/55 vitest pass, Rust integration tests 11/11, TS clean
+
+Plan + spec: [2026-04-20-service-plan-design.md](docs/superpowers/specs/2026-04-20-service-plan-design.md), [2026-04-20-service-plan.md](docs/superpowers/plans/2026-04-20-service-plan.md).
+
+Smoke tests passed live in Tauri app (drag reorder, template save/load, auto-advance, activate, blank-clear). Ready for next feature (Slide Editor — Feature C).
+
+### INT8 embedding fallback reverted
+
+Background: 2026-04-20 I flipped the embedding model loader to prefer INT8 (`model_quantized.onnx`, 585MB) over FP32 for RAM savings on low-spec church PCs. Claimed "near-lossless per learning #28."
+
+**Bug**: the bundled INT8 file is a **generation ONNX export**, not feature-extraction. Python onnx inspection of `/Users/uxderrick-mac/Development/Manna/models/qwen3-embedding-0.6b-int8/model_quantized.onnx`:
+
+```
+inputs: input_ids, attention_mask, position_ids,
+        past_key_values.0.key, past_key_values.0.value, ... (56 KV cache tensors)
+outputs: present.0.key, present.0.value, ... (56 present-KV tensors)
+```
+
+vs FP32:
+```
+inputs: input_ids, attention_mask, position_ids
+outputs: last_hidden_state
+```
+
+Running the KV-cache model as an embedder produces wrong vectors silently (ort extracts whatever tensor is asked; semantics are broken). Retrieval quality would have degraded without any error.
+
+**Fix**: reverted loader priority in [src-tauri/src/lib.rs:354](src-tauri/src/lib.rs#L354) to FP32-first. INT8 is now a warn-logged fallback only. Proper fix path is to generate a real feature-extraction INT8 quantization:
+
+```bash
+optimum-cli onnxruntime quantize --arm64 \
+    --onnx_model models/qwen3-embedding-0.6b/ \
+    -o models/qwen3-embedding-0.6b-int8-fe/
+```
+
+Against the **feature-extraction** export (3 inputs, 1 output), not the generation export. That's tracked as a separate backlog item.
+
+### Follow-ups
+
+- [ ] Generate correct INT8 feature-extraction quantization for the 4× RAM win (church PCs still need it; upstream rhema ships the same broken INT8 file, so this would benefit them too)
+- [ ] Verify retrieval quality on a few paraphrased-verse test sentences now that we're definitely on FP32
+- [ ] Update README / setup docs to clarify which ONNX file is loaded (users who copy upstream's INT8 file will hit the same trap)

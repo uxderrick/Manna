@@ -14,12 +14,22 @@ Unscheduled work. Grouped by type. Items pulled from EXECUTION.md history and th
 - 17 new Vitest unit tests passing (expandSong × 7, songMeta × 4, searchSongs × 6)
 - Manual smoke test pending in live Tauri app
 
+### ~~Service Plan / Playlist (Feature B)~~ ✅ shipped 2026-04-21
+
+- Spec: [docs/superpowers/specs/2026-04-20-service-plan-design.md](superpowers/specs/2026-04-20-service-plan-design.md)
+- Plan: [docs/superpowers/plans/2026-04-20-service-plan.md](superpowers/plans/2026-04-20-service-plan.md)
+- Shipped: 5 item types (verse/song/announcement/section/blank), templates + per-session copies, click-to-activate + optional auto-advance, drag-reorder via HTML5 DnD, keyboard nav (↑/↓/Enter), template save/load, clone-from-past-session
+- 13 Rust CRUD methods, 13 Tauri commands, 11 Rust integration tests + 11 TS unit tests, all passing
+- Smoke-tested live — drag reorder, templates, auto-advance all work
+- Foundation for Features C (Slide Editor), E (Media Playback), F (Theme Editor) to slot into
+
 ### Planner tab
 
 - Not yet scoped
 - Intent: pre-service sermon outline → expected verses → pre-warm detection context
-- **Est:** needs brainstorming first (0.5 day) then 3–5 days build
-- **Priority:** low until Songs ships
+- Overlaps heavily with Service Plan now shipped — may reframe as "AI-assisted plan generation" layered on top
+- **Est:** needs brainstorming first (0.5 day) then 2–3 days build (reduced since Plan exists)
+- **Priority:** low until Slide Editor + Media ships
 
 ### Remote control web UI redesign
 
@@ -73,6 +83,14 @@ Unscheduled work. Grouped by type. Items pulled from EXECUTION.md history and th
 - Precompute for NIV, ESV, NASB, NKJV, NLT, AMP, etc. (9 bundled)
 - **Est:** 1–2 hr per translation on MPS (Qwen3), ~1 day total
 - **Priority:** low — current approach works, ref mapping is lossless
+
+### Proper INT8 feature-extraction quantization for Qwen3
+
+- Current state (2026-04-21): bundled `models/qwen3-embedding-0.6b-int8/model_quantized.onnx` is a **generation export** with KV cache inputs — wrong for embeddings. FP32 forced as default in loader. INT8 demoted to warn-logged fallback.
+- Fix: run `optimum-cli onnxruntime quantize --arm64` against the FP32 **feature-extraction** ONNX (3 inputs, 1 output), not the default generation export. Replace bundled INT8 file.
+- Payoff: 4× RAM savings on low-spec church PCs without quality loss (per learning #28), identical to upstream rhema's default deployment — but with a *correct* export this time.
+- **Est:** ~1 hr (quantize + verify inputs + commit)
+- **Priority:** medium — affects all church PCs, plus benefits upstream rhema users who inherit the same broken file
 
 ### ~~EmbeddingGemma-300M model swap~~ ❌ rejected 2026-04-19
 

@@ -310,3 +310,39 @@ useTauriEvent("x_ready", () => store.setActive(true))
 ```
 
 Test the state machine with a regression test that simulates the event sequence ([transcript-store.test.ts](../src/stores/transcript-store.test.ts)). Catches re-introduction of the local-optimism smell in PR review.
+
+## 28. INT8 Quantization Is Near-Lossless for Embedding Models — But Verify the ONNX Export First
+
+"FP32 is higher quality than INT8" is generation-model wisdom. For **embedding** models, INT8 dynamic quantization typically costs <1% MTEB — below benchmark noise. Qwen ships INT8 as the recommended deployment for their embedding family. Same for BGE, E5, and most MTEB-top models.
+
+**2026-04-21 caveat**: this is only true if the INT8 file was quantized from the **feature-extraction** ONNX export, not the generation export. Manna learned this the hard way — upstream rhema's `model_quantized.onnx` was quantized from the generation export (KV-cache inputs), so running it as an embedder silently produced wrong vectors. Always inspect the ONNX graph before switching runtime precision:
+
+```bash
+python3 -c "import onnx; m = onnx.load('model.onnx', load_external_data=False);
+  [print(i.name) for i in m.graph.input]"
+```
+
+Feature-extraction: `input_ids`, `attention_mask`, `position_ids` → `last_hidden_state`. Nothing else.
+Generation: same 3 inputs + 56 `past_key_values.*` tensors → 56 `present.*` tensors + `logits`. Do **not** use this for embeddings.
+
+**Cost model for embedding quantization:**
+
+| Dtype | Quality delta | Disk | RAM (0.6B param model) |
+|---|---|---|---|
+| FP32 | baseline | 1.1 GB | ~1 GB |
+| FP16 | <0.3% | 585 MB | ~600 MB |
+| INT8 (dynamic, ARM64) | <1% | 585 MB | ~300 MB |
+
+**Why embeddings quantize so well vs. generation:** embeddings output a single fixed-length vector via mean-pooling over token hidden states. Pooling averages away per-token quantization noise. Generation models compound quantization error across autoregressive steps — embeddings don't.
+
+**Practical consequence:** the default model choice on desktop should be INT8, not FP32, unless you've benchmarked your specific retrieval task and measured a real gap. Manna ran FP32 for a week (2026-04-13 → 2026-04-20) because the original loader preferred "quality." That cost 700 MB RAM and 500 MB disk for zero measured benefit.
+
+Precompute pipeline note: the DB-side embeddings file (`kjv-qwen3-0.6b.bin`) can be FP32 while the runtime query encoder is INT8 — the two dot-product together fine. No need to rebuild the embedding index when switching runtime precision.
+
+## 29. Check Upstream Defaults Before Cargo-Culting Your Own
+
+Manna forked rhema, changed the runtime model default from INT8 (upstream) to FP32 (fork) during initial setup. Reason: I assumed FP32 was "better" without benchmarking and without checking what upstream did. Took a week and a "low-spec hardware?" user question to catch.
+
+Rule: when forking a working system, **diff your changes against upstream before assuming the delta is an improvement.** Upstream maintainers usually have a reason. If they picked INT8 over FP32, there's likely a constraint you haven't thought about yet (in this case: low-spec hardware + near-lossless quality).
+
+Applies equally to: model quantization defaults, reconnect strategies, timeout values, keyterm counts, chunk sizes, confidence thresholds. All were tuned by upstream against real data. Don't silently override without evidence.
