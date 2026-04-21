@@ -272,6 +272,9 @@ pub fn run() {
             commands::songs::delete_song,
             commands::songs::search_genius,
             commands::songs::fetch_genius_lyrics,
+            commands::hymnals::seed_hymnal,
+            commands::hymnals::delete_hymnal_songs,
+            commands::hymnals::list_hymnal_counts,
             commands::analytics::get_aggregate_stats,
             commands::analytics::get_verse_frequency,
             commands::analytics::get_recent_sessions,
@@ -349,14 +352,16 @@ pub fn run() {
                 let qwen_emb = base_dir.join("embeddings/kjv-qwen3-0.6b.bin");
                 let qwen_ids = base_dir.join("embeddings/kjv-qwen3-0.6b-ids.bin");
 
-                // Prefer Qwen3 INT8 — 4× less RAM than FP32 for <1% MTEB loss.
-                // Matches upstream rhema default. FP32 only used if INT8 missing.
-                if qwen_int8.exists() && qwen_emb.exists() {
-                    log::info!("Using Qwen3 INT8 embedding model (quality, 1024-dim, 585MB)");
-                    (qwen_int8, qwen_tok, qwen_emb, qwen_ids)
-                } else if qwen_fp32.exists() && qwen_emb.exists() {
+                // Prefer Qwen3 FP32 — the bundled INT8 file is a generation
+                // export with KV-cache inputs (wrong for embeddings). See
+                // learning #7 + #28. FP32 is the only known-correct local option
+                // until we produce a proper INT8 feature-extraction quantization.
+                if qwen_fp32.exists() && qwen_emb.exists() {
                     log::info!("Using Qwen3 FP32 embedding model (quality, 1024-dim, 1.1GB)");
                     (qwen_fp32, qwen_tok, qwen_emb, qwen_ids)
+                } else if qwen_int8.exists() && qwen_emb.exists() {
+                    log::warn!("Falling back to Qwen3 INT8 — verify it's a feature-extraction export, not generation (KV cache inputs = wrong)");
+                    (qwen_int8, qwen_tok, qwen_emb, qwen_ids)
                 } else if minilm_model.exists() && minilm_emb.exists() {
                     log::info!("Using MiniLM-L6-v2 embedding model (fast, 384-dim)");
                     (minilm_model, minilm_tok, minilm_emb, minilm_ids)

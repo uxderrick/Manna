@@ -3,6 +3,7 @@ pub mod audio;
 pub mod bible;
 pub mod broadcast;
 pub mod detection;
+pub mod hymnals;
 pub mod remote;
 pub mod service_plan;
 pub mod session;
