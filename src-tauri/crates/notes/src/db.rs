@@ -129,6 +129,13 @@ impl SessionDb {
                 auto_advance_seconds    INTEGER
             );
             CREATE INDEX IF NOT EXISTS idx_plan_items_scope ON service_plan_items (plan_id, plan_kind, order_index);
+
+            CREATE TRIGGER IF NOT EXISTS trg_plan_items_session_cascade
+            AFTER DELETE ON sermon_sessions
+            BEGIN
+                DELETE FROM service_plan_items
+                WHERE plan_id = OLD.id AND plan_kind = 'session';
+            END;
             ",
         )?;
 
