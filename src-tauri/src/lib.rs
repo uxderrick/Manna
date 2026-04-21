@@ -1,5 +1,6 @@
 mod commands;
 mod events;
+mod hymnals;
 mod menu;
 mod state;
 
