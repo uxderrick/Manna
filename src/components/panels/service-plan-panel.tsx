@@ -1,16 +1,19 @@
 // src/components/panels/service-plan-panel.tsx
 import { useState, useEffect, useCallback } from "react"
-import { CalendarDaysIcon } from "lucide-react"
+import { CalendarDaysIcon, FolderIcon } from "lucide-react"
 import { useServicePlan } from "@/hooks/use-service-plan"
 import { activatePlanItem } from "@/components/service-plan/activation-router"
 import { AddItemMenu } from "@/components/service-plan/add-item-menu"
 import { ServicePlanItem } from "./service-plan-item"
 import { ServicePlanItemEditor } from "./service-plan-item-editor"
+import { TemplateManager } from "@/components/service-plan/template-manager"
+import { Button } from "@/components/ui/button"
 import type { PlanItem } from "@/types"
 
 export function ServicePlanPanel() {
   const { plan, activeItemId, pendingAdvanceDeadline, setActiveItem, reorderItem } = useServicePlan()
   const [editing, setEditing] = useState<PlanItem | null>(null)
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false)
 
   /* Keyboard: ↑/↓ navigate, Enter activate, Del delete. */
   useEffect(() => {
@@ -66,7 +69,18 @@ export function ServicePlanPanel() {
         <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Service Plan
         </span>
-        <AddItemMenu />
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => setTemplateManagerOpen(true)}
+          >
+            <FolderIcon className="size-3.5" />
+            Templates
+          </Button>
+          <AddItemMenu />
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
@@ -90,6 +104,7 @@ export function ServicePlanPanel() {
       </div>
 
       <ServicePlanItemEditor item={editing} onClose={() => setEditing(null)} />
+      <TemplateManager open={templateManagerOpen} onOpenChange={setTemplateManagerOpen} />
     </div>
   )
 }
