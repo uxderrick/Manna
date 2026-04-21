@@ -15,6 +15,7 @@ import { SearchPanel } from "@/components/panels/search-panel"
 import { DetectionsPanel } from "@/components/panels/detections-panel"
 import { QueuePanel } from "@/components/panels/queue-panel"
 import { CrossRefPanel } from "@/components/panels/crossref-panel"
+import { ServicePlanPanel } from "@/components/panels/service-plan-panel"
 // PlannerPanel merged into QueuePanel — search + queue in one place
 import { BroadcastMonitor } from "@/components/broadcast/broadcast-monitor"
 import { HistoryPanel } from "@/components/panels/history-panel"
@@ -81,6 +82,7 @@ const TAB_PANEL_MAP: Record<string, PanelId> = {
   sessions: "left",
   detections: "center",
   analytics: "center",
+  plan: "right",
   queue: "right",
   "cross-refs": "right",
   planner: "right",
@@ -316,6 +318,7 @@ export function Workspace() {
             activeTab={panelTabs.tabs.right}
             onTabChange={(id) => panelTabs.setTab("right", id)}
             tabs={[
+              { id: "plan", label: "Plan", content: <ServicePlanPanel /> },
               { id: "queue", label: "Queue", content: <QueuePanel /> },
               { id: "history", label: "History", content: <HistoryPanel /> },
               { id: "cross-refs", label: "Cross-refs", content: <CrossRefPanel /> },
