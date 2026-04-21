@@ -242,6 +242,19 @@ pub fn run() {
             commands::analytics::get_verse_frequency,
             commands::analytics::get_recent_sessions,
             commands::analytics::get_session_detection_count,
+            commands::service_plan::plan_list_templates,
+            commands::service_plan::plan_create_template,
+            commands::service_plan::plan_rename_template,
+            commands::service_plan::plan_update_template_notes,
+            commands::service_plan::plan_delete_template,
+            commands::service_plan::plan_get,
+            commands::service_plan::plan_add_item,
+            commands::service_plan::plan_update_item,
+            commands::service_plan::plan_reorder_item,
+            commands::service_plan::plan_delete_item,
+            commands::service_plan::plan_load_template_into_session,
+            commands::service_plan::plan_clone_from_session,
+            commands::service_plan::plan_save_session_as_template,
         ])
         .setup(|app| {
             use tauri::Manager;
