@@ -19,47 +19,37 @@ from pathlib import Path
 
 
 def sign(installer: Path) -> str:
-    """Run `tauri signer sign` on an installer; return the detached signature."""
-    key_content = os.environ["TAURI_SIGNING_PRIVATE_KEY"]
-    password = os.environ["TAURI_SIGNING_PRIVATE_KEY_PASSWORD"]
-    key_path = Path(".tauri-signing-key")
-    key_path.write_text(key_content)
-    try:
-        result = subprocess.run(
-            [
-                "bun",
-                "x",
-                "tauri",
-                "signer",
-                "sign",
-                "--private-key",
-                str(key_path),
-                "--password",
-                password,
-                str(installer),
-            ],
-            capture_output=True,
-            text=True,
+    """Run `tauri signer sign` on an installer; return the detached signature.
+
+    The Tauri v2 signer reads TAURI_SIGNING_PRIVATE_KEY (raw key content) and
+    TAURI_SIGNING_PRIVATE_KEY_PASSWORD from the environment automatically, so
+    we don't pass --private-key (which expects content, not a path — passing a
+    path makes the base64 decoder choke on '.').
+    """
+    if "TAURI_SIGNING_PRIVATE_KEY" not in os.environ:
+        raise RuntimeError("TAURI_SIGNING_PRIVATE_KEY env var is required")
+    if "TAURI_SIGNING_PRIVATE_KEY_PASSWORD" not in os.environ:
+        raise RuntimeError("TAURI_SIGNING_PRIVATE_KEY_PASSWORD env var is required")
+
+    result = subprocess.run(
+        ["bun", "x", "tauri", "signer", "sign", str(installer)],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"[signer] FAILED to sign {installer}", file=sys.stderr)
+        print(f"[signer] stdout:\n{result.stdout}", file=sys.stderr)
+        print(f"[signer] stderr:\n{result.stderr}", file=sys.stderr)
+        raise RuntimeError(f"tauri signer sign exit={result.returncode}")
+    sig_path = installer.with_suffix(installer.suffix + ".sig")
+    if not sig_path.exists():
+        for line in result.stdout.splitlines():
+            if line.strip().startswith("Public signature:"):
+                return line.split(":", 1)[1].strip()
+        raise RuntimeError(
+            f"Signature not found at {sig_path}. Stdout was:\n{result.stdout}"
         )
-        if result.returncode != 0:
-            print(f"[signer] FAILED to sign {installer}", file=sys.stderr)
-            print(f"[signer] stdout:\n{result.stdout}", file=sys.stderr)
-            print(f"[signer] stderr:\n{result.stderr}", file=sys.stderr)
-            raise RuntimeError(f"tauri signer sign exit={result.returncode}")
-        sig_path = installer.with_suffix(installer.suffix + ".sig")
-        if not sig_path.exists():
-            # Some versions write to <installer>.sig alongside, others return the sig in stdout.
-            # Try parsing stdout for a minisign signature line as fallback.
-            for line in result.stdout.splitlines():
-                if line.strip().startswith("Public signature:"):
-                    return line.split(":", 1)[1].strip()
-            raise RuntimeError(
-                f"Signature not found at {sig_path}. Stdout was:\n{result.stdout}"
-            )
-        return sig_path.read_text().strip()
-    finally:
-        if key_path.exists():
-            key_path.unlink()
+    return sig_path.read_text().strip()
 
 
 def main() -> int:
