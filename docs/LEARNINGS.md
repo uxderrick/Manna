@@ -346,3 +346,110 @@ Manna forked rhema, changed the runtime model default from INT8 (upstream) to FP
 Rule: when forking a working system, **diff your changes against upstream before assuming the delta is an improvement.** Upstream maintainers usually have a reason. If they picked INT8 over FP32, there's likely a constraint you haven't thought about yet (in this case: low-spec hardware + near-lossless quality).
 
 Applies equally to: model quantization defaults, reconnect strategies, timeout values, keyterm counts, chunk sizes, confidence thresholds. All were tuned by upstream against real data. Don't silently override without evidence.
+
+## 30. `bun run tauri -- <args>` Forwards `--` Literally
+
+`bun run <script>` and `npm run <script>` differ on the `--` separator. npm strips the first `--` before invoking the script. Bun v1.3 forwards it literally into the script's argv.
+
+Consequence: `bun run tauri build -- --config path` runs tauri-cli with `--config path` AFTER a `--`. Tauri's clap parser sees the `--` as "end of tauri options" and treats what follows as cargo flag passthrough — either fails (cargo doesn't know `--config`) or Tauri's fallback parser treats the value as inline TOML content.
+
+Rule:
+
+- Tauri-cli flags (`--config`, `--bundles`, `--features`) go BEFORE any `--`.
+- Cargo flags (`--no-default-features`, `--release`) go AFTER a `--`.
+
+Working CI invocation:
+
+```bash
+bun run tauri build --bundles nsis --config src-tauri/tauri.conf.minimal.json -- --no-default-features
+```
+
+References: [tauri#13252](https://github.com/tauri-apps/tauri/issues/13252), [bun#13984](https://github.com/oven-sh/bun/issues/13984).
+
+## 31. GitHub `macos-14` Hosted Runners Cap MPS Allocations Regardless of RAM
+
+GitHub Actions' hosted `macos-14` (Apple Silicon) runners advertise 7 GB RAM. In practice, PyTorch MPS backend OOMs around 1 GB — `PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0` has no effect because the cap is imposed by the hosted runtime layer, not PyTorch's own watermark logic. Confirmed by [actions/runner-images#9918](https://github.com/actions/runner-images/issues/9918).
+
+Rule: **don't run GPU-heavy ML precompute on hosted macos runners.** Options:
+
+1. Skip that job on CI; ship output as a committed artifact OR run locally + upload manually.
+2. Use `macos-14-xlarge` paid runner (~$0.16/min) with real MPS.
+3. Switch to `ubuntu-latest` with CPU torch — 16 GB RAM, 1.5–3 hr for 31K verses on CPU with `batch_size=32` + FP16, well under 6 hr timeout.
+
+Manna chose option 1: `macos-full` flavor skipped on CI; local `setup:semantic` generates embeddings on user's own Mac.
+
+## 32. `--no-default-features` Only Affects the Crate You're Building
+
+In `src-tauri/Cargo.toml`:
+
+```toml
+rhema-detection = { path = "crates/detection", features = ["onnx"] }
+```
+
+…unconditionally requests `onnx` on `rhema-detection`, **regardless** of what features the `app` crate has enabled. `cargo build --no-default-features` on `app` disables `app`'s defaults but the explicit `features = ["onnx"]` on the dep still fires.
+
+Fix: to make `onnx` truly toggleable, feature-gate it at both crate levels:
+
+```toml
+rhema-detection = { path = "crates/detection", default-features = false, features = ["vector-search"] }
+
+[features]
+default = ["whisper", "onnx"]
+onnx = ["rhema-detection/onnx"]
+```
+
+Now `app`'s `onnx` feature enables `rhema-detection/onnx`. `--no-default-features` on `app` drops both.
+
+Rule: **any transitive feature you might ever want to disable needs to be feature-gated at every crate boundary.** Otherwise `--no-default-features` only looks like it works — it won't disable deps requested with explicit `features = [...]` in the manifest.
+
+Manna's Windows CI needed this to avoid a C++ CRT mismatch (`esaxx-rs` in tokenizers uses `/MT`, `whisper-rs-sys` uses `/MD` — LNK1319). Disabling `whisper` alone wasn't enough because `tokenizers` came in through `onnx`.
+
+## 33. Tauri Signer: `--private-key` Takes Content, Not Path
+
+Tauri v2's `tauri signer sign --private-key <VALUE>` expects the **raw base64 key content**, not a file path. Passing a file path causes `Invalid symbol 46, offset 0` — symbol 46 is ASCII `.`, which appears in any path with `.tauri-signing-key`.
+
+Separate flag `-f/--private-key-path` takes a file path.
+
+Canonical CI pattern: don't pass the key as a CLI arg at all. Set env vars:
+
+- `TAURI_SIGNING_PRIVATE_KEY` — raw base64 key content
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — passphrase
+
+Tauri signer picks them up automatically. Same pattern as `tauri-apps/tauri-action`. Subprocess inherits env vars from GitHub Actions secrets, no temp files.
+
+Rule: when a CLI has both `--X` (content) and `--X-path` (file path) variants, prefer the env-var path for CI secrets.
+
+## 34. Tauri MSI Bundler Rejects SemVer Pre-Release Tags
+
+Tauri's Windows MSI bundler uses a 4-part numeric version (`X.Y.Z.W`). Pre-release tags like `0.1.0-rc1`, `0.1.0-beta.2` fail with:
+
+```
+optional pre-release identifier in app version must be numeric-only
+and cannot be greater than 65535 for msi target
+```
+
+NSIS, DMG, AppImage all accept SemVer pre-releases. MSI is the outlier.
+
+Rule: for pre-release CI (tags like `v*-rc*`), restrict to non-MSI bundles:
+
+```bash
+tauri build --bundles nsis  # Windows
+tauri build --bundles dmg   # macOS
+```
+
+Or strip pre-release tag on Windows via pre-step rewriting `tauri.conf.json`. NSIS-only is simpler.
+
+## 35. macOS 14 Removed the Right-Click Gatekeeper Bypass
+
+Before macOS 14, users could right-click an unsigned app → "Open" → "Open Anyway" → launch. macOS 14 Sequoia removed that. Unsigned apps now show "Manna is damaged and can't be opened" with no bypass button.
+
+The quarantine-removal trick still works but needs two commands:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Manna.app
+codesign --force --deep --sign - /Applications/Manna.app
+```
+
+First strips the quarantine attribute. Second applies an ad-hoc self-signature (`-` = empty identity = local self-sign, no Apple cert needed). Together they satisfy Gatekeeper without Apple Developer Program membership.
+
+Rule: for unsigned DMG distribution on macOS 14+, document BOTH commands in the install runbook. `xattr` alone is insufficient. Paid alternative: Apple Developer Program ($99/yr) → real signature + notarization → no warning.
