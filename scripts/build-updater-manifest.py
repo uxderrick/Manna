@@ -25,7 +25,7 @@ def sign(installer: Path) -> str:
     key_path = Path(".tauri-signing-key")
     key_path.write_text(key_content)
     try:
-        subprocess.run(
+        result = subprocess.run(
             [
                 "bun",
                 "x",
@@ -38,13 +38,24 @@ def sign(installer: Path) -> str:
                 password,
                 str(installer),
             ],
-            check=True,
             capture_output=True,
             text=True,
         )
+        if result.returncode != 0:
+            print(f"[signer] FAILED to sign {installer}", file=sys.stderr)
+            print(f"[signer] stdout:\n{result.stdout}", file=sys.stderr)
+            print(f"[signer] stderr:\n{result.stderr}", file=sys.stderr)
+            raise RuntimeError(f"tauri signer sign exit={result.returncode}")
         sig_path = installer.with_suffix(installer.suffix + ".sig")
         if not sig_path.exists():
-            raise RuntimeError(f"Expected signature at {sig_path}, not found")
+            # Some versions write to <installer>.sig alongside, others return the sig in stdout.
+            # Try parsing stdout for a minisign signature line as fallback.
+            for line in result.stdout.splitlines():
+                if line.strip().startswith("Public signature:"):
+                    return line.split(":", 1)[1].strip()
+            raise RuntimeError(
+                f"Signature not found at {sig_path}. Stdout was:\n{result.stdout}"
+            )
         return sig_path.read_text().strip()
     finally:
         if key_path.exists():
