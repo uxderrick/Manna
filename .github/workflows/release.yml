@@ -45,6 +45,11 @@ jobs:
         shell: bash
         env:
           FLAVOR: ${{ matrix.flavor }}
+          # Disable PyTorch MPS watermark — GitHub macos-14 runners have 7 GB RAM
+          # but MPS caps allocations at ~50% by default, triggering OOM during
+          # Qwen3 KJV precompute. 0.0 removes the cap (may OOM on truly tiny boxes,
+          # but CI has headroom). No effect on non-macOS runners.
+          PYTORCH_MPS_HIGH_WATERMARK_RATIO: "0.0"
         run: |
           if [ "$FLAVOR" = "full" ]; then
             bun run setup:all
@@ -60,7 +65,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          bun run tauri build -- --config "src-tauri/tauri.conf.${FLAVOR}.json"
+          bun run tauri build --config "src-tauri/tauri.conf.${FLAVOR}.json"
 
       - name: Rename installer (macOS)
         if: runner.os == 'macOS'
