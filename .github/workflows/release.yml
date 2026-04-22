@@ -167,6 +167,11 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           NOTES_CONTENT="$(cat release-notes.md)"
           for flavor in minimal full; do
+            # Skip flavors with no installers (e.g. full is skipped on CI for v1).
+            if ! ls installers/**/*-"$flavor"-*.dmg installers/**/*-"$flavor"-*.exe 2>/dev/null | grep -q .; then
+              echo "No installers for flavor=$flavor — skipping manifest"
+              continue
+            fi
             python3 scripts/build-updater-manifest.py \
               --version "$VERSION" \
               --flavor "$flavor" \
@@ -183,6 +188,7 @@ jobs:
             installers/**/*.exe
             latest-minimal.json
             latest-full.json
+          fail_on_unmatched_files: false
           body_path: release-notes.md
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
