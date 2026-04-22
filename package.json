@@ -23,6 +23,9 @@
     "download:whisper": "bun run data/download-whisper-model.ts",
     "download:ndi-sdk": "bun run data/download-ndi-sdk.ts",
     "setup:all": "bun run data/prepare-embeddings.ts",
+    "setup:minimal": "bun run data/prepare-embeddings.ts --phases=venv,bible-data,build-db,export-verses",
+    "setup:semantic": "bun run data/prepare-embeddings.ts --phases=onnx,precompute",
+    "setup:whisper": "bun run data/prepare-embeddings.ts --phases=whisper",
     "prep:hymnals": "bun scripts/prep-hymnals.ts"
   },
   "dependencies": {
