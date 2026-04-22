@@ -18,6 +18,22 @@ fn get_flavor() -> &'static str {
     FLAVOR
 }
 
+/// Resolve a bundled resource path. Checks `resource_dir/<rel>` first
+/// (production install); falls back to `$CARGO_MANIFEST_DIR/../<rel>` (dev mode).
+fn resolve_resource(app: &tauri::App, rel: &str) -> std::path::PathBuf {
+    use tauri::Manager;
+    app.path()
+        .resource_dir()
+        .ok()
+        .map(|p| p.join(rel))
+        .filter(|p| p.exists())
+        .unwrap_or_else(|| {
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("..")
+                .join(rel)
+        })
+}
+
 #[derive(serde::Deserialize)]
 struct NormalizedHymnalJson {
     hymns: Vec<NormalizedHymn>,
@@ -308,17 +324,10 @@ pub fn run() {
         .setup(|app| {
             use tauri::Manager;
 
-            // Try resource dir first (production), then dev fallback
-            let db_path = app
-                .path()
-                .resource_dir()
-                .map(|p| p.join("rhema.db"))
-                .ok()
-                .filter(|p| p.exists())
-                .unwrap_or_else(|| {
-                    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                        .join("../data/rhema.db")
-                });
+            // Resource-dir first (production), dev fallback via resolve_resource.
+            // Installer places rhema.db at $RESOURCE_DIR/data/rhema.db per the
+            // per-flavor tauri.conf.*.json resources block.
+            let db_path = resolve_resource(app, "data/rhema.db");
 
             if db_path.exists() {
                 let bible_db = rhema_bible::BibleDb::open(&db_path)
@@ -347,22 +356,21 @@ pub fn run() {
                 log::warn!("Bible database not found at {}", db_path.display());
             }
 
-            // Try to load ONNX embedding model and pre-computed verse index
-            // Supports multiple models: MiniLM (fast, 80MB) or Qwen3 (quality, 585MB+)
-            let base_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
-            let (model_path, tokenizer_path, embeddings_path, ids_path) = {
-                // Try MiniLM first (fast, small, pre-built ONNX)
-                let minilm_model = base_dir.join("models/all-MiniLM-L6-v2/onnx/model.onnx");
-                let minilm_tok = base_dir.join("models/all-MiniLM-L6-v2/tokenizer.json");
-                let minilm_emb = base_dir.join("embeddings/kjv-minilm-l6-v2.bin");
-                let minilm_ids = base_dir.join("embeddings/kjv-minilm-l6-v2-ids.bin");
+            // Try to load ONNX embedding model and pre-computed verse index.
+            // In production installs, resources live under $RESOURCE_DIR per the
+            // flavor config; in dev mode resolve_resource falls back to project root.
+            let minilm_model = resolve_resource(app, "models/all-MiniLM-L6-v2/onnx/model.onnx");
+            let minilm_tok = resolve_resource(app, "models/all-MiniLM-L6-v2/tokenizer.json");
+            let minilm_emb = resolve_resource(app, "embeddings/kjv-minilm-l6-v2.bin");
+            let minilm_ids = resolve_resource(app, "embeddings/kjv-minilm-l6-v2-ids.bin");
 
-                // Then Qwen3 INT8/FP32
-                let qwen_int8 = base_dir.join("models/qwen3-embedding-0.6b-int8/model_quantized.onnx");
-                let qwen_fp32 = base_dir.join("models/qwen3-embedding-0.6b/model.onnx");
-                let qwen_tok = base_dir.join("models/qwen3-embedding-0.6b/tokenizer.json");
-                let qwen_emb = base_dir.join("embeddings/kjv-qwen3-0.6b.bin");
-                let qwen_ids = base_dir.join("embeddings/kjv-qwen3-0.6b-ids.bin");
+            let qwen_int8 = resolve_resource(app, "models/qwen3-embedding-0.6b-int8/model_quantized.onnx");
+            let qwen_fp32 = resolve_resource(app, "models/qwen3-embedding-0.6b/model.onnx");
+            let qwen_tok = resolve_resource(app, "models/qwen3-embedding-0.6b/tokenizer.json");
+            let qwen_emb = resolve_resource(app, "embeddings/kjv-qwen3-0.6b.bin");
+            let qwen_ids = resolve_resource(app, "embeddings/kjv-qwen3-0.6b-ids.bin");
+
+            let (model_path, tokenizer_path, embeddings_path, ids_path) = {
 
                 // Prefer Qwen3 FP32 — the bundled INT8 file is a generation
                 // export with KV-cache inputs (wrong for embeddings). See
