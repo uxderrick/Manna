@@ -9,6 +9,15 @@ use std::sync::Mutex;
 
 use hymnals::{HymnalDef, HYMNALS};
 
+/// Compile-time flavor marker ("minimal" or "full"). Set by `build.rs` from
+/// the `MANNA_FLAVOR` env var at build time; defaults to "minimal".
+pub const FLAVOR: &str = env!("MANNA_FLAVOR");
+
+#[tauri::command]
+fn get_flavor() -> &'static str {
+    FLAVOR
+}
+
 #[derive(serde::Deserialize)]
 struct NormalizedHymnalJson {
     hymns: Vec<NormalizedHymn>,
@@ -215,6 +224,7 @@ pub fn run() {
         }))
         .invoke_handler(tauri::generate_handler![
             quit_app,
+            get_flavor,
             commands::bible::list_translations,
             commands::bible::list_books,
             commands::bible::get_chapter,
