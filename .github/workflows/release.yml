@@ -74,7 +74,8 @@ jobs:
           # avoid esaxx-rs/whisper-rs-sys CRT mismatch LNK1319). macOS keeps
           # whisper since users may want local STT on full flavor later.
           if [ "$RUNNER_OS" = "Windows" ]; then
-            bun run tauri build --config "src-tauri/tauri.conf.${FLAVOR}.json" --no-default-features
+            # --no-default-features is a cargo flag, not Tauri's. Forward via --.
+            bun run tauri build --config "src-tauri/tauri.conf.${FLAVOR}.json" -- --no-default-features
           else
             bun run tauri build --config "src-tauri/tauri.conf.${FLAVOR}.json"
           fi
