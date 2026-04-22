@@ -23,13 +23,16 @@ Unscheduled work. Grouped by type. Items pulled from EXECUTION.md history and th
 - Smoke-tested live — drag reorder, templates, auto-advance all work
 - Foundation for Features C (Slide Editor), E (Media Playback), F (Theme Editor) to slot into
 
-### Planner tab
+### ~~Planner tab~~ ✅ shipped
 
-- Not yet scoped
-- Intent: pre-service sermon outline → expected verses → pre-warm detection context
-- Overlaps heavily with Service Plan now shipped — may reframe as "AI-assisted plan generation" layered on top
-- **Est:** needs brainstorming first (0.5 day) then 2–3 days build (reduced since Plan exists)
-- **Priority:** low until Slide Editor + Media ships
+- Built: [src/components/panels/planner-panel.tsx](../src/components/panels/planner-panel.tsx), wired in workspace
+
+### ~~Theme Editor (Feature F)~~ ✅ shipped
+
+- Built: [src/components/broadcast/theme-designer.tsx](../src/components/broadcast/theme-designer.tsx) (fullscreen dialog), [theme-library.tsx](../src/components/broadcast/theme-library.tsx), [design-canvas.tsx](../src/components/broadcast/design-canvas.tsx) (live preview), [properties-panel.tsx](../src/components/broadcast/properties-panel.tsx) with split modules (background / layout / text)
+- Backend: `save_custom_theme`, `list_custom_themes`, `delete_custom_theme` Tauri commands
+- Full BroadcastTheme schema editable (background / textBox / verseText / divider / verseNumbers / reference / layout / transition)
+- Built-ins + custom themes, draft/save/discard workflow
 
 ### Remote control web UI redesign
 
@@ -38,14 +41,13 @@ Unscheduled work. Grouped by type. Items pulled from EXECUTION.md history and th
 - **Est:** 2–3 days
 - **Priority:** low
 
-### DMG / EXE release pipeline
+### ~~DMG / EXE release pipeline~~ ✅ shipped 2026-04-22
 
-- GitHub Actions workflow to bundle signed installers
-- Must bundle `rhema.db` (Bible + cross-refs) inside app
-- Prompt for API key on first launch
-- Make ONNX semantic search optional (skip-download path for smaller installer)
-- **Est:** 3–5 days (cert setup, notarization for macOS, Windows code signing)
-- **Priority:** high — blocks church distribution
+- Spec: `docs/superpowers/specs/2026-04-22-release-pipeline-design.md`
+- Plan: `docs/superpowers/plans/2026-04-22-release-pipeline.md`
+- Shipped: GitHub Actions matrix build (macOS-minimal + macOS-full + windows-minimal), unsigned DMG + NSIS EXE, Tauri auto-updater with flavor-aware endpoints, git-cliff release notes, welcome wizard step 3 (API key). Zero cert cost. Tag → ~1hr → published release.
+- See `docs/RELEASE.md` for maintainer runbook.
+- Future: Apple Developer ($99/yr) + Windows EV cert ($400/yr) to eliminate Gatekeeper/SmartScreen warnings; Linux builds; delta updates; Windows-full (needs cross-built embeddings).
 
 ### ~~Simplified setup docs~~ ✅ shipped 2026-04-22
 
