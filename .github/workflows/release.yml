@@ -14,10 +14,14 @@ jobs:
         include:
           - os: macos-14
             flavor: minimal
-          - os: macos-14
-            flavor: full
           - os: windows-latest
             flavor: minimal
+          # macos-full skipped for v1 — GitHub macos-14 hosted runners cap MPS
+          # allocations at ~1 GB regardless of 7 GB physical RAM, causing OOM
+          # during Qwen3 KJV precompute. Options for later:
+          #  (a) macos-14-xlarge paid runner with real MPS
+          #  (b) manual local build + upload full DMG as release asset
+          #  (c) switch to CPU path with smaller batch_size (still likely times out)
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -62,10 +66,18 @@ jobs:
         env:
           MANNA_FLAVOR: ${{ matrix.flavor }}
           FLAVOR: ${{ matrix.flavor }}
+          RUNNER_OS: ${{ runner.os }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          bun run tauri build --config "src-tauri/tauri.conf.${FLAVOR}.json"
+          # Windows: disable default Cargo features (drops 'whisper' feature to
+          # avoid esaxx-rs/whisper-rs-sys CRT mismatch LNK1319). macOS keeps
+          # whisper since users may want local STT on full flavor later.
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            bun run tauri build --config "src-tauri/tauri.conf.${FLAVOR}.json" --no-default-features
+          else
+            bun run tauri build --config "src-tauri/tauri.conf.${FLAVOR}.json"
+          fi
 
       - name: Rename installer (macOS)
         if: runner.os == 'macOS'
