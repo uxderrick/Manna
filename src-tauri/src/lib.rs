@@ -394,6 +394,7 @@ pub fn run() {
                 }
             };
 
+            #[cfg(feature = "onnx")]
             if model_path.exists() && tokenizer_path.exists() {
                 use rhema_detection::semantic::embedder::TextEmbedder;
                 use rhema_detection::semantic::index::VectorIndex;
@@ -430,6 +431,13 @@ pub fn run() {
                 }
             } else {
                 log::info!("ONNX model not found. Semantic search disabled. Run 'bun run download:model' to download.");
+            }
+
+            #[cfg(not(feature = "onnx"))]
+            {
+                // Keep compiler happy about unused path bindings when onnx is disabled.
+                let _ = (&model_path, &tokenizer_path, &embeddings_path, &ids_path);
+                log::info!("Built without 'onnx' feature — semantic detection disabled.");
             }
 
             // Seed hymnals into songs table — respects enabledHymnals setting,
