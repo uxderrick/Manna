@@ -47,12 +47,12 @@ Unscheduled work. Grouped by type. Items pulled from EXECUTION.md history and th
 - **Est:** 3–5 days (cert setup, notarization for macOS, Windows code signing)
 - **Priority:** high — blocks church distribution
 
-### Simplified setup docs
+### ~~Simplified setup docs~~ ✅ shipped 2026-04-22
 
-- Current setup script takes 2.5+ hours (Qwen3 precompute)
-- Add: timeline/bandwidth expectations, GPU detection warning, "minimal setup" path skipping ONNX + embeddings precompute
-- **Est:** 1 day
-- **Priority:** medium
+- Spec: `docs/superpowers/specs/2026-04-21-simplified-setup-design.md`
+- Plan: `docs/superpowers/plans/2026-04-21-simplified-setup.md`
+- Shipped: `setup:minimal` (10 min, no GPU) + `setup:semantic` (GPU required, aborts on CPU unless `FORCE_CPU=1`) + `setup:whisper` + `setup:all` (unchanged). `--phases=<csv>` flag on orchestrator for per-phase control. GPU pre-flight in precompute phase detects MPS/CUDA/CPU and gates accordingly.
+- README rewritten: decision matrix + feature matrix + minimal-first flow + Advanced per-phase reference
 
 ### Cloud hosting (thin client + cloud hybrid)
 

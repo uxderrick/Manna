@@ -76,12 +76,18 @@ Rhema ships a fixed 4-column CSS grid with 6 hardcoded panels. Manna replaces th
 - [Bun](https://bun.sh/) — runtime for scripts + package manager
 - [Rust](https://rustup.rs/) toolchain (stable, 1.77.2+)
 - [Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/) — platform-specific system deps
-- [Python 3](https://www.python.org/) — for downloading copyrighted translations and embedding model export
+- [Python 3.11+](https://www.python.org/) — managed automatically by Phase 1 of any setup recipe
 - **One STT provider**:
   - [Deepgram API key](https://deepgram.com/) — Nova-3, keyword boosting
   - [AssemblyAI API key](https://assemblyai.com/) — Universal-Streaming v3, cheaper ($0.15 / hr), strong proper-noun accuracy
-  - Or Whisper (no key, runs locally)
+  - Or Whisper (no key, runs locally — `bun run setup:whisper`)
 - [Anthropic API key](https://console.anthropic.com/) — optional, powers the AI sermon summary
+
+### Resource requirements
+
+- **Disk:** 2 GB minimal, 6 GB full (Qwen3 ONNX + KJV embeddings + Whisper model)
+- **Network:** ~2 GB download minimal, ~4 GB full
+- **GPU:** required only for `setup:semantic`. Auto-detected (MPS on Mac, CUDA on Linux). CPU fallback requires explicit `FORCE_CPU=1` — takes 10+ hours for KJV precompute.
 
 ---
 
@@ -93,23 +99,61 @@ cd manna
 bun install
 ```
 
-### Quick setup
+### Which setup do I need?
 
-One command sets up everything — Python virtual environment, Bible data, copyrighted translations, database, ONNX model, and precomputed embeddings:
+| Scenario | Recipe | Time | Disk |
+|----------|--------|------|------|
+| Church PC (no GPU) | `bun run setup:minimal` | ~10 min | 2 GB |
+| Mac M1/M2/M3 (MPS) | `bun run setup:all` | ~45 min | 6 GB |
+| Linux + NVIDIA | `bun run setup:all` | ~30 min | 6 GB |
+| CI / quick dev check | `bun run setup:minimal` | ~10 min | 2 GB |
+
+### What each setup gives you
+
+| Feature | minimal | + semantic | + whisper |
+|---------|---------|-----------|-----------|
+| Bible lookup (search, nav) | ✓ | ✓ | ✓ |
+| Direct reference detection ("John 3:16") | ✓ | ✓ | ✓ |
+| Quotation detection (exact KJV wording) | ✓ | ✓ | ✓ |
+| Semantic detection (paraphrase, loose quotes) | — | ✓ | ✓ |
+| Cloud STT (Deepgram, AssemblyAI) | ✓ | ✓ | ✓ |
+| Local Whisper STT (offline, free) | — | — | ✓ |
+
+### Minimal install (~10 min)
+
+```bash
+bun run setup:minimal
+bun run tauri dev
+```
+
+App is fully functional — direct + quotation verse detection active. For semantic detection or local Whisper STT, run the optional upgrades below.
+
+### Optional: semantic detection (~30–45 min on GPU)
+
+Adds Qwen3 ONNX precompute for paraphrase detection. **Requires GPU** — pre-flight check aborts on CPU.
+
+```bash
+bun run setup:semantic
+# CPU fallback (not recommended, 10+ hours):
+FORCE_CPU=1 bun run setup:semantic
+```
+
+### Optional: local Whisper STT (~3 min, 1 GB)
+
+Downloads Whisper model for offline transcription. Alternative to cloud STT keys.
+
+```bash
+bun run setup:whisper
+```
+
+### Full setup (all phases)
+
+Runs minimal + semantic + whisper + copyrighted BibleGateway translations in one go.
 
 ```bash
 bun run setup:all
+bun run setup:all --force   # re-run even if artifacts exist
 ```
-
-This runs 7 phases in sequence, skipping any that are already complete:
-
-1. Python environment setup (`.venv` + all pip dependencies)
-2. Download open-source Bible data (KJV, Spanish, French, Portuguese + cross-references)
-3. Download copyrighted translations from BibleGateway (NIV, ESV, NASB, NKJV, NLT, AMP)
-4. Build SQLite Bible database (`data/rhema.db` with FTS5 + cross-references)
-5. Download & export ONNX model (Qwen3-Embedding-0.6B) + INT8 quantization
-6. Export KJV verses to JSON for embedding
-7. Precompute verse embeddings (auto-selects GPU if available, falls back to ONNX CPU)
 
 ### Environment
 
@@ -143,18 +187,28 @@ bun run tauri dev
 bun run tauri build
 ```
 
-### Running individual setup steps
+### Advanced: running individual phases
 
-Each phase can be run independently:
+The orchestrator accepts a `--phases=<csv>` flag. Valid phase ids:
+
+| Phase | id | What it does |
+|-------|----|---|
+| 1 | `venv` | Python `.venv` + pip deps |
+| 2 | `bible-data` | Download scrollmapper + cross-refs |
+| 3 | `biblegateway` | Download copyrighted translations (NIV, ESV, etc.) |
+| 4 | `build-db` | Build `data/rhema.db` (SQLite + FTS5) |
+| 5 | `onnx` | Download + quantize Qwen3 ONNX model |
+| 6 | `export-verses` | Export KJV verses → JSON |
+| 7 | `precompute` | Compute KJV embeddings (GPU required) |
+| 8 | `whisper` | Download Whisper STT model |
 
 ```bash
-bun run download:bible-data            # Public domain translations + cross-refs
-python3 data/download-biblegateway.py  # Copyrighted translations (needs .venv)
-bun run build:bible                    # Build SQLite database
-bun run download:model                 # Download & export ONNX model
-bun run export:verses                  # Export verses to JSON
-python3 data/precompute-embeddings.py  # Precompute embeddings (GPU or ONNX fallback)
+bun run setup:all --phases=venv,bible-data,build-db
+bun run setup:all --phases=biblegateway   # add NIV/ESV/etc. later
+bun run setup:all --force                 # bypass artifact idempotency
 ```
+
+Individual legacy scripts (`download:bible-data`, `build:bible`, `download:model`, `export:verses`, `download:whisper`) still work if you prefer running them directly.
 
 ---
 
@@ -244,7 +298,10 @@ manna/
 
 | Script | Description |
 |---|---|
-| `setup:all` | **Full setup** — runs all data/model/embedding phases (idempotent) |
+| `setup:minimal` | **Recommended first run** — Python venv + Bible data + DB + verse export (~10 min, no GPU) |
+| `setup:semantic` | Add ONNX model + KJV embedding precompute (~30–45 min, GPU required) |
+| `setup:whisper` | Add offline Whisper STT model (~3 min, 1 GB) |
+| `setup:all` | **Full setup** — all 8 phases (idempotent) |
 | `dev` | Start Vite dev server (port 3000) |
 | `tauri` | Run Tauri CLI commands (`bun run tauri dev` / `bun run tauri build`) |
 | `build` | TypeScript check + Vite production build |
