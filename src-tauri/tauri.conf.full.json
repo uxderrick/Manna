@@ -1,0 +1,23 @@
+{
+  "bundle": {
+    "resources": {
+      "../data/rhema.db": "data/rhema.db",
+      "../models/qwen3-embedding-0.6b/model.onnx": "models/qwen3-embedding-0.6b/model.onnx",
+      "../models/qwen3-embedding-0.6b/tokenizer.json": "models/qwen3-embedding-0.6b/tokenizer.json",
+      "../models/qwen3-embedding-0.6b-int8/model_quantized.onnx": "models/qwen3-embedding-0.6b-int8/model_quantized.onnx",
+      "../embeddings/kjv-qwen3-0.6b.bin": "embeddings/kjv-qwen3-0.6b.bin",
+      "../embeddings/kjv-qwen3-0.6b-ids.bin": "embeddings/kjv-qwen3-0.6b-ids.bin",
+      "../models/whisper/ggml-large-v3-turbo-q8_0.bin": "models/whisper/ggml-large-v3-turbo-q8_0.bin"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk0OUQ4QjY4MDJERTgyMQpSV1FoNkMyQXR0aEpDVkREWTBXMDdNa3lpMWNXOFdmaTJZL1BvejVNajg4R2ZkdkhIaEhvcGRDQgo=",
+      "endpoints": [
+        "https://github.com/uxderrick/Manna/releases/latest/download/latest-full.json"
+      ]
+    }
+  }
+}
