@@ -46,6 +46,7 @@ import {
   XIcon,
 } from "lucide-react"
 import { useSettingsStore, persistDeepgramApiKey, persistAssemblyAiApiKey, persistClaudeApiKey, persistGeniusToken, persistEnabledHymnals, persistAutoMode, persistConfidenceThreshold, persistSttProvider } from "@/stores"
+import { checkForUpdates } from "@/hooks/use-updater"
 import { HYMNAL_NAMES, HYMNAL_SOURCES } from "@/types"
 import type { HymnalSource } from "@/types"
 import { useTutorialStore } from "@/stores/tutorial-store"
@@ -1130,6 +1131,24 @@ function HelpSection() {
           >
             <GraduationCapIcon className="mr-1.5 size-3.5" />
             Restart
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between rounded-lg border border-border bg-card p-4">
+          <div>
+            <p className="text-sm font-medium">Updates</p>
+            <p className="text-xs text-muted-foreground">
+              Manna auto-checks daily. Click below for an immediate check.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void checkForUpdates(true)
+            }}
+          >
+            Check for updates
           </Button>
         </div>
 
