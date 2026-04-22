@@ -11,8 +11,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Monitor, MonitorOff } from "lucide-react"
 import { HymnalPickerStep } from "@/components/onboarding/hymnal-picker-step"
+import { ApiKeyStep } from "@/components/onboarding/api-key-step"
 
-type Step = "monitor" | "hymnals"
+type Step = "monitor" | "hymnals" | "api-key"
 
 export function WelcomeDialog() {
   const onboardingComplete = useSettingsStore((s) => s.onboardingComplete)
@@ -66,6 +67,11 @@ export function WelcomeDialog() {
     }
     const { useSongStore } = await import("@/stores/song-store")
     await useSongStore.getState().hydrateSongs()
+    // Advance to API key step — don't close wizard yet.
+    setStep("api-key")
+  }
+
+  const handleApiKeyContinue = async () => {
     await persistOnboardingComplete()
     setOpen(false)
   }
@@ -136,6 +142,16 @@ export function WelcomeDialog() {
               Choose which hymnals to enable.
             </DialogDescription>
             <HymnalPickerStep onContinue={handleHymnalsContinue} />
+          </>
+        )}
+
+        {step === "api-key" && (
+          <>
+            <DialogTitle className="sr-only">Speech recognition</DialogTitle>
+            <DialogDescription className="sr-only">
+              Configure your transcription provider.
+            </DialogDescription>
+            <ApiKeyStep onContinue={handleApiKeyContinue} />
           </>
         )}
       </DialogContent>
