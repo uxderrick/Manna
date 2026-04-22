@@ -75,9 +75,11 @@ jobs:
           # whisper since users may want local STT on full flavor later.
           if [ "$RUNNER_OS" = "Windows" ]; then
             # --no-default-features is a cargo flag, not Tauri's. Forward via --.
-            bun run tauri build --config "src-tauri/tauri.conf.${FLAVOR}.json" -- --no-default-features
+            # --bundles nsis restricts to NSIS installer (MSI rejects -rc1 pre-release tags).
+            bun run tauri build --bundles nsis --config "src-tauri/tauri.conf.${FLAVOR}.json" -- --no-default-features
           else
-            bun run tauri build --config "src-tauri/tauri.conf.${FLAVOR}.json"
+            # macOS: restrict to dmg (skip app.tar.gz which the updater-free path doesn't need).
+            bun run tauri build --bundles dmg --config "src-tauri/tauri.conf.${FLAVOR}.json"
           fi
 
       - name: Rename installer (macOS)
