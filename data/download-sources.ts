@@ -15,6 +15,14 @@ const BASE_URL =
 
 const TRANSLATIONS = [
   { file: "KJV.json", name: "King James Version" },
+  { file: "ASV.json", name: "American Standard Version" },
+  { file: "NHEB.json", name: "New Heart English Bible" },
+  { file: "YLT.json", name: "Young's Literal Translation" },
+  { file: "Darby.json", name: "Darby Bible" },
+  { file: "Webster.json", name: "Webster's Bible" },
+  { file: "DRC.json", name: "Douay-Rheims" },
+  { file: "Geneva1599.json", name: "Geneva Bible (1599)" },
+  { file: "BBE.json", name: "Bible in Basic English" },
   { file: "SpaRV.json", name: "Reina-Valera 1909" },
   { file: "FreJND.json", name: "J.N. Darby French" },
   { file: "PorBLivre.json", name: "Biblia Livre" },
