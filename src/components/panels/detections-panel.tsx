@@ -4,7 +4,6 @@ import { ConfidenceDot } from "@/components/ui/confidence-dot"
 import { Button } from "@/components/ui/button"
 import { PlayIcon, PlusIcon, RadioIcon, ScanSearchIcon, MicIcon } from "lucide-react"
 import { useDetection, detectionActions } from "@/hooks/use-detection"
-import { bibleActions } from "@/hooks/use-bible"
 import { useQueueStore, useBroadcastStore, useBibleStore, useTranscriptStore, useSessionStore } from "@/stores"
 import { toVerseRenderData } from "@/hooks/use-broadcast"
 import { presentQueuedVerseLive } from "@/lib/queue-verse"
@@ -68,17 +67,8 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
     text: verseText,
   })
 
-  const navigateAndSelect = () => {
-    const verse = verseFromDetection()
-    bibleActions.selectVerse(verse)
-    if (detection.book_number > 0) {
-      bibleActions.navigateToVerse(detection.book_number, detection.chapter, detection.verse)
-    }
-    return verse
-  }
-
   const previewDetection = () => {
-    const verse = navigateAndSelect()
+    const verse = verseFromDetection()
     const translation = useBibleStore.getState().translations
       .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
     useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(verse, translation))
@@ -86,8 +76,7 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
 
   const goLiveDetection = () => {
     if (isThisLive) return
-    const verse = navigateAndSelect()
-    presentQueuedVerseLive(verse, detection.confidence)
+    presentQueuedVerseLive(verseFromDetection(), detection.confidence)
   }
 
   return (

@@ -6,12 +6,10 @@ import {
   useAudioStore,
   useDetectionStore,
   useBibleStore,
-  useBroadcastStore,
   useSessionStore,
   useSettingsStore,
 } from "@/stores"
 import { useTauriEvent } from "@/hooks/use-tauri-event"
-import { bibleActions } from "@/hooks/use-bible"
 import { presentQueuedVerseLive } from "@/lib/queue-verse"
 import { switchTranslation } from "@/lib/switch-translation"
 import type { TranscriptSegment } from "@/types"
@@ -154,33 +152,6 @@ export function TranscriptPanel() {
     // History intentionally NOT populated from detections — it now reflects
     // only verses that actually went on screen (driven by `setLiveVerse` in
     // broadcast-store).
-
-    // Auto-navigate book search + select verse for preview/live
-    // Handle direct, contextual (reading mode), and high-confidence quotation matches
-    const directHit = detections.find(
-      (d) => d.source === "direct" || d.source === "contextual" || (d.source === "quotation" && d.auto_queued)
-    )
-    if (directHit && directHit.book_number > 0) {
-      // Select verse immediately so preview/live panels update
-      bibleActions.selectVerse({
-        id: 0,
-        translation_id: useBibleStore.getState().activeTranslationId,
-        book_number: directHit.book_number,
-        book_name: directHit.book_name,
-        book_abbreviation: "",
-        chapter: directHit.chapter,
-        verse: directHit.verse,
-        text: directHit.verse_text,
-      })
-      // Navigate book search panel to this verse
-      useBibleStore
-        .getState()
-        .setPendingNavigation({
-          bookNumber: directHit.book_number,
-          chapter: directHit.chapter,
-          verse: directHit.verse,
-        })
-    }
 
     // ── Auto-broadcast mode ──────────────────────────────────────
     const { autoMode, confidenceThreshold, cooldownMs } = useSettingsStore.getState()

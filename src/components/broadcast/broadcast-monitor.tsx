@@ -5,6 +5,8 @@ import { queueVerseToRenderData, toVerseRenderData } from "@/hooks/use-broadcast
 import { switchTranslation } from "@/lib/switch-translation"
 import { bibleActions } from "@/hooks/use-bible"
 import { songStanzaToRenderData } from "@/lib/song-to-render"
+import { findAdjacentBibleVerse, shouldStepWithinQueue } from "@/lib/broadcast-navigation"
+import { chaptersIn } from "@/lib/bible-chapters"
 import { invoke } from "@tauri-apps/api/core"
 import type { Verse } from "@/types"
 import { CanvasVerse } from "@/components/ui/canvas-verse"
@@ -68,14 +70,19 @@ export function BroadcastMonitor() {
     return { bookName: match[1], chapter: parseInt(match[2]), verse: parseInt(match[3]) }
   }
 
-  const stepVerse = async (delta: number) => {
+  const stepVerse = async (delta: -1 | 1) => {
     const current = isLive ? liveVerse : previewVerse
     if (!current) return
 
     // Queue path — advance through song stanzas and split verse chunks.
     const queue = useQueueStore.getState()
     const activeIdx = queue.activeIndex
-    if (activeIdx !== null) {
+    const activeQueueItem = activeIdx === null ? undefined : queue.items[activeIdx]
+    const activeQueueRender = activeIdx === null ? null : renderQueueItemAt(activeIdx)
+    if (
+      activeIdx !== null &&
+      shouldStepWithinQueue(activeQueueItem, current.reference, activeQueueRender?.reference)
+    ) {
       const nextIdx = activeIdx + delta
       if (nextIdx < 0 || nextIdx >= queue.items.length) return
       queue.setActive(nextIdx)
@@ -94,24 +101,30 @@ export function BroadcastMonitor() {
     const parsed = parseRef(current.reference)
     if (!parsed) return
 
-    const targetVerse = parsed.verse + delta
-    if (targetVerse < 1) return
-
     const translationId = useBibleStore.getState().activeTranslationId
     const books = useBibleStore.getState().books
     const book = books.find(b => b.name === parsed.bookName)
     if (!book) return
 
     try {
-      const verse = await invoke<Verse | null>("get_verse", {
-        translationId,
+      const fetchVerse = ({ bookNumber, chapter, verse }: { bookNumber: number; chapter: number; verse: number }) =>
+        invoke<Verse | null>("get_verse", { translationId, bookNumber, chapter, verse })
+      const fetchChapter = ({ bookNumber, chapter }: { bookNumber: number; chapter: number }) =>
+        invoke<Verse[]>("get_chapter", { translationId, bookNumber, chapter })
+
+      const verse = await findAdjacentBibleVerse({
         bookNumber: book.book_number,
         chapter: parsed.chapter,
-        verse: targetVerse,
+        verse: parsed.verse,
+        direction: delta,
+        maxChapter: chaptersIn(book.book_number),
+        fetchVerse,
+        fetchChapter,
       })
       if (!verse) return
 
       bibleActions.selectVerse(verse)
+      bibleActions.navigateToVerse(verse.book_number, verse.chapter, verse.verse)
 
       const trans = useBibleStore.getState().translations
         .find(t => t.id === translationId)?.abbreviation ?? "KJV"
@@ -120,11 +133,14 @@ export function BroadcastMonitor() {
       if (isLive) {
         useBroadcastStore.getState().setLiveVerse(verseData)
         try {
-          const nextVerse = await invoke<Verse | null>("get_verse", {
-            translationId,
+          const nextVerse = await findAdjacentBibleVerse({
             bookNumber: book.book_number,
-            chapter: parsed.chapter,
-            verse: targetVerse + delta,
+            chapter: verse.chapter,
+            verse: verse.verse,
+            direction: delta,
+            maxChapter: chaptersIn(book.book_number),
+            fetchVerse,
+            fetchChapter,
           })
           if (nextVerse) {
             useBroadcastStore.getState().setPreviewVerse(toVerseRenderData(nextVerse, trans))

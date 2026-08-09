@@ -1,4 +1,5 @@
 import { queueVerseToRenderData } from "@/hooks/use-broadcast"
+import { bibleActions } from "@/hooks/use-bible"
 import { useBibleStore, useBroadcastStore, useQueueStore } from "@/stores"
 import type { QueueItem, Verse } from "@/types"
 
@@ -61,6 +62,8 @@ export function previewQueuedVerse(verse: Verse, confidence = 1): void {
 }
 
 export function presentQueuedVerseLive(verse: Verse, confidence = 1): void {
+  bibleActions.selectVerse(verse)
+  bibleActions.navigateToVerse(verse.book_number, verse.chapter, verse.verse)
   previewQueuedVerse(verse, confidence)
   useBroadcastStore.getState().goLive()
 }
