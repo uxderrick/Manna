@@ -17,7 +17,7 @@ import {
   ChevronDownIcon,
 } from "lucide-react"
 import { useQueueStore, useBroadcastStore, useBibleStore, useSongStore } from "@/stores"
-import { queueVerseToRenderData, toVerseRenderData } from "@/hooks/use-broadcast"
+import { queueVerseToRenderData } from "@/hooks/use-broadcast"
 import { bibleActions } from "@/hooks/use-bible"
 import { songStanzaToRenderData } from "@/lib/song-to-render"
 import type { QueueItem, Verse } from "@/types"
@@ -47,12 +47,7 @@ function QueueItemCard({
     bibleActions.selectVerse(item.verse)
     const translation = useBibleStore.getState().translations
       .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-    const verseData = item.kind === "verse" && item.chunk
-      ? toVerseRenderData(item.verse, translation, {
-          bodyText: item.chunk.text,
-          referenceOverride: `${item.reference} (${translation})`,
-        })
-      : toVerseRenderData(item.verse, translation)
+    const verseData = queueVerseToRenderData(item, translation)
     useBroadcastStore.getState().setPreviewVerse(verseData)
     useBroadcastStore.getState().goLive()
   }
@@ -73,12 +68,7 @@ function QueueItemCard({
     bibleActions.selectVerse(item.verse)
     const translation = useBibleStore.getState().translations
       .find(t => t.id === useBibleStore.getState().activeTranslationId)?.abbreviation ?? "KJV"
-    const verseData = item.kind === "verse" && item.chunk
-      ? toVerseRenderData(item.verse, translation, {
-          bodyText: item.chunk.text,
-          referenceOverride: `${item.reference} (${translation})`,
-        })
-      : toVerseRenderData(item.verse, translation)
+    const verseData = queueVerseToRenderData(item, translation)
     useBroadcastStore.getState().setPreviewVerse(verseData)
   }
 

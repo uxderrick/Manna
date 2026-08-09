@@ -1,4 +1,5 @@
 import type { Verse } from "./bible"
+import type { TextHighlight } from "./broadcast"
 
 export type QueueItemSource = "manual" | "ai-direct" | "ai-semantic" | "ai-cloud"
 
@@ -14,6 +15,7 @@ export type QueueItem =
       verse: Verse
       reference: string
       confidence: number
+      highlights?: TextHighlight[]
       /**
        * Present when this row is one slice of a long verse split at enqueue
        * time. Sibling chunks share the same `groupId`. `text` overrides

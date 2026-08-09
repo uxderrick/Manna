@@ -3,9 +3,28 @@ export interface VerseSegment {
   text: string
 }
 
+export interface TextHighlight {
+  segmentIndex: number
+  start: number
+  end: number
+  color: string
+  sourceText: string
+}
+
+export interface WordHitBox {
+  segmentIndex: number
+  start: number
+  end: number
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface VerseRenderData {
   reference: string
   segments: VerseSegment[]
+  highlights?: TextHighlight[]
 }
 
 export interface NotesSlide {
@@ -22,6 +41,7 @@ export interface RenderOptions {
   offsetY?: number
   scale?: number               // Scale factor for rendering at display size (e.g., 0.42 for 400px panel)
   imageCache?: Map<string, HTMLImageElement>
+  collectWordHits?: boolean
 }
 
 export type TextHorizontalAlign = "left" | "center" | "right" | "justify"

@@ -17,7 +17,7 @@ export type { QueueItem } from "./queue"
 export type { Song, SongStanza, SongSource, LineMode, GeniusHit, LrclibHit, OnlineHit, HymnalSource } from "./song"
 export { GHS_SEED_VERSION, HYMNAL_SOURCES, HYMNAL_NAMES, HYMNAL_BADGES, isHymnalSource } from "./song"
 export type { DetectionResult, DetectionStatus } from "./detection"
-export type { BroadcastTheme, VerseRenderData, VerseSegment, RenderOptions, NotesSlide } from "./broadcast"
+export type { BroadcastTheme, VerseRenderData, VerseSegment, RenderOptions, NotesSlide, TextHighlight, WordHitBox } from "./broadcast"
 export type {
   NdiAlphaMode,
   NdiConfigEventPayload,

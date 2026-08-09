@@ -65,6 +65,22 @@ describe("broadcast store sync", () => {
     expect(useBroadcastStore.getState().draftTheme?.verseText.fontSize).toBe(88)
   })
 
+  it("keeps passage highlights in live output and history", async () => {
+    const { useBroadcastStore } = await import("./broadcast-store")
+    const highlighted = {
+      reference: "John 3:16 (KJV)",
+      segments: [{ text: "For God so loved", verseNumber: 16 }],
+      highlights: [
+        { segmentIndex: 0, start: 4, end: 7, color: "#FACC15", sourceText: "God" },
+      ],
+    }
+
+    useBroadcastStore.getState().setLiveVerse(highlighted)
+
+    expect(useBroadcastStore.getState().liveVerse?.highlights).toEqual(highlighted.highlights)
+    expect(useBroadcastStore.getState().history.at(-1)?.verse.highlights).toEqual(highlighted.highlights)
+  })
+
   it("saving a draft based on a built-in persists the new custom theme", async () => {
     const { useBroadcastStore } = await import("./broadcast-store")
     const builtin = useBroadcastStore.getState().themes[0]

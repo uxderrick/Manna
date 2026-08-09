@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { Verse } from "@/types"
-import { deriveLiveVerse } from "./use-broadcast"
+import { deriveLiveVerse, queueVerseToRenderData } from "./use-broadcast"
 
 const sampleVerse: Verse = {
   id: 1,
@@ -14,6 +14,21 @@ const sampleVerse: Verse = {
 }
 
 describe("deriveLiveVerse", () => {
+  it("copies valid queue-item highlights into render data", () => {
+    const render = queueVerseToRenderData({
+      kind: "verse",
+      id: "q-1",
+      source: "manual",
+      added_at: 1,
+      verse: sampleVerse,
+      reference: "Genesis 1:2",
+      confidence: 1,
+      highlights: [{ segmentIndex: 0, start: 0, end: 3, color: "#FACC15", sourceText: "The" }],
+    }, "KJV")
+    expect(render.highlights).toEqual([
+      { segmentIndex: 0, start: 0, end: 3, color: "#FACC15", sourceText: "The" },
+    ])
+  })
   it("returns null when live output is off", () => {
     const result = deriveLiveVerse({
       isLive: false,

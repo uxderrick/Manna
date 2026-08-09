@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, memo } from "react"
-import { renderVerse } from "@/lib/verse-renderer"
+import { renderVerse, type VerseLayoutMetrics } from "@/lib/verse-renderer"
 import type { BroadcastTheme, VerseRenderData } from "@/types"
 import { cn } from "@/lib/utils"
 
@@ -35,6 +35,7 @@ interface CanvasVerseProps {
   blankLogoLabel?: string
   blankLogoUrl?: string
   className?: string
+  onRenderResult?: (result: VerseLayoutMetrics | null) => void
 }
 
 export const CanvasVerse = memo(function CanvasVerse({
@@ -45,6 +46,7 @@ export const CanvasVerse = memo(function CanvasVerse({
   blankLogoLabel = "Adenta Campus",
   blankLogoUrl = "/EWC-White.png",
   className,
+  onRenderResult,
 }: CanvasVerseProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -119,14 +121,16 @@ export const CanvasVerse = memo(function CanvasVerse({
       cx.clearRect(0, 0, c.width, c.height)
       cx.scale(dpr, dpr)
       if (fullscreenImage) {
+        onRenderResult?.(null)
         drawFullscreenImage(cx, theme.resolution.width * scale, theme.resolution.height * scale)
         return
       }
       if (blankLogo) {
+        onRenderResult?.(null)
         drawBlankLogo(cx, theme.resolution.width * scale, theme.resolution.height * scale)
         return
       }
-      renderVerse(cx, theme, verse, { scale, imageCache: sharedImageCache })
+      onRenderResult?.(renderVerse(cx, theme, verse, { scale, imageCache: sharedImageCache, collectWordHits: true }))
     }
 
     if (theme.background.type === "image" && theme.background.image?.url) {
@@ -143,13 +147,15 @@ export const CanvasVerse = memo(function CanvasVerse({
     }
 
     if (fullscreenImage) {
+      onRenderResult?.(null)
       drawFullscreenImage(ctx, theme.resolution.width * scale, theme.resolution.height * scale)
     } else if (blankLogo) {
+      onRenderResult?.(null)
       drawBlankLogo(ctx, theme.resolution.width * scale, theme.resolution.height * scale)
     } else {
-      renderVerse(ctx, theme, verse, { scale, imageCache: sharedImageCache })
+      onRenderResult?.(renderVerse(ctx, theme, verse, { scale, imageCache: sharedImageCache, collectWordHits: Boolean(onRenderResult) }))
     }
-  }, [theme, verse, fullscreenImage, blankLogo, blankLogoLabel, blankLogoUrl, containerWidth])
+  }, [theme, verse, fullscreenImage, blankLogo, blankLogoLabel, blankLogoUrl, containerWidth, onRenderResult])
 
   return (
     <div ref={containerRef} className={cn("w-full", className)}>

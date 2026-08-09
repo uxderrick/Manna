@@ -3,6 +3,7 @@ import { useBibleStore } from "@/stores/bible-store"
 import { invoke } from "@tauri-apps/api/core"
 import type { Book, QueueItem, VerseRenderData } from "@/types"
 import type { Verse } from "@/types"
+import { validHighlights } from "@/lib/text-highlights"
 
 export function toVerseRenderData(
   verse: Verse,
@@ -24,12 +25,15 @@ export function queueVerseToRenderData(
   item: Extract<QueueItem, { kind: "verse" }>,
   translation: string,
 ): VerseRenderData {
-  return item.chunk
+  const result = item.chunk
     ? toVerseRenderData(item.verse, translation, {
         bodyText: item.chunk.text,
         referenceOverride: `${item.reference} (${translation})`,
       })
     : toVerseRenderData(item.verse, translation)
+  const text = result.segments[0]?.text ?? ""
+  const highlights = validHighlights(text, item.highlights ?? [])
+  return highlights.length > 0 ? { ...result, highlights } : result
 }
 
 export function deriveLiveVerse({

@@ -64,4 +64,19 @@ describe("queue-store long verse splitting", () => {
 
     expect(useQueueStore.getState().items).toEqual([queueVerse()])
   })
+
+  it("updates highlights only on the addressed queue item", () => {
+    useSettingsStore.setState({ autoSplitLongVerses: false })
+    useQueueStore.getState().addItem(queueVerse({ id: "q-1" }))
+    useQueueStore.getState().addItem(queueVerse({ id: "q-2" }))
+
+    useQueueStore.getState().updateVerseHighlights("q-1", [
+      { segmentIndex: 0, start: 0, end: 5, color: "#FACC15", sourceText: "First" },
+    ])
+
+    const [first, second] = useQueueStore.getState().items
+    expect(first.kind === "verse" ? first.highlights : undefined).toHaveLength(1)
+    expect(second.kind === "verse" ? second.highlights : undefined).toBeUndefined()
+    expect(first.kind === "verse" ? first.verse.text : "").toBe(longVerse.text)
+  })
 })

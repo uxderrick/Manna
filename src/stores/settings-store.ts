@@ -5,6 +5,7 @@ import {
   type CalibrationInsets,
   IDENTITY_INSETS,
 } from "@/lib/projector-calibration"
+import { DEFAULT_HIGHLIGHT_COLOR, normalizeHighlightColor } from "@/lib/text-highlights"
 
 type SttProvider = "deepgram" | "whisper" | "assemblyai"
 
@@ -42,6 +43,7 @@ interface SettingsState {
   cooldownMs: number
   autoSplitLongVerses: boolean
   splitWordThreshold: number
+  defaultHighlightColor: string
   onboardingComplete: boolean
   sttProvider: SttProvider
   enabledHymnals: string[]
@@ -66,6 +68,7 @@ interface SettingsState {
   setCooldownMs: (ms: number) => void
   setAutoSplitLongVerses: (v: boolean) => void
   setSplitWordThreshold: (n: number) => void
+  setDefaultHighlightColor: (color: string) => void
   setOnboardingComplete: (complete: boolean) => void
   setSttProvider: (provider: SttProvider) => void
   setEnabledHymnals: (ids: string[]) => void
@@ -92,6 +95,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   cooldownMs: 2500,
   autoSplitLongVerses: true,
   splitWordThreshold: 40,
+  defaultHighlightColor: DEFAULT_HIGHLIGHT_COLOR,
   onboardingComplete: false,
   sttProvider: "deepgram",
   enabledHymnals: ["ghs", "mhb", "sankey", "sda"],
@@ -116,6 +120,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setCooldownMs: (cooldownMs) => set({ cooldownMs }),
   setAutoSplitLongVerses: (autoSplitLongVerses) => set({ autoSplitLongVerses }),
   setSplitWordThreshold: (splitWordThreshold) => set({ splitWordThreshold }),
+  setDefaultHighlightColor: (defaultHighlightColor) => set({ defaultHighlightColor }),
   setOnboardingComplete: (onboardingComplete) => set({ onboardingComplete }),
   setSttProvider: (sttProvider) => set({ sttProvider }),
   setEnabledHymnals: (enabledHymnals) => set({ enabledHymnals }),
@@ -162,6 +167,7 @@ export async function hydrateSettings(): Promise<void> {
       brand,
       autoSplitLongVerses,
       splitWordThreshold,
+      defaultHighlightColor,
     ] = await Promise.all([
       store.get<string>("deepgramApiKey"),
       store.get<string>("assemblyAiApiKey"),
@@ -185,6 +191,7 @@ export async function hydrateSettings(): Promise<void> {
       store.get<BrandConfig>("brand"),
       store.get<boolean>("autoSplitLongVerses"),
       store.get<number>("splitWordThreshold"),
+      store.get<string>("defaultHighlightColor"),
     ])
 
     const s = useSettingsStore.getState()
@@ -229,6 +236,7 @@ export async function hydrateSettings(): Promise<void> {
       const clamped = Math.max(20, Math.min(200, Math.round(splitWordThreshold)))
       s.setSplitWordThreshold(clamped)
     }
+    if (defaultHighlightColor) s.setDefaultHighlightColor(normalizeHighlightColor(defaultHighlightColor))
   } catch {
     console.warn("[settings] Failed to load persisted settings, using defaults")
   }
@@ -451,6 +459,17 @@ export async function persistSplitWordThreshold(n: number): Promise<void> {
     await store.set("splitWordThreshold", clamped)
   } catch {
     console.warn("[settings] Failed to persist splitWordThreshold")
+  }
+}
+
+export async function persistDefaultHighlightColor(color: string): Promise<void> {
+  const normalized = normalizeHighlightColor(color)
+  useSettingsStore.getState().setDefaultHighlightColor(normalized)
+  try {
+    const store = await getStore()
+    await store.set("defaultHighlightColor", normalized)
+  } catch {
+    console.warn("[settings] Failed to persist defaultHighlightColor")
   }
 }
 

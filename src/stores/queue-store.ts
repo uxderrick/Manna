@@ -1,11 +1,12 @@
 import { create } from "zustand"
-import type { QueueItem, Song } from "@/types"
+import type { QueueItem, Song, TextHighlight } from "@/types"
 import { expandSong } from "@/lib/song-expand"
 import { songMeta } from "@/lib/song-meta"
 import { useSongStore } from "./song-store"
 import { useSessionStore } from "./session-store"
 import { useSettingsStore } from "@/stores/settings-store"
 import { splitVerseIntoChunks, wordCount } from "@/lib/verse-splitter"
+import { validHighlights } from "@/lib/text-highlights"
 
 // localStorage key for the in-flight queue. Tagged with the active session id
 // so a reload mid-service restores that session's queue, while a fresh session
@@ -27,6 +28,7 @@ interface QueueState {
   reorderItems: (fromIndex: number, toIndex: number) => void
   setActive: (index: number | null) => void
   clearQueue: () => void
+  updateVerseHighlights: (id: string, highlights: TextHighlight[]) => void
 
   enqueueSong: (songId: string) => void
   enqueueSongStanza: (songId: string, stanzaId: string) => void
@@ -97,6 +99,13 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     }),
   setActive: (activeIndex) => set({ activeIndex }),
   clearQueue: () => set({ items: [], activeIndex: null }),
+  updateVerseHighlights: (id, highlights) => set((state) => ({
+    items: state.items.map((item) => {
+      if (item.id !== id || item.kind !== "verse") return item
+      const text = item.chunk?.text ?? item.verse.text
+      return { ...item, highlights: validHighlights(text, highlights) }
+    }),
+  })),
 
   enqueueSong: (songId) => {
     const song = useSongStore.getState().getSong(songId)

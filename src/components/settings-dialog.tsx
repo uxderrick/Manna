@@ -52,12 +52,13 @@ import { useSettingsDialogStore } from "@/lib/settings-dialog"
 import type { DeviceInfo } from "@/types/audio"
 import { ProjectorCalibrationSection } from "@/components/settings/projector-calibration"
 import { BrandingSection } from "@/components/settings/branding"
+import { HighlightSettingsSection } from "@/components/settings/highlight-settings"
 
 /* -------------------------------------------------------------------------- */
 /*  Nav definition                                                            */
 /* -------------------------------------------------------------------------- */
 
-type NavSection = "audio" | "speech" | "bible" | "display" | "branding" | "hymnals" | "api-keys" | "remote" | "storage" | "projector" | "help"
+type NavSection = "audio" | "speech" | "bible" | "display" | "presentation" | "branding" | "hymnals" | "api-keys" | "remote" | "storage" | "projector" | "help"
 
 type NavGroup = "Setup" | "Output" | "Integrations" | "Maintenance" | "Help"
 
@@ -101,6 +102,12 @@ const navItems: { name: string; id: NavSection; group: NavGroup; icon: React.Rea
   {
     name: "Branding",
     id: "branding",
+    group: "Output",
+    icon: <PaletteIcon strokeWidth={2} />,
+  },
+  {
+    name: "Presentation",
+    id: "presentation",
     group: "Output",
     icon: <PaletteIcon strokeWidth={2} />,
   },
@@ -975,6 +982,7 @@ const sectionTitles: Record<NavSection, string> = {
   bible: "Bible Translation",
   display: "Display Mode",
   branding: "Branding",
+  presentation: "Presentation",
   hymnals: "Hymnals",
   remote: "Remote Control",
   "api-keys": "API Keys",
@@ -1537,6 +1545,7 @@ const sectionComponents: Record<NavSection, React.FC> = {
   bible: BibleSection,
   display: DisplayModeSection,
   branding: BrandingSection,
+  presentation: HighlightSettingsSection,
   hymnals: HymnalsSection,
   remote: RemoteControlSection,
   "api-keys": ApiKeysSection,

@@ -287,6 +287,7 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
               confidence: 1,
               source: "manual",
               added_at: Date.now(),
+              highlights: liveVerse.highlights,
             })
           })
         }
