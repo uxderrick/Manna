@@ -81,6 +81,33 @@ describe("broadcast store sync", () => {
     expect(useBroadcastStore.getState().history.at(-1)?.verse.highlights).toEqual(highlighted.highlights)
   })
 
+  it("updates an already-live highlight without adding another history entry", async () => {
+    const { useBroadcastStore } = await import("./broadcast-store")
+    const verse = {
+      reference: "John 3:16 (KJV)",
+      segments: [{ text: "For God so loved", verseNumber: 16 }],
+    }
+    useBroadcastStore.setState({
+      liveVerse: verse,
+      isLive: true,
+      history: [{ verse, presentedAt: 10 }],
+    })
+    emitMock.mockClear()
+
+    useBroadcastStore.getState().updateLiveVerseHighlights([
+      { segmentIndex: 0, start: 4, end: 7, color: "#FACC15", sourceText: "God" },
+    ])
+
+    const state = useBroadcastStore.getState()
+    expect(state.liveVerse?.highlights).toHaveLength(1)
+    expect(state.history).toHaveLength(1)
+    expect(state.history[0].verse.highlights).toHaveLength(1)
+    expect(emitMock).toHaveBeenCalledWith(
+      "broadcast:verse-update:main",
+      expect.objectContaining({ verse: expect.objectContaining({ highlights: expect.any(Array) }) }),
+    )
+  })
+
   it("saving a draft based on a built-in persists the new custom theme", async () => {
     const { useBroadcastStore } = await import("./broadcast-store")
     const builtin = useBroadcastStore.getState().themes[0]

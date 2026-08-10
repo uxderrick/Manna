@@ -128,7 +128,7 @@ export function InteractiveVersePreview({
   return (
     <div
       ref={rootRef}
-      className="relative w-full touch-none select-none"
+      className="relative w-full cursor-text touch-none select-none"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

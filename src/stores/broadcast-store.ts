@@ -1,12 +1,13 @@
 import { create } from "zustand"
 import { emit } from "@tauri-apps/api/event"
 import { invoke } from "@tauri-apps/api/core"
-import type { BroadcastTheme, VerseRenderData, NotesSlide } from "@/types"
+import type { BroadcastTheme, VerseRenderData, NotesSlide, TextHighlight } from "@/types"
 import { BUILTIN_THEMES } from "@/lib/builtin-themes"
 import { useSessionStore } from "@/stores/session-store"
 import { useBibleStore } from "@/stores/bible-store"
 import { useSettingsStore } from "@/stores/settings-store"
 import { resolveBrandAsset } from "@/lib/brand"
+import { validHighlights } from "@/lib/text-highlights"
 
 type SelectedElement = "verse" | "reference" | null
 
@@ -44,6 +45,7 @@ interface BroadcastState {
   setLive: (live: boolean) => void
   setPreviewVerse: (verse: VerseRenderData | null) => void
   setLiveVerse: (verse: VerseRenderData | null) => void
+  updateLiveVerseHighlights: (highlights: TextHighlight[]) => void
   addToHistory: (verse: VerseRenderData) => void
   goLive: () => void
   clearScreen: () => void
@@ -311,6 +313,26 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
         }).catch((e) => console.warn("[broadcast-store] record_presented_verse failed:", e))
       }
     }
+    get().syncBroadcastOutput()
+  },
+  updateLiveVerseHighlights: (highlights) => {
+    const current = get().liveVerse
+    const text = current?.segments[0]?.text
+    if (!current || !text) return
+    const valid = validHighlights(text, highlights)
+    const liveVerse = {
+      ...current,
+      highlights: valid.length > 0 ? valid : undefined,
+    }
+    set((state) => {
+      const history = [...state.history]
+      for (let index = history.length - 1; index >= 0; index -= 1) {
+        if (history[index].verse.reference !== current.reference) continue
+        history[index] = { ...history[index], verse: liveVerse }
+        break
+      }
+      return { liveVerse, history }
+    })
     get().syncBroadcastOutput()
   },
   addToHistory: (verse) => {

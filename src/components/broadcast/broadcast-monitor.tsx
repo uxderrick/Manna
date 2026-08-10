@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, CheckIcon, PauseIcon, PlayIcon, XIcon } from "lucide-react"
-import { useBroadcastStore, useBibleStore, useSessionStore, useQueueStore, useSongStore } from "@/stores"
+import { useBroadcastStore, useBibleStore, useSessionStore, useQueueStore, useSettingsStore, useSongStore } from "@/stores"
 import { queueVerseToRenderData, toVerseRenderData } from "@/hooks/use-broadcast"
 import { switchTranslation } from "@/lib/switch-translation"
 import { bibleActions } from "@/hooks/use-bible"
@@ -8,8 +8,9 @@ import { songStanzaToRenderData } from "@/lib/song-to-render"
 import { findAdjacentBibleVerse, shouldStepWithinQueue } from "@/lib/broadcast-navigation"
 import { chaptersIn } from "@/lib/bible-chapters"
 import { invoke } from "@tauri-apps/api/core"
-import type { Verse } from "@/types"
+import type { TextHighlight, Verse } from "@/types"
 import { CanvasVerse } from "@/components/ui/canvas-verse"
+import { InteractiveVersePreview } from "@/components/panels/interactive-verse-preview"
 
 function renderQueueItemAt(index: number) {
   const item = useQueueStore.getState().items[index]
@@ -41,8 +42,20 @@ export function BroadcastMonitor() {
   const translations = useBibleStore((s) => s.translations)
   const activeTranslationId = useBibleStore((s) => s.activeTranslationId)
   const activeSession = useSessionStore((s) => s.activeSession)
+  const defaultHighlightColor = useSettingsStore((s) => s.defaultHighlightColor)
 
   const activeTheme = themes.find((t) => t.id === activeThemeId) ?? themes[0]
+
+  const handleLiveHighlightsChange = (highlights: TextHighlight[]) => {
+    useBroadcastStore.getState().updateLiveVerseHighlights(highlights)
+    const queue = useQueueStore.getState()
+    const activeItem = queue.activeIndex === null ? null : queue.items[queue.activeIndex]
+    if (activeItem?.kind !== "verse" || !liveVerse) return
+    const translation = translations.find((item) => item.id === activeTranslationId)?.abbreviation ?? "KJV"
+    if (queueVerseToRenderData(activeItem, translation).reference === liveVerse.reference) {
+      queue.updateVerseHighlights(activeItem.id, highlights)
+    }
+  }
 
   // Session timer
   const [elapsed, setElapsed] = useState("00:00:00")
@@ -211,13 +224,23 @@ export function BroadcastMonitor() {
           </div>
         </div>
         <div className={`overflow-hidden rounded ${isLive ? "ring-2 ring-destructive/40" : "ring-1 ring-white/[0.08]"}`}>
-          <CanvasVerse
-            theme={activeTheme}
-            verse={liveVerse}
-            fullscreenImage={fullscreenImage}
-            blankLogo={blankLogo}
-            className="w-full"
-          />
+          {liveVerse && !fullscreenImage && !blankLogo ? (
+            <InteractiveVersePreview
+              key={liveVerse.reference}
+              theme={activeTheme}
+              verse={liveVerse}
+              defaultColor={defaultHighlightColor}
+              onHighlightsChange={handleLiveHighlightsChange}
+            />
+          ) : (
+            <CanvasVerse
+              theme={activeTheme}
+              verse={liveVerse}
+              fullscreenImage={fullscreenImage}
+              blankLogo={blankLogo}
+              className="w-full"
+            />
+          )}
         </div>
       </div>
 
