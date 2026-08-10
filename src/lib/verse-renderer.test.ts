@@ -44,6 +44,26 @@ describe("verse renderer layout", () => {
     expect(metrics.highlightRects[0].color).toBe("#FACC15")
   })
 
+  it("computes projector highlight geometry for standalone-reference themes", () => {
+    const standaloneTheme: BroadcastTheme = {
+      ...BUILTIN_THEMES[0],
+      reference: {
+        ...BUILTIN_THEMES[0].reference,
+        standalone: { anchor: "bottom-right", margin: 24 },
+      },
+    }
+    const highlighted: VerseRenderData = {
+      ...verse,
+      highlights: [
+        { segmentIndex: 0, start: 4, end: 7, color: "#FACC15", sourceText: "God" },
+      ],
+    }
+
+    const metrics = computeVerseLayoutMetrics(measureContext(), standaloneTheme, highlighted)
+
+    expect(metrics.highlightRects).toHaveLength(1)
+  })
+
   it.each(["center-left", "center-right"] as const)(
     "computes finite layout metrics for %s anchor",
     (anchor) => {

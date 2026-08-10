@@ -768,7 +768,9 @@ export function computeVerseLayoutMetrics(
       width: referenceWidth,
       height: referenceHeight,
     }
-    const wordHits = options?.collectWordHits ? computeWordHits(ctx, scaledTheme, verse, textRect, verseRect.y) : []
+    const wordHits = options?.collectWordHits || verse.highlights?.length
+      ? computeWordHits(ctx, scaledTheme, verse, textRect, verseRect.y)
+      : []
     return { scaledTheme, textAreaRect, textRect, referenceRect, verseRect, wordHits, highlightRects: highlightRectsFor(verse, wordHits) }
   }
   if (scaledTheme.reference.position === "above") {
