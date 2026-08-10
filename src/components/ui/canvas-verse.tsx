@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, memo } from "react"
 import { renderVerse, type VerseLayoutMetrics } from "@/lib/verse-renderer"
 import type { BroadcastTheme, VerseRenderData } from "@/types"
 import { cn } from "@/lib/utils"
+import { renderAndReport } from "@/lib/canvas-render-result"
 
 const sharedImageCache = new Map<string, HTMLImageElement>()
 const pendingImageLoads = new Map<string, Promise<HTMLImageElement>>()
@@ -130,7 +131,10 @@ export const CanvasVerse = memo(function CanvasVerse({
         drawBlankLogo(cx, theme.resolution.width * scale, theme.resolution.height * scale)
         return
       }
-      onRenderResult?.(renderVerse(cx, theme, verse, { scale, imageCache: sharedImageCache, collectWordHits: true }))
+      renderAndReport(
+        () => renderVerse(cx, theme, verse, { scale, imageCache: sharedImageCache, collectWordHits: Boolean(onRenderResult) }),
+        onRenderResult,
+      )
     }
 
     if (theme.background.type === "image" && theme.background.image?.url) {
@@ -153,7 +157,10 @@ export const CanvasVerse = memo(function CanvasVerse({
       onRenderResult?.(null)
       drawBlankLogo(ctx, theme.resolution.width * scale, theme.resolution.height * scale)
     } else {
-      onRenderResult?.(renderVerse(ctx, theme, verse, { scale, imageCache: sharedImageCache, collectWordHits: Boolean(onRenderResult) }))
+      renderAndReport(
+        () => renderVerse(ctx, theme, verse, { scale, imageCache: sharedImageCache, collectWordHits: Boolean(onRenderResult) }),
+        onRenderResult,
+      )
     }
   }, [theme, verse, fullscreenImage, blankLogo, blankLogoLabel, blankLogoUrl, containerWidth, onRenderResult])
 
