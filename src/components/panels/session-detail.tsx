@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { invoke } from "@tauri-apps/api/core"
+import { save } from "@tauri-apps/plugin-dialog"
+import { writeFile, writeTextFile } from "@tauri-apps/plugin-fs"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -14,6 +16,12 @@ import {
 import type { SermonSession, SessionDetection, SessionTranscriptSegment, SessionNote } from "@/types/session"
 import { SessionAudioPlayer } from "@/components/session-audio-player"
 import { emitAudioSeek } from "@/hooks/use-audio-seek"
+import {
+  buildSessionExportJson,
+  buildSessionExportMarkdown,
+  buildSessionExportSlug,
+  buildSessionPdfBytes,
+} from "@/lib/session-export"
 
 type DetailTab = "detections" | "transcript" | "summary" | "stats"
 
@@ -28,53 +36,28 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
 
-function formatExportTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-}
-
-function buildMarkdown(title: string, detections: SessionDetection[], notes: SessionNote[], transcript: SessionTranscriptSegment[]) {
-  const lines: string[] = [`# ${title}`, ""]
-
-  if (detections.length > 0) {
-    lines.push("## Verses Detected", "")
-    detections.forEach((d, i) => {
-      const pct = Math.round(d.confidence * 100)
-      const shown = d.wasPresented ? " — Shown on screen" : ""
-      lines.push(`${i + 1}. ${d.verseRef} (${pct}%)${shown}`)
-      if (d.verseText) lines.push(`   "${d.verseText}"`)
-    })
-    lines.push("")
-  }
-
-  if (notes.length > 0) {
-    lines.push("## Notes", "")
-    notes.forEach((n) => {
-      lines.push(`- "${n.content}" (${formatExportTime(n.createdAt)})`)
-    })
-    lines.push("")
-  }
-
-  if (transcript.length > 0) {
-    lines.push("## Transcript", "")
-    lines.push(transcript.map((s) => s.text).join(" "))
-    lines.push("")
-  }
-
-  return lines.join("\n")
-}
-
-function downloadFile(content: string, filename: string, mime: string) {
-  const blob = new Blob([content], { type: mime })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
 function hasText(value: string | null | undefined) {
   return Boolean(value?.trim())
+}
+
+async function saveTextExport(content: string, defaultPath: string, filter: { name: string; extensions: string[] }) {
+  const filePath = await save({
+    defaultPath,
+    filters: [filter],
+  })
+  if (!filePath) return false
+  await writeTextFile(filePath, content)
+  return true
+}
+
+async function saveBinaryExport(content: Uint8Array, defaultPath: string, filter: { name: string; extensions: string[] }) {
+  const filePath = await save({
+    defaultPath,
+    filters: [filter],
+  })
+  if (!filePath) return false
+  await writeFile(filePath, content)
+  return true
 }
 
 function quoteSpeaker(quoteSpeaker: string | undefined, sessionSpeaker: string | null | undefined) {
@@ -301,28 +284,42 @@ export function SessionDetail({ sessionId, sessionTitle, initialTab, onBack }: S
   }
 
   const handleCopyClipboard = () => {
-    const text = buildMarkdown(sessionTitle, detections, notes, transcript)
+    const text = buildSessionExportMarkdown(sessionTitle, detections, notes, transcript)
     navigator.clipboard.writeText(text)
     setExportOpen(false)
   }
 
-  const handleDownloadMarkdown = () => {
-    const md = buildMarkdown(sessionTitle, detections, notes, transcript)
-    const slug = sessionTitle.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")
-    downloadFile(md, `${slug}.md`, "text/markdown")
-    setExportOpen(false)
+  const handleDownloadMarkdown = async () => {
+    const md = buildSessionExportMarkdown(sessionTitle, detections, notes, transcript)
+    const slug = buildSessionExportSlug(sessionTitle)
+    try {
+      await saveTextExport(md, `${slug}.md`, { name: "Markdown", extensions: ["md"] })
+      setExportOpen(false)
+    } catch (e) {
+      console.error("[session] markdown export failed:", e)
+    }
   }
 
-  const handleDownloadJson = () => {
-    const data = { title: sessionTitle, sessionId, detections, notes, transcript }
-    const slug = sessionTitle.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")
-    downloadFile(JSON.stringify(data, null, 2), `${slug}.json`, "application/json")
-    setExportOpen(false)
+  const handleDownloadJson = async () => {
+    const data = buildSessionExportJson(sessionTitle, sessionId, detections, notes, transcript)
+    const slug = buildSessionExportSlug(sessionTitle)
+    try {
+      await saveTextExport(JSON.stringify(data, null, 2), `${slug}.json`, { name: "JSON", extensions: ["json"] })
+      setExportOpen(false)
+    } catch (e) {
+      console.error("[session] JSON export failed:", e)
+    }
   }
 
-  const handlePrint = () => {
-    setExportOpen(false)
-    window.print()
+  const handlePrint = async () => {
+    const bytes = buildSessionPdfBytes(sessionTitle, detections, notes, transcript)
+    const slug = buildSessionExportSlug(sessionTitle)
+    try {
+      await saveBinaryExport(bytes, `${slug}.pdf`, { name: "PDF", extensions: ["pdf"] })
+      setExportOpen(false)
+    } catch (e) {
+      console.error("[session] PDF export failed:", e)
+    }
   }
 
   const handleSummarize = async () => {
