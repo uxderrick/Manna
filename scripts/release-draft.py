@@ -40,6 +40,8 @@ def stage(platform, installer, report_path, destination, version, source, run_ur
         raise ValueError('Incorrect platform speech model')
     if f'_{version}_' not in installer.name or installer.suffix != ('.exe' if platform == 'windows' else '.dmg'):
         raise ValueError('Installer version or platform does not match release')
+    if platform == 'mac' and report.get('microphone_entitlement_verified') is not True:
+        raise ValueError('Mac microphone entitlement check is missing')
     actual = digest(installer)
     if report.get(hash_key) != actual:
         raise ValueError('Installer hash differs from installed test')

@@ -1,7 +1,7 @@
 {
   "name": "manna",
   "private": true,
-  "version": "0.1.0-rc3",
+  "version": "0.1.0-rc4",
   "type": "module",
   "scripts": {
     "package:prepare": "python3 scripts/prepare-standard-package.py",

@@ -40,6 +40,7 @@ jobs:
           python-version: '3.11'
       - name: Test release and packaging safeguards
         run: |
+          python -m unittest discover -s scripts -p test_mac_microphone.py
           python -m unittest discover -s scripts -p test_release_draft.py
           python -m unittest discover -s scripts -p test_standard_package.py
       - name: Validate package version and resource inputs

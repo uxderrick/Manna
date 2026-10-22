@@ -13,6 +13,21 @@ standard = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(standard)
 
 
+
+def verify_microphone_access(installed):
+    result = subprocess.run(
+        ["codesign", "-d", "--entitlements", "-", "--xml", str(installed)],
+        check=True, capture_output=True)
+    if not result.stdout.strip():
+        raise ValueError("Installed app is missing its microphone entitlement")
+    if plistlib.loads(result.stdout).get("com.apple.security.device.audio-input") is not True:
+        raise ValueError("Installed app is missing its microphone entitlement")
+    with (installed / "Contents/Info.plist").open("rb") as stream:
+        info = plistlib.load(stream)
+    if not str(info.get("NSMicrophoneUsageDescription", "")).strip():
+        raise ValueError("Installed app is missing its microphone usage description")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("dmg", type=Path)
@@ -41,6 +56,7 @@ def main():
         finally:
             subprocess.run(["hdiutil", "detach", str(mount)], check=True, capture_output=True)
         subprocess.run(["codesign", "--verify", "--deep", "--strict", str(installed)], check=True, capture_output=True)
+        verify_microphone_access(installed)
         if args.team_id:
             for target in (installed, args.dmg.resolve()):
                 subprocess.run(["codesign", "--verify", "--strict", str(target)], check=True, capture_output=True)
@@ -49,9 +65,6 @@ def main():
                     raise ValueError(f"Missing expected timestamped Developer ID signature: {target}")
                 if target == installed and "(runtime)" not in signature:
                     raise ValueError("Installed app does not enable hardened runtime")
-            entitlements = subprocess.run(["codesign", "-d", "--entitlements", "-", "--xml", str(installed)], check=True, capture_output=True).stdout
-            if plistlib.loads(entitlements).get("com.apple.security.device.audio-input") is not True:
-                raise ValueError("Installed app is missing its microphone entitlement")
         if args.require_notarized:
             for target in (installed, args.dmg.resolve()):
                 subprocess.run(["xcrun", "stapler", "validate", str(target)], check=True, capture_output=True)
@@ -90,7 +103,7 @@ def main():
         standard.validate(resources, manifest)
         if list(resources.rglob("*-wal")) or list(resources.rglob("*-shm")):
             raise ValueError("Application wrote SQLite journals into its resources")
-        report.update(dmg=str(args.dmg.resolve()), dmg_sha256=standard.digest(args.dmg), installed=str(installed), ad_hoc_signature_verified=not bool(args.team_id), developer_id_team=args.team_id, notarization_verified=args.require_notarized, resources_unchanged=True, provider_calls=False)
+        report.update(dmg=str(args.dmg.resolve()), dmg_sha256=standard.digest(args.dmg), installed=str(installed), ad_hoc_signature_verified=not bool(args.team_id), developer_id_team=args.team_id, notarization_verified=args.require_notarized, resources_unchanged=True, provider_calls=False, microphone_entitlement_verified=True, microphone_capture_tested=False)
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps(report, indent=2) + "\n")
         print(json.dumps({"passed": True, "installed": str(installed), "report": str(args.report)}))

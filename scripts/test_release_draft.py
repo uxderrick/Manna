@@ -33,7 +33,7 @@ class DraftTests(unittest.TestCase):
         if platform == 'windows':
             report.update(installer_sha256=checksum, publisher_verified=False)
         else:
-            report.update(dmg_sha256=checksum, ad_hoc_signature_verified=True, notarization_verified=False)
+            report.update(dmg_sha256=checksum, ad_hoc_signature_verified=True, notarization_verified=False, microphone_entitlement_verified=True)
         path = self.root / f'{platform}.json'
         path.write_text(json.dumps(report))
         return installer, path
@@ -41,6 +41,14 @@ class DraftTests(unittest.TestCase):
     def stage(self, platform, source=SHA):
         installer, report = self.fixture(platform)
         return draft.stage(platform, installer, report, self.output, VERSION, source, 'https://github.com/uxderrick/Manna/actions/runs/123')
+
+    def test_mac_without_microphone_verification_is_rejected(self):
+        installer, report = self.fixture('mac')
+        data = json.loads(report.read_text())
+        del data['microphone_entitlement_verified']
+        report.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, 'microphone entitlement'):
+            draft.stage('mac', installer, report, self.output, VERSION, SHA, 'run')
 
     def test_changed_installer_is_rejected_before_staging(self):
         installer, report = self.fixture('windows')

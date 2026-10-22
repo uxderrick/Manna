@@ -2,8 +2,26 @@
   "productName": "Manna Internal",
   "identifier": "com.manna.internal",
   "app": {
-    "windows": [{"title": "Manna Internal", "width": 1280, "height": 800, "minWidth": 1024, "minHeight": 600}]
+    "windows": [
+      {
+        "title": "Manna Internal",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 600
+      }
+    ]
   },
-  "bundle": {"macOS": {"signingIdentity": "-"}},
-  "plugins": {"updater": {"endpoints": []}}
+  "bundle": {
+    "macOS": {
+      "signingIdentity": "-",
+      "entitlements": "Entitlements.plist",
+      "hardenedRuntime": true
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": []
+    }
+  }
 }
