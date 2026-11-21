@@ -21,6 +21,17 @@ export const BACKGROUND_MEDIA = [
     })
   ),
   ...[
+    ["window-light", "Window Light"],
+    ["hearth", "Hearth"],
+    ["candlelight", "Candlelight"],
+  ].map(([id, name]) => ({
+    id,
+    name,
+    kind: "video" as const,
+    url: `/backgrounds/worship/${id}.mp4`,
+    thumbnail: `/backgrounds/worship/${id}.jpg`,
+  })),
+  ...[
     ["the-word", "The Word", "png"],
     ["quiet-light", "Quiet Light", "png"],
     ["still-waters", "Still Waters", "png"],

@@ -38,7 +38,7 @@ export function BackgroundPicker({ context }: { context: BackgroundContext }) {
       <PopoverContent
         aria-label={`${label} backgrounds`}
         align="end"
-        className="w-80 gap-3 p-3"
+        className="w-[520px] max-w-[calc(100vw-24px)] gap-3 p-3"
       >
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-medium">{label} background</span>
@@ -64,7 +64,7 @@ export function BackgroundPicker({ context }: { context: BackgroundContext }) {
             </button>
           ))}
         </div>
-        <div className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto">
+        <div className="grid max-h-[min(480px,55vh)] grid-cols-2 gap-3 overflow-y-auto">
           {BACKGROUND_MEDIA.filter(
             (media) => filter === "all" || media.kind === filter
           ).map((media) => (
@@ -84,7 +84,7 @@ export function BackgroundPicker({ context }: { context: BackgroundContext }) {
                 loading="lazy"
                 className="aspect-video w-full object-cover"
               />
-              <span className="flex items-center gap-1 px-2 py-1 text-[11px]">
+              <span className="flex items-center gap-1.5 px-2 py-2 text-xs">
                 {media.kind === "video" && (
                   <PlayIcon className="size-3 shrink-0" />
                 )}

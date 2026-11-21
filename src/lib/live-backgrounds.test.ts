@@ -34,7 +34,7 @@ describe("live backgrounds", () => {
   })
 
   it("supports still images and identifies songs separately", () => {
-    expect(BACKGROUND_MEDIA.filter((x) => x.kind === "video")).toHaveLength(10)
+    expect(BACKGROUND_MEDIA.filter((x) => x.kind === "video")).toHaveLength(13)
     expect(
       withLiveBackground(BUILTIN_THEMES[0], {
         id: "still-waters",
