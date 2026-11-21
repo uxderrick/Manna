@@ -470,8 +470,13 @@ export function BroadcastCanvas() {
   const syncVideo = useCallback(() => {
     const data = latestData.current
     const canPlay = data && !data.hidden && !data.fullscreenImage && !data.notes && announcementRef.current?.mode !== "slide"
-    const url = canPlay ? data.blankLogo ? data.blankVideoUrl ?? null
-      : data.theme.background.type === "video" ? data.theme.background.video?.url ?? null : null : null
+    const url = !canPlay
+      ? null
+      : data.blankLogo
+        ? data.blankVideoUrl ?? null
+        : data.theme.background.type === "video"
+          ? data.theme.background.video?.url ?? null
+          : null
     if (url === videoUrlRef.current) return
     videoLoopRef.current?.stop()
     videoLoopRef.current = null

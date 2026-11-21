@@ -70,8 +70,13 @@ export const CanvasVerse = memo(function CanvasVerse({
   const videoLoopRef = useRef<ReturnType<typeof startLoopingVideo> | null>(null)
   const paintRef = useRef<(() => void) | null>(null)
   const [containerWidth, setContainerWidth] = useState(0)
-  const videoUrl = fullscreenImage ? null : blankLogo ? blankVideoUrl
-    : theme.background.type === "video" ? theme.background.video?.url ?? null : null
+  const videoUrl = fullscreenImage
+    ? null
+    : blankLogo
+      ? blankVideoUrl
+      : theme.background.type === "video"
+        ? theme.background.video?.url ?? null
+        : null
 
   // Measure container width with ResizeObserver
   useEffect(() => {

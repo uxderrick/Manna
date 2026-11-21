@@ -178,14 +178,23 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   backgrounds: loadBackgroundChoices(),
   setBackground: (context, id) => {
     if (id !== null && !BACKGROUND_MEDIA.some((media) => media.id === id)) return
-    const backgrounds = { ...get().backgrounds, [context]: { ...get().backgrounds[context], id } }
+    const backgrounds = {
+      ...get().backgrounds,
+      [context]: { ...get().backgrounds[context], id },
+    }
     set({ backgrounds })
     saveBackgroundChoices(backgrounds)
     get().syncBroadcastOutput()
   },
   setBackgroundDimming: (context, dimming) => {
     if (!Number.isFinite(dimming)) return
-    const backgrounds = { ...get().backgrounds, [context]: { ...get().backgrounds[context], dimming: Math.max(0, Math.min(0.8, dimming)) } }
+    const backgrounds = {
+      ...get().backgrounds,
+      [context]: {
+        ...get().backgrounds[context],
+        dimming: Math.max(0, Math.min(0.8, dimming)),
+      },
+    }
     set({ backgrounds })
     saveBackgroundChoices(backgrounds)
     get().syncBroadcastOutput()
