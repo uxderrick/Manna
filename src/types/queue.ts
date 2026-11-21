@@ -47,6 +47,7 @@ export type QueueItem =
       kind: "image"
       url: string
       label: string
+      mediaType?: "video"
       thumbnailUrl?: string
       provider: "pexels" | "unsplash" | "brave" | "local" | "library"
     })

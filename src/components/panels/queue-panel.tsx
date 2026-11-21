@@ -52,7 +52,7 @@ function QueueItemCard({
     if (item.kind === "image") {
       useBroadcastStore
         .getState()
-        .setFullscreenImage({ url: item.url, label: item.label })
+        .setFullscreenImage({ url: item.url, label: item.label, ...(item.mediaType ? { mediaType: item.mediaType, poster: item.thumbnailUrl } : {}) })
       return
     }
     bibleActions.selectVerse(item.verse)
@@ -74,7 +74,7 @@ function QueueItemCard({
       // Preview = stage for go-live; reuse fullscreenImage for visual feedback
       useBroadcastStore
         .getState()
-        .setFullscreenImage({ url: item.url, label: item.label })
+        .setFullscreenImage({ url: item.url, label: item.label, ...(item.mediaType ? { mediaType: item.mediaType, poster: item.thumbnailUrl } : {}) })
       return
     }
     bibleActions.selectVerse(item.verse)
@@ -160,7 +160,7 @@ function QueueItemCard({
           ) : item.kind === "image" ? (
             <div className="mt-1 flex items-center justify-center overflow-hidden rounded bg-black/40 ring-1 ring-border/40">
               <img
-                src={resolveChurchAsset(item.thumbnailUrl ?? item.url)}
+                src={resolveChurchAsset(item.thumbnailUrl ?? (item.mediaType === "video" ? "/media-video-placeholder.svg" : item.url))}
                 alt={item.label}
                 className="max-h-32 w-auto max-w-full object-contain"
               />

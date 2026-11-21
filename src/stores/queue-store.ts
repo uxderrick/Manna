@@ -37,8 +37,8 @@ interface QueueState {
   jumpLiveSong: (songId: string) => void
   jumpToSongNumber: (num: number) => void
   presentSongLive: (songId: string) => void
-  enqueueImage: (input: { url: string; label: string; thumbnailUrl?: string; provider: Extract<QueueItem, { kind: "image" }>["provider"] }) => void
-  presentImageLive: (input: { url: string; label: string; thumbnailUrl?: string; provider: Extract<QueueItem, { kind: "image" }>["provider"] }) => void
+  enqueueImage: (input: { url: string; label: string; thumbnailUrl?: string; mediaType?: "video"; provider: Extract<QueueItem, { kind: "image" }>["provider"] }) => void
+  presentImageLive: (input: { url: string; label: string; thumbnailUrl?: string; mediaType?: "video"; provider: Extract<QueueItem, { kind: "image" }>["provider"] }) => void
 }
 
 function stanzaIndexById(song: Song, stanzaId: string): number {
@@ -184,7 +184,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     get().presentSongLive(song.id)
   },
 
-  enqueueImage: ({ url, label, thumbnailUrl, provider }) => {
+  enqueueImage: ({ url, label, thumbnailUrl, provider, mediaType }) => {
     const item: QueueItem = {
       kind: "image",
       id: `image-q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -194,16 +194,17 @@ export const useQueueStore = create<QueueState>((set, get) => ({
       label,
       thumbnailUrl,
       provider,
+      ...(mediaType ? { mediaType } : {}),
     }
     set((s) => ({ items: [...s.items, item] }))
   },
 
-  presentImageLive: ({ url, label, thumbnailUrl, provider }) => {
-    get().enqueueImage({ url, label, thumbnailUrl, provider })
+  presentImageLive: ({ url, label, thumbnailUrl, provider, mediaType }) => {
+    get().enqueueImage({ url, label, thumbnailUrl, provider, mediaType })
     const idx = get().items.length - 1
     set({ activeIndex: idx })
     void import("./broadcast-store").then(({ useBroadcastStore }) => {
-      useBroadcastStore.getState().setFullscreenImage({ url, label })
+      useBroadcastStore.getState().setFullscreenImage({ url, label, ...(mediaType ? { mediaType, poster: thumbnailUrl } : {}) })
     })
   },
 

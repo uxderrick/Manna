@@ -132,3 +132,14 @@ it("presents the approved closing slide", () => {
     label: "Thank You — Closing",
   })
 })
+
+it("plays a saved video plan item without scripture or song text", () => {
+  setFullscreenImage.mockReset()
+  activatePlanItem(mkItem("blank", {
+    type: "blank", showLogo: false, imageUrl: "/loop.mp4", imageLabel: "Candlelight",
+    mediaType: "video", poster: "/loop.jpg",
+  }))
+  expect(setFullscreenImage).toHaveBeenCalledWith({
+    url: "/loop.mp4", label: "Candlelight", mediaType: "video", poster: "/loop.jpg",
+  })
+})

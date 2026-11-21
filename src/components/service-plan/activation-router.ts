@@ -63,6 +63,7 @@ function routePlanItem(item: PlanItem): void {
         broadcast.setFullscreenImage({
           url: parsed.imageUrl,
           label: parsed.imageLabel ?? "",
+          ...(parsed.mediaType ? { mediaType: parsed.mediaType, poster: parsed.poster } : {}),
           ...(parsed.textOverlay ? { textOverlay: parsed.textOverlay } : {}),
         })
       } else if (parsed.showLogo) {

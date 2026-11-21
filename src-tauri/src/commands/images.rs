@@ -386,7 +386,7 @@ pub async fn save_image_to_library(
 /// reload). Reuses the same `library/images/` dir + sidecar format as
 /// `save_image_to_library`, so the imported file shows up in `list_library_images`.
 #[tauri::command]
-pub fn import_library_image(src_path: String) -> Result<ImageHit, String> {
+pub async fn import_library_image(src_path: String) -> Result<ImageHit, String> {
     let src = PathBuf::from(&src_path);
     if !src.is_file() {
         return Err(format!("Not a file: {src_path}"));
@@ -396,8 +396,8 @@ pub fn import_library_image(src_path: String) -> Result<ImageHit, String> {
         .and_then(|e| e.to_str())
         .map(|s| s.to_lowercase())
         .unwrap_or_default();
-    if !IMAGE_EXTS.contains(&ext.as_str()) {
-        return Err("Refusing to import a non-image file".into());
+    if !is_media_extension(&ext) {
+        return Err("Choose an image or an MP4, M4V, MOV or WebM video.".into());
     }
 
     let dir = library_dir();
@@ -417,11 +417,15 @@ pub fn import_library_image(src_path: String) -> Result<ImageHit, String> {
         if s.is_empty() { "image".to_string() } else { s }
     };
     let base = format!("{slug}-upload-{stamp}");
-    let file_path = dir.join(format!("{base}.{ext}"));
-    let sidecar_path = dir.join(format!("{base}.json"));
-
-    std::fs::copy(&src, &file_path)
-        .map_err(|e| format!("Copy {src_path} -> {}: {e}", file_path.display()))?;
+    let file_path = if VIDEO_EXTS.contains(&ext.as_str()) {
+        PathBuf::from(super::video_assets::copy_video(&src, &dir).await?)
+    } else {
+        let dest = dir.join(format!("{base}.{ext}"));
+        std::fs::copy(&src, &dest)
+            .map_err(|e| format!("Copy {src_path} -> {}: {e}", dest.display()))?;
+        dest
+    };
+    let sidecar_path = file_path.with_extension("json");
     let sidecar = LibrarySidecar {
         label: label.clone(),
         provider: "library".to_string(),
@@ -465,7 +469,7 @@ pub fn list_library_images() -> Result<Vec<ImageHit>, String> {
             .and_then(|e| e.to_str())
             .map(|s| s.to_lowercase())
             .unwrap_or_default();
-        if !IMAGE_EXTS.contains(&ext.as_str()) { continue }
+        if !is_media_extension(&ext) { continue }
 
         let sidecar_path = p.with_extension("json");
         let meta: Option<LibrarySidecar> = std::fs::read_to_string(&sidecar_path)
@@ -529,6 +533,12 @@ const IMAGE_EXTS: &[&str] = &[
     "ico", "jfif", "pjpeg", "pjp", "apng",
 ];
 
+const VIDEO_EXTS: &[&str] = &["mp4", "m4v", "mov", "webm"];
+
+fn is_media_extension(extension: &str) -> bool {
+    IMAGE_EXTS.contains(&extension) || VIDEO_EXTS.contains(&extension)
+}
+
 #[tauri::command]
 pub fn list_local_images(folder: String) -> Result<Vec<ImageHit>, String> {
     let path = PathBuf::from(&folder);
@@ -547,7 +557,7 @@ pub fn list_local_images(folder: String) -> Result<Vec<ImageHit>, String> {
             .and_then(|e| e.to_str())
             .map(|s| s.to_lowercase())
             .unwrap_or_default();
-        if !IMAGE_EXTS.contains(&ext.as_str()) {
+        if !is_media_extension(&ext) {
             continue;
         }
         let name = file_path
@@ -590,8 +600,8 @@ fn validate_local_image(path: &str, folder: &str) -> Result<PathBuf, String> {
         .and_then(|e| e.to_str())
         .map(|s| s.to_lowercase())
         .unwrap_or_default();
-    if !IMAGE_EXTS.contains(&ext.as_str()) {
-        return Err("Refusing to operate on non-image file".into());
+    if !is_media_extension(&ext) {
+        return Err("Refusing to operate on unsupported media".into());
     }
     let canon_path = p.canonicalize().map_err(|e| format!("Canonicalize path: {e}"))?;
     let canon_folder = PathBuf::from(folder)
@@ -611,6 +621,9 @@ pub fn read_local_image_data_url(path: String, folder: String) -> Result<String,
         .and_then(|e| e.to_str())
         .map(|s| s.to_lowercase())
         .unwrap_or_default();
+    if !IMAGE_EXTS.contains(&ext.as_str()) {
+        return Err("Video files must use the streaming asset URL".into());
+    }
     let bytes = std::fs::read(&p).map_err(|e| e.to_string())?;
     let mime = match ext.as_str() {
         "png" | "apng" => "image/png",
@@ -635,4 +648,33 @@ pub fn delete_local_image(path: String, folder: String) -> Result<(), String> {
     let p = validate_local_image(&path, &folder)?;
     std::fs::remove_file(&p).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod media_tests {
+    use super::*;
+
+    #[test]
+    fn accepts_image_and_video_extensions_but_not_other_files() {
+        for extension in ["png", "jpg", "mp4", "m4v", "mov", "webm"] {
+            assert!(is_media_extension(extension));
+        }
+        for extension in ["json", "txt", "exe"] {
+            assert!(!is_media_extension(extension));
+        }
+    }
+
+    #[test]
+    fn local_video_validation_keeps_the_folder_boundary() {
+        let directory = tempfile::tempdir().unwrap();
+        let folder = directory.path().join("media");
+        std::fs::create_dir(&folder).unwrap();
+        let inside = folder.join("loop.mp4");
+        let outside = directory.path().join("outside.mp4");
+        std::fs::write(&inside, b"test").unwrap();
+        std::fs::write(&outside, b"test").unwrap();
+        assert!(validate_local_image(inside.to_str().unwrap(), folder.to_str().unwrap()).is_ok());
+        assert!(validate_local_image(outside.to_str().unwrap(), folder.to_str().unwrap()).is_err());
+        assert!(read_local_image_data_url(inside.to_string_lossy().into(), folder.to_string_lossy().into()).is_err());
+    }
 }

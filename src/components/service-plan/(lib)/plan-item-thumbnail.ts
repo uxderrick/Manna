@@ -31,6 +31,7 @@ export function getPlanItemThumbnail(
   return {
     url: parsed.imageUrl,
     label: parsed.imageLabel ?? "Slide",
-    ...(parsed.textOverlay ? { textOverlay: parsed.textOverlay } : {}),
+    ...(parsed.mediaType ? { mediaType: parsed.mediaType, poster: parsed.poster } : {}),
+          ...(parsed.textOverlay ? { textOverlay: parsed.textOverlay } : {}),
   }
 }

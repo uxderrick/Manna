@@ -389,3 +389,13 @@ it("centers only the EWC symbol at the bottom of the portrait artwork", () => {
   )
   expect(draw).not.toHaveBeenCalled()
 })
+
+
+it("draws a full-screen video without any text overlay", () => {
+  const { ctx, draws } = context()
+  const draw = vi.spyOn(ctx, "drawImage")
+  const video = { readyState: 4, videoWidth: 1920, videoHeight: 1080 } as HTMLVideoElement
+  drawImageSlide(ctx, undefined, { ...slide, mediaType: "video" }, 1920, 1080, undefined, undefined, video)
+  expect(draw).toHaveBeenCalledWith(video, 0, 0, 1920, 1080)
+  expect(draws).toEqual([])
+})

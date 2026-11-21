@@ -255,7 +255,7 @@ export function BroadcastCanvas() {
       }
 
       if (fullscreenImage) {
-        drawImageSlide(ctx, imageCacheRef.current.get(fullscreenImage.url), fullscreenImage, width, height, imageCacheRef.current.get(getSpeakerPortraitUrl(fullscreenImage) ?? ""), imageCacheRef.current.get(SPEAKER_LOGO_MARK))
+        drawImageSlide(ctx, imageCacheRef.current.get(fullscreenImage.mediaType === "video" ? fullscreenImage.poster ?? "" : fullscreenImage.url), fullscreenImage, width, height, imageCacheRef.current.get(getSpeakerPortraitUrl(fullscreenImage) ?? ""), imageCacheRef.current.get(SPEAKER_LOGO_MARK), videoLoopRef.current?.video)
         if (announcement && announcement.mode === "ticker") {
           drawTickerAnnouncement(ctx, width, height, announcement.text, tickerOffsetRef.current)
         }
@@ -469,9 +469,11 @@ export function BroadcastCanvas() {
 
   const syncVideo = useCallback(() => {
     const data = latestData.current
-    const canPlay = data && !data.hidden && !data.fullscreenImage && !data.notes && announcementRef.current?.mode !== "slide"
+    const canPlay = data && !data.hidden && !data.notes && announcementRef.current?.mode !== "slide"
     const url = !canPlay
       ? null
+      : data.fullscreenImage
+        ? data.fullscreenImage.mediaType === "video" ? data.fullscreenImage.url : null
       : data.blankLogo
         ? data.blankVideoUrl ?? null
         : data.theme.background.type === "video"
@@ -514,7 +516,9 @@ export function BroadcastCanvas() {
       if (event.payload.blankLogo) {
         preloadImage(event.payload.blankLogoUrl || BLANK_LOGO_URL, "Blank logo")
       }
-      if (event.payload.fullscreenImage?.url) preloadImage(event.payload.fullscreenImage.url, "Fullscreen image")
+      const slide = event.payload.fullscreenImage
+      const poster = slide?.mediaType === "video" ? slide.poster : slide?.url
+      if (poster) preloadImage(poster, "Fullscreen media poster")
       const portraitUrl = getSpeakerPortraitUrl(event.payload.fullscreenImage)
       if (portraitUrl) {
         preloadImage(portraitUrl, "Speaker portrait")

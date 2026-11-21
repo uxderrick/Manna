@@ -1,7 +1,7 @@
 //! Managed copies of local blank-background videos.
 use std::path::Path;
 
-async fn copy_video(src: &Path, directory: &Path) -> Result<String, String> {
+pub(super) async fn copy_video(src: &Path, directory: &Path) -> Result<String, String> {
     use tokio::io::AsyncReadExt;
     let extension = src
         .extension()

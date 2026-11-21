@@ -47,6 +47,8 @@ it("retains the decoder across verse and darkness changes, then stops it for sti
     value: { load: () => Promise.resolve([]) },
   })
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+    save: vi.fn(),
+    restore: vi.fn(),
     scale: vi.fn(),
     setTransform: vi.fn(),
     clearRect: vi.fn(),
@@ -93,8 +95,17 @@ it("retains the decoder across verse and darkness changes, then stops it for sti
       root.render(<CanvasVerse theme={theme} verse={verse} />)
     )
     expect(start).toHaveBeenCalledTimes(2)
+    await act(async () => root.render(
+      <CanvasVerse theme={theme} verse={verse} fullscreenImage={{ url: "/candle.mp4", label: "Candle", mediaType: "video" }} />
+    ))
+    expect(start).toHaveBeenLastCalledWith("/candle.mp4", expect.any(Function), expect.any(Function))
+    expect(stop).toHaveBeenCalledTimes(2)
+    await act(async () => root.render(
+      <CanvasVerse theme={theme} verse={verse} fullscreenImage={{ url: "/still.png", label: "Still" }} />
+    ))
+    expect(stop).toHaveBeenCalledTimes(3)
   } finally {
     await act(async () => root.unmount())
   }
-  expect(stop).toHaveBeenCalledTimes(2)
+  expect(stop).toHaveBeenCalledTimes(3)
 })

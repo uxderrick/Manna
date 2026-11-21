@@ -30,7 +30,7 @@ import { NotesSelectionDrawer } from "@/components/notes/notes-selection-drawer"
 import { ThemeDesigner } from "@/components/broadcast/theme-designer"
 import { NotesPanel } from "@/components/panels/notes-panel"
 import { SongsPanel } from "@/components/panels/songs-panel"
-import { ImagesPanel } from "@/components/panels/images-panel"
+import { MediaPanel } from "@/components/panels/media-panel"
 import { SongJumpDialog } from "@/components/songs/song-jump-dialog"
 import { AnalyticsPanel } from "@/components/panels/analytics-panel"
 import { useAboutDialogStore } from "@/lib/about-dialog"
@@ -274,7 +274,7 @@ export function Workspace() {
               { id: "search", label: "Bible", content: <SearchPanel /> },
               { id: "notes", label: "Notes", content: <NotesPanel /> },
               { id: "songs", label: "Songs", content: <SongsPanel /> },
-              { id: "images", label: "Images", content: <ImagesPanel /> },
+              { id: "images", label: "Media", content: <MediaPanel /> },
             ]}
           />
         </Panel>

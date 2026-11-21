@@ -71,7 +71,7 @@ export const CanvasVerse = memo(function CanvasVerse({
   const paintRef = useRef<(() => void) | null>(null)
   const [containerWidth, setContainerWidth] = useState(0)
   const videoUrl = fullscreenImage
-    ? null
+    ? fullscreenImage.mediaType === "video" ? fullscreenImage.url : null
     : blankLogo
       ? blankVideoUrl
       : theme.background.type === "video"
@@ -119,12 +119,13 @@ export const CanvasVerse = memo(function CanvasVerse({
       if (!fullscreenImage) return
       drawImageSlide(
         cx,
-        sharedImageCache.get(fullscreenImage.url),
+        sharedImageCache.get(fullscreenImage.mediaType === "video" ? fullscreenImage.poster ?? "" : fullscreenImage.url),
         fullscreenImage,
         w,
         h,
         sharedImageCache.get(getSpeakerPortraitUrl(fullscreenImage) ?? ""),
-        sharedImageCache.get(SPEAKER_LOGO_MARK)
+        sharedImageCache.get(SPEAKER_LOGO_MARK),
+        videoLoopRef.current?.video
       )
     }
 
@@ -135,7 +136,7 @@ export const CanvasVerse = memo(function CanvasVerse({
           : undefined,
         theme.logo?.url,
         theme.background.type === "video" ? theme.background.video?.poster : undefined,
-        fullscreenImage?.url,
+        fullscreenImage?.mediaType === "video" ? fullscreenImage.poster : fullscreenImage?.url,
         getSpeakerPortraitUrl(fullscreenImage),
         getSpeakerPortraitUrl(fullscreenImage) ? SPEAKER_LOGO_MARK : undefined,
         blankLogo ? blankLogoUrl : undefined,
@@ -225,7 +226,8 @@ export const CanvasVerse = memo(function CanvasVerse({
       ensureImage(theme.logo.url, rerender)
     }
     if (fullscreenImage?.url) {
-      ensureImage(fullscreenImage.url, rerender)
+      const poster = fullscreenImage.mediaType === "video" ? fullscreenImage.poster : fullscreenImage.url
+      if (poster) ensureImage(poster, rerender)
       const portraitUrl = getSpeakerPortraitUrl(fullscreenImage)
       if (portraitUrl) {
         ensureImage(portraitUrl, rerender)

@@ -1,4 +1,5 @@
 import { getSpeakerPortraitUrl } from "./speaker-portrait"
+import { drawVideoCover } from "./looping-video"
 import type { ImageSlide } from "@/types"
 
 /** Shared by preview and projector so image/text geometry is identical. */
@@ -9,11 +10,22 @@ export function drawImageSlide(
   width: number,
   height: number,
   portrait?: HTMLImageElement,
-  logoMark?: HTMLImageElement
+  logoMark?: HTMLImageElement,
+  video?: HTMLVideoElement
 ) {
   ctx.save()
   ctx.fillStyle = "#000000"
   ctx.fillRect(0, 0, width, height)
+  if (slide.mediaType === "video") {
+    if (!drawVideoCover(ctx, video ?? null, width, height) && image?.complete && image.naturalWidth > 0) {
+      const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight)
+      const w = image.naturalWidth * scale
+      const h = image.naturalHeight * scale
+      ctx.drawImage(image, (width - w) / 2, (height - h) / 2, w, h)
+    }
+    ctx.restore()
+    return []
+  }
   const ratio =
     image?.naturalWidth && image.naturalHeight
       ? image.naturalWidth / image.naturalHeight

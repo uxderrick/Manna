@@ -195,3 +195,14 @@ describe("queue active item identity", () => {
     expect(useQueueStore.getState().activeIndex).toBe(3)
   })
 })
+
+it("keeps video metadata when a loop is queued", () => {
+  useQueueStore.setState({ items: [], activeIndex: null })
+  useQueueStore.getState().enqueueImage({
+    url: "/candle.mp4", label: "Candlelight", thumbnailUrl: "/candle.jpg",
+    mediaType: "video", provider: "library",
+  })
+  expect(useQueueStore.getState().items[0]).toMatchObject({
+    kind: "image", url: "/candle.mp4", mediaType: "video", thumbnailUrl: "/candle.jpg",
+  })
+})

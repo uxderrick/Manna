@@ -89,6 +89,8 @@ export interface PlanItemBlank {
   showLogo: boolean
   imageUrl?: string
   imageLabel?: string
+  mediaType?: "video"
+  poster?: string
   textOverlay?: SlideTextOverlay
   prayer?: PrayerSlideContent
 }
@@ -177,6 +179,7 @@ export function parsePlanItem(item: PlanItem): PlanItemPayload | null {
         showLogo: Boolean(parsed.showLogo),
         imageUrl: typeof parsed.imageUrl === "string" ? parsed.imageUrl : undefined,
         imageLabel: typeof parsed.imageLabel === "string" ? parsed.imageLabel : undefined,
+        ...(parsed.mediaType === "video" ? { mediaType: "video" as const, poster: typeof parsed.poster === "string" ? parsed.poster : undefined } : {}),
         ...(textOverlay ? { textOverlay } : {}),
         ...(prayer ? { prayer } : {}),
       }
