@@ -19,6 +19,7 @@ import { useBibleStore } from "@/stores/bible-store"
 import { useSettingsStore } from "@/stores/settings-store"
 import { resolveBlankBackground } from "@/lib/brand"
 import { validHighlights } from "@/lib/text-highlights"
+import { loadThemeSelection, saveThemeSelection } from "@/lib/theme-selection"
 import { BACKGROUND_MEDIA, backgroundContext, loadBackgroundChoices, saveBackgroundChoices, withLiveBackground, type BackgroundChoices, type BackgroundContext } from "@/lib/live-backgrounds"
 
 type SelectedElement = "verse" | "reference" | null
@@ -171,10 +172,12 @@ function releasePlanOutput() {
   useServicePlanStore.setState({ presentedItemId: null })
 }
 
+const savedThemeSelection = loadThemeSelection()
+
 export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   themes: [...BUILTIN_THEMES],
-  activeThemeId: BUILTIN_THEMES[0].id,
-  altActiveThemeId: BUILTIN_THEMES[0].id,
+  activeThemeId: savedThemeSelection.main,
+  altActiveThemeId: savedThemeSelection.alt,
   backgrounds: loadBackgroundChoices(),
   setBackground: (context, id) => {
     if (id !== null && !BACKGROUND_MEDIA.some((media) => media.id === id)) return
@@ -252,7 +255,12 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   },
 
   loadThemes: () => {
-    set({ themes: [...BUILTIN_THEMES] })
+    set((state) => ({
+      themes: [
+        ...BUILTIN_THEMES.map((theme) => state.themes.find((existing) => existing.id === theme.id) ?? theme),
+        ...state.themes.filter((theme) => !theme.builtin),
+      ],
+    }))
   },
   saveTheme: async (theme) => {
     const valid = parseBroadcastTheme(theme)
@@ -337,10 +345,12 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   },
   setActiveTheme: (activeThemeId) => {
     set({ activeThemeId })
+    saveThemeSelection({ main: activeThemeId, alt: get().altActiveThemeId })
     get().syncBroadcastOutputFor("main")
   },
   setAltActiveTheme: (altActiveThemeId) => {
     set({ altActiveThemeId })
+    saveThemeSelection({ main: get().activeThemeId, alt: altActiveThemeId })
     get().syncBroadcastOutputFor("alt")
   },
   setLive: (isLive) => {
@@ -761,8 +771,8 @@ export async function hydrateCustomThemes(): Promise<void> {
         console.warn("[themes] Skipping damaged theme", id)
       }
     }
-    useBroadcastStore.setState((s) => ({
-      themes: [
+    useBroadcastStore.setState((s) => {
+      const themes = [
         ...s.themes
           .filter((t) => t.builtin)
           .map((t) => ({ ...t, pinned: loaded.get(t.id)?.pinned ?? t.pinned })),
@@ -774,8 +784,17 @@ export async function hydrateCustomThemes(): Promise<void> {
               !s.themes.some((existing) => existing.id === t.id)
           )
           .map((t) => ({ ...t, builtin: false })),
-      ],
-    }))
+      ]
+      return {
+        themes,
+        activeThemeId: themes.some((theme) => theme.id === s.activeThemeId)
+          ? s.activeThemeId : BUILTIN_THEMES[0].id,
+        altActiveThemeId: themes.some((theme) => theme.id === s.altActiveThemeId)
+          ? s.altActiveThemeId : BUILTIN_THEMES[0].id,
+      }
+    })
+    const state = useBroadcastStore.getState()
+    saveThemeSelection({ main: state.activeThemeId, alt: state.altActiveThemeId })
   } catch {
     console.warn("[themes] Failed to load custom themes")
   }
