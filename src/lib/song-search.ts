@@ -33,16 +33,21 @@ function buildIndex(songs: Song[]): MiniSearch<IndexDoc> {
   return ms
 }
 
-// Cache the index per songs[] identity so re-renders on keystrokes don't
-// rebuild MiniSearch over all 2800+ EW songs.
-let cachedSongs: Song[] | null = null
-let cachedIndex: MiniSearch<IndexDoc> | null = null
+const indexes = new WeakMap<Song[], MiniSearch<IndexDoc>>()
+const songMaps = new WeakMap<Song[], Map<string, Song>>()
 
 function getIndex(songs: Song[]): MiniSearch<IndexDoc> {
-  if (cachedSongs === songs && cachedIndex) return cachedIndex
-  cachedSongs = songs
-  cachedIndex = buildIndex(songs)
-  return cachedIndex
+  let index = indexes.get(songs)
+  if (!index) {
+    index = buildIndex(songs)
+    indexes.set(songs, index)
+    songMaps.set(songs, new Map(songs.map((song) => [song.id, song])))
+  }
+  return index
+}
+
+export function prepareSongSearch(songs: Song[]) {
+  getIndex(songs)
 }
 
 const PREFIX_RE = /^(ghs|mhb|sankey|snk|sda)\s+(\d+)$/i
@@ -66,17 +71,19 @@ export function searchSongs(songs: Song[], query: string): Song[] {
     const direct = songs.find((s) => s.source === "ghs" && s.number === n)
     if (direct) {
       const index = getIndex(songs)
+      const byId = songMaps.get(songs)!
       const fuzzy = index
         .search(q)
-        .map((r) => songs.find((s) => s.id === r.id))
+        .map((r) => byId.get(r.id))
         .filter((s): s is Song => s !== undefined && s.id !== direct.id)
       return [direct, ...fuzzy]
     }
   }
 
   const index = getIndex(songs)
+  const byId = songMaps.get(songs)!
   return index
     .search(q)
-    .map((r) => songs.find((s) => s.id === r.id))
+    .map((r) => byId.get(r.id))
     .filter((s): s is Song => Boolean(s))
 }

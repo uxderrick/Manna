@@ -1,6 +1,9 @@
+import { initializeChurchAssets, resolveChurchAsset } from "@/lib/church-assets"
 import { getSpeakerPortraitUrl, SPEAKER_LOGO_MARK } from "@/lib/speaker-portrait"
 import { drawImageSlide } from "@/lib/image-slide-renderer"
 import { startLoopingVideo, drawVideoCover } from "@/lib/looping-video"
+import { afterBroadcastPaint } from "@/lib/after-broadcast-paint"
+import { info } from "@tauri-apps/plugin-log"
 import { createRoot } from "react-dom/client"
 import { useRef, useEffect, useCallback } from "react"
 import { invoke } from "@tauri-apps/api/core"
@@ -179,6 +182,7 @@ function wrapAnnouncement(
 }
 
 interface BroadcastPayload {
+  sentAt?: number
   hidden?: boolean
   theme: BroadcastTheme
   verse: VerseRenderData | null
@@ -215,6 +219,7 @@ export function BroadcastCanvas() {
   const ndiCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const lastPushRef = useRef(0)
   const pushingRef = useRef(false)
+  const cancelAfterPaintRef = useRef<(() => void) | null>(null)
 
   const logDebug = useCallback((message: string, meta?: unknown) => {
     if (!import.meta.env.DEV) return
@@ -289,6 +294,7 @@ export function BroadcastCanvas() {
       const result = renderVerse(ctx, theme, verse, {
         scale: 1,
         imageCache: imageCacheRef.current,
+        backgroundVideo: videoLoopRef.current?.video,
       })
       if (!result) {
         ctx.fillStyle = "#000"
@@ -383,16 +389,26 @@ export function BroadcastCanvas() {
       draw()
     }
     img.onerror = () => {
+      cache.delete(url)
       console.warn(`[broadcast-output] failed to load ${label}`, { url })
     }
-    img.src = url
+    cache.set(url, img)
+    img.src = resolveChurchAsset(url)
   }, [draw, logDebug])
 
   const preloadBackgroundImage = useCallback((theme: BroadcastTheme) => {
     const bg = theme.background
+    if (bg.type === "video" && bg.video?.poster) preloadImage(bg.video.poster, "Video poster")
     if (bg.type === "image" && bg.image?.url) preloadImage(bg.image.url, "Background image")
     if (theme.logo?.url) preloadImage(theme.logo.url, "Logo")
   }, [preloadImage])
+
+  const warmTheme = useCallback((theme: BroadcastTheme) => {
+    preloadBackgroundImage(theme)
+    void Promise.all([theme.verseText, theme.reference].map((text) =>
+      document.fonts.load(`${text.fontWeight} 16px "${text.fontFamily}"`)
+    )).then(draw).catch((error) => console.warn("[broadcast-output] font load failed", error))
+  }, [draw, preloadBackgroundImage])
 
   const pushNdiFrame = useCallback(async () => {
     if (!ndiConfigRef.current.active) return
@@ -453,8 +469,9 @@ export function BroadcastCanvas() {
 
   const syncVideo = useCallback(() => {
     const data = latestData.current
-    const url = !data?.hidden && data?.blankLogo && !data.fullscreenImage && !data.notes && announcementRef.current?.mode !== "slide"
-      ? data.blankVideoUrl ?? null : null
+    const canPlay = data && !data.hidden && !data.fullscreenImage && !data.notes && announcementRef.current?.mode !== "slide"
+    const url = canPlay ? data.blankLogo ? data.blankVideoUrl ?? null
+      : data.theme.background.type === "video" ? data.theme.background.video?.url ?? null : null : null
     if (url === videoUrlRef.current) return
     videoLoopRef.current?.stop()
     videoLoopRef.current = null
@@ -480,10 +497,15 @@ export function BroadcastCanvas() {
 
     const currentWindow = getCurrentWebviewWindow()
     logDebug("Listener registration started", { label: currentWindow.label })
+    const unlistenPreload = currentWindow.listen<{ theme: BroadcastTheme }>(`broadcast:preload:${OUTPUT_ID}`, (event) => {
+      warmTheme(event.payload.theme)
+    })
     const unlisten = currentWindow.listen<BroadcastPayload>(`broadcast:verse-update:${OUTPUT_ID}`, (event) => {
+      const receivedAt = Date.now()
+      const renderStarted = performance.now()
       latestData.current = event.payload
       syncVideo()
-      preloadBackgroundImage(event.payload.theme)
+      warmTheme(event.payload.theme)
       if (event.payload.blankLogo) {
         preloadImage(event.payload.blankLogoUrl || BLANK_LOGO_URL, "Blank logo")
       }
@@ -499,7 +521,16 @@ export function BroadcastCanvas() {
         themeId: event.payload.theme.id,
       })
       draw()
-      pushNdiBurst()
+      const drawMs = Math.round(performance.now() - renderStarted)
+      cancelAfterPaintRef.current?.()
+      cancelAfterPaintRef.current = afterBroadcastPaint(() => {
+        if (event.payload.sentAt != null) {
+          const pendingImages = [...imageCacheRef.current.values()].filter((image) => !image.complete).length
+          void info(`[BROADCAST-TIMING] output=${OUTPUT_ID} transport_ms=${receivedAt - event.payload.sentAt} draw_ms=${drawMs} paint_opportunity_ms=${Date.now() - event.payload.sentAt} pending_images=${pendingImages}`)
+            .catch(() => {})
+        }
+        pushNdiBurst()
+      })
     })
 
     const unlistenAnnouncement = currentWindow.listen<AnnouncementPayload | null>(`broadcast:announcement:${OUTPUT_ID}`, (event) => {
@@ -559,14 +590,16 @@ export function BroadcastCanvas() {
       videoLoopRef.current?.stop()
       videoLoopRef.current = null
       videoUrlRef.current = null
+      cancelAfterPaintRef.current?.()
       unlisten.then((fn) => fn())
+      unlistenPreload.then((fn) => fn())
       unlistenAnnouncement.then((fn) => fn())
       unlistenNdiConfig.then((fn) => fn())
       if (announcementTimerRef.current !== null) {
         clearTimeout(announcementTimerRef.current)
       }
     }
-  }, [draw, logDebug, preloadBackgroundImage, preloadImage, pushNdiFrame, pushNdiBurst, syncVideo])
+  }, [draw, logDebug, warmTheme, preloadImage, pushNdiFrame, pushNdiBurst, syncVideo])
 
   // Slow keepalive: push one frame every 2s if idle (prevents NDI receivers from dropping the source)
   useEffect(() => {
@@ -633,4 +666,4 @@ export function BroadcastCanvas() {
 }
 
 const root = document.getElementById("broadcast-root")!
-createRoot(root).render(<BroadcastCanvas />)
+void initializeChurchAssets().then(() => createRoot(root).render(<BroadcastCanvas />))

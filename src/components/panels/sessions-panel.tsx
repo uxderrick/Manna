@@ -16,12 +16,14 @@ function SessionRow({
   onContextMenu,
   onTitleChange,
   onDelete,
+  deleteDisabled,
 }: {
   session: SermonSession
   isActive: boolean
   onClick: () => void
   onContextMenu: (e: React.MouseEvent) => void
   onTitleChange: (newTitle: string) => void
+  deleteDisabled: boolean
   onDelete: () => void
 }) {
   const [editing, setEditing] = useState(false)
@@ -94,7 +96,8 @@ function SessionRow({
             onDelete()
           }
         }}
-        title="Delete session"
+        disabled={deleteDisabled}
+        title={deleteDisabled ? "End this session before deleting it" : "Delete session"}
         className="shrink-0 rounded-md p-1 text-muted-foreground/50 opacity-0 transition-all hover:bg-destructive/15 hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
       >
         <Trash2Icon className="size-3.5" />
@@ -153,6 +156,7 @@ export function SessionsPanel() {
               key={session.id}
               session={session}
               isActive={activeSession?.id === session.id}
+              deleteDisabled={activeSession?.id === session.id && activeSession.status === "live"}
               onClick={() => {
                 setLocalView({ id: session.id, title: session.title })
               }}
@@ -201,6 +205,7 @@ export function SessionsPanel() {
               View Details
             </button>
             <button
+              disabled={activeSession?.id === contextMenu.sessionId && activeSession.status === "live"}
               className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-destructive hover:bg-destructive/10"
               onClick={async () => {
                 try {

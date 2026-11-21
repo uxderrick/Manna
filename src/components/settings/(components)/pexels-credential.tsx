@@ -12,8 +12,8 @@ export function PexelsCredential() {
 
   const [pexelsSaved, setPexelsSaved] = useState(false)
 
-  const handleSavePexels = () => {
-    persistPexelsApiKey(pexelsValue || null)
+  const handleSavePexels = async () => {
+    if (!(await persistPexelsApiKey(pexelsValue || null))) return
     setPexelsSaved(true)
     setTimeout(() => setPexelsSaved(false), 2000)
   }

@@ -1,3 +1,4 @@
+import { ConnectionOnly } from "../(components)/connection-only"
 import { DeepgramCredential } from "../(components)/deepgram-credential"
 import { AssemblyCredential } from "../(components)/assembly-credential"
 import { DeepseekCredential } from "../(components)/deepseek-credential"
@@ -12,7 +13,7 @@ export function ApiKeysSection() {
       <DeepgramCredential />
       <AssemblyCredential />
       <DeepseekCredential />
-      <Comms360Credential />
+      <ConnectionOnly kind="sms"><Comms360Credential /></ConnectionOnly>
       <GeniusCredential />
       <PexelsCredential />
       <UnsplashCredential />

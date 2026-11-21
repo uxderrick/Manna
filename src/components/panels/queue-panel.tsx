@@ -1,3 +1,4 @@
+import { resolveChurchAsset } from "@/lib/church-assets"
 import { capitalizeSongLyrics } from "@/lib/song-capitalization"
 import { useState, useEffect, useRef } from "react"
 import { invoke } from "@tauri-apps/api/core"
@@ -159,7 +160,7 @@ function QueueItemCard({
           ) : item.kind === "image" ? (
             <div className="mt-1 flex items-center justify-center overflow-hidden rounded bg-black/40 ring-1 ring-border/40">
               <img
-                src={item.thumbnailUrl ?? item.url}
+                src={resolveChurchAsset(item.thumbnailUrl ?? item.url)}
                 alt={item.label}
                 className="max-h-32 w-auto max-w-full object-contain"
               />

@@ -1,3 +1,4 @@
+import { resolveChurchAsset } from "@/lib/church-assets"
 import { ImageTextSlideEditor } from "@/components/service-plan/(modals)/image-text-slide-editor"
 import { PrayerSlideEditor } from "@/components/service-plan/(modals)/prayer-slide-editor"
 import { useState, useEffect } from "react"
@@ -101,7 +102,7 @@ function ItemEditor({ item, parsed, onClose }: {
                 <div className="mt-1 flex flex-col gap-2">
                   {blankImageUrl && (
                     <img
-                      src={blankImageUrl}
+                      src={resolveChurchAsset(blankImageUrl!)}
                       alt="Blank slide image"
                       className="max-h-40 rounded-md border bg-black object-contain"
                     />
@@ -134,7 +135,7 @@ function ItemEditor({ item, parsed, onClose }: {
               )}
               {!blankImageUrl && (
                 <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
-                  <label className="text-xs font-medium">Show church logo (EWC)</label>
+                  <label className="text-xs font-medium">Show church logo</label>
                   <input
                     type="checkbox"
                     checked={blankShowLogo}

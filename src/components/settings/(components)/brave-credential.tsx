@@ -12,8 +12,8 @@ export function BraveCredential() {
 
   const [braveSaved, setBraveSaved] = useState(false)
 
-  const handleSaveBrave = () => {
-    persistBraveApiKey(braveValue || null)
+  const handleSaveBrave = async () => {
+    if (!(await persistBraveApiKey(braveValue || null))) return
     setBraveSaved(true)
     setTimeout(() => setBraveSaved(false), 2000)
   }

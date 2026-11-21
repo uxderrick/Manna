@@ -1,3 +1,5 @@
+import { PrivateChurchArtwork } from "./(components)/private-church-artwork"
+import { useChurchConnections } from "./(hooks)/use-church-connections"
 import { useState } from "react"
 import {
   ChurchIcon,
@@ -31,6 +33,7 @@ const sections = [
   { id: "worship", label: "Worship collections", icon: MusicIcon },
 ] as const
 export function BrandingSection() {
+  const connections = useChurchConnections()
   const [active, setActive] =
     useState<(typeof sections)[number]["id"]>("identity")
   return (
@@ -39,19 +42,24 @@ export function BrandingSection() {
         aria-label="Church profile sections"
         className="sticky top-0 flex h-fit flex-col gap-1 self-start px-3 py-6"
       >
-        {sections.map(({ id, label, icon: Icon }) => (
-          <Button
-            key={id}
-            size="sm"
-            variant={active === id ? "secondary" : "ghost"}
-            aria-current={active === id ? "page" : undefined}
-            onClick={() => setActive(id)}
-            className="h-auto min-h-9 w-full justify-start gap-2 px-2.5 py-2 text-left text-xs whitespace-normal"
-          >
-            <Icon className="size-3.5 shrink-0" />
-            {label}
-          </Button>
-        ))}
+        {sections
+          .filter(
+            ({ id }) =>
+              id !== "publishing" || connections.publishing || connections.sms
+          )
+          .map(({ id, label, icon: Icon }) => (
+            <Button
+              key={id}
+              size="sm"
+              variant={active === id ? "secondary" : "ghost"}
+              aria-current={active === id ? "page" : undefined}
+              onClick={() => setActive(id)}
+              className="h-auto min-h-9 w-full justify-start gap-2 px-2.5 py-2 text-left text-xs whitespace-normal"
+            >
+              <Icon className="size-3.5 shrink-0" />
+              {label}
+            </Button>
+          ))}
       </nav>
       <section
         key={active}
@@ -74,6 +82,7 @@ export function BrandingSection() {
               ]}
             />
             <ChurchProfileAssets kinds={["logo"]} />
+            <PrivateChurchArtwork />
           </>
         )}
         {active === "speakers" && (

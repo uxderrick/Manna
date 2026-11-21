@@ -1,3 +1,4 @@
+import { resolveChurchAsset } from "@/lib/church-assets"
 import { useState } from "react"
 import { PencilIcon } from "lucide-react"
 import { useSettingsStore } from "@/stores/settings-store"
@@ -97,7 +98,7 @@ export function SlidePresets() {
                 />
               ) : (
                 <img
-                  src={payload.imageUrl}
+                  src={resolveChurchAsset(payload.imageUrl!)}
                   alt={label}
                   className="aspect-video w-full object-contain"
                 />
@@ -120,7 +121,7 @@ export function SlidePresets() {
         ))}
         <div className="overflow-hidden rounded-lg border">
           <img
-            src={givingSlide(brand).url}
+            src={resolveChurchAsset(givingSlide(brand).url!)}
             alt="Giving preview"
             className="aspect-video w-full bg-black object-contain"
           />

@@ -112,7 +112,7 @@ pub async fn generate_sms_alternatives(
         return Err("Add your DeepSeek API key in Settings → API Keys.".into());
     }
     // Reuse the sermon-source validation. Previous versions are comparison data only.
-    super::sharing_prompt(&summary, &title, None)?;
+    super::validate_summary(&summary, &title, None)?;
     if recap.len() > 40_000
         || previous_messages.len() > 4
         || previous_messages.iter().any(|text| text.len() > 8_000)

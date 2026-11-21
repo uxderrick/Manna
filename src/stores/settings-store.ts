@@ -1,3 +1,5 @@
+import { toast } from "sonner"
+import { loadCredential, saveCredential, type CredentialName } from "@/lib/secure-credentials"
 import { create } from "zustand"
 import { load, type Store } from "@tauri-apps/plugin-store"
 import { emit } from "@tauri-apps/api/event"
@@ -140,6 +142,10 @@ async function getStore(): Promise<Store> {
   return _store
 }
 
+function warnCredentialMigration() {
+  toast.warning("Some saved API keys are unavailable. Allow Manna access to your system key storage, then restart Manna. Existing saved keys have not been removed.", { id: "credential-migration", duration: 10000 })
+}
+
 /** Load persisted settings from disk into the Zustand store. */
 export async function hydrateSettings(): Promise<void> {
   try {
@@ -169,14 +175,14 @@ export async function hydrateSettings(): Promise<void> {
       splitWordThreshold,
       defaultHighlightColor,
     ] = await Promise.all([
-      store.get<string>("deepgramApiKey"),
-      store.get<string>("assemblyAiApiKey"),
-      store.get<string>("claudeApiKey"),
-      store.get<string>("deepseekApiKey"),
-      store.get<string>("geniusToken"),
-      store.get<string>("pexelsApiKey"),
-      store.get<string>("unsplashApiKey"),
-      store.get<string>("braveApiKey"),
+      loadCredential(store, "deepgramApiKey", warnCredentialMigration),
+      loadCredential(store, "assemblyAiApiKey", warnCredentialMigration),
+      loadCredential(store, "claudeApiKey", warnCredentialMigration),
+      loadCredential(store, "deepseekApiKey", warnCredentialMigration),
+      loadCredential(store, "geniusToken", warnCredentialMigration),
+      loadCredential(store, "pexelsApiKey", warnCredentialMigration),
+      loadCredential(store, "unsplashApiKey", warnCredentialMigration),
+      loadCredential(store, "braveApiKey", warnCredentialMigration),
       store.get<string>("localImageFolder"),
       store.get<SttProvider>("sttProvider"),
       store.get<boolean>("onboardingComplete"),
@@ -302,117 +308,47 @@ export async function persistAudioDeviceId(
   }
 }
 
-/** Persist the Deepgram API key to disk. */
-export async function persistDeepgramApiKey(key: string | null): Promise<void> {
-  useSettingsStore.getState().setDeepgramApiKey(key)
+async function persistProviderCredential(name: CredentialName, value: string | null): Promise<boolean> {
   try {
-    const store = await getStore()
-    if (key) {
-      await store.set("deepgramApiKey", key)
-    } else {
-      await store.delete("deepgramApiKey")
-    }
+    await saveCredential(await getStore(), name, value)
+    useSettingsStore.setState({ [name]: value })
+    return true
   } catch {
-    console.warn("[settings] Failed to persist Deepgram API key")
+    toast.error("Could not save the API key securely. Unlock your system key storage and try again.")
+    return false
   }
 }
 
-/** Persist the AssemblyAI API key to disk. */
-export async function persistAssemblyAiApiKey(
-  key: string | null
-): Promise<void> {
-  useSettingsStore.getState().setAssemblyAiApiKey(key)
-  try {
-    const store = await getStore()
-    if (key) {
-      await store.set("assemblyAiApiKey", key)
-    } else {
-      await store.delete("assemblyAiApiKey")
-    }
-  } catch {
-    console.warn("[settings] Failed to persist AssemblyAI API key")
-  }
+export function persistDeepgramApiKey(value: string | null): Promise<boolean> {
+  return persistProviderCredential("deepgramApiKey", value)
 }
 
-/** Persist the Claude API key to disk. */
-export async function persistClaudeApiKey(key: string | null): Promise<void> {
-  useSettingsStore.getState().setClaudeApiKey(key)
-  try {
-    const store = await getStore()
-    if (key) {
-      await store.set("claudeApiKey", key)
-    } else {
-      await store.delete("claudeApiKey")
-    }
-  } catch {
-    console.warn("[settings] Failed to persist Claude API key")
-  }
+export function persistAssemblyAiApiKey(value: string | null): Promise<boolean> {
+  return persistProviderCredential("assemblyAiApiKey", value)
 }
 
-/** Persist the DeepSeek API key to disk. */
-export async function persistDeepseekApiKey(key: string | null): Promise<void> {
-  useSettingsStore.getState().setDeepseekApiKey(key)
-  try {
-    const store = await getStore()
-    if (key) {
-      await store.set("deepseekApiKey", key)
-    } else {
-      await store.delete("deepseekApiKey")
-    }
-  } catch {
-    console.warn("[settings] Failed to persist DeepSeek API key")
-  }
+export function persistClaudeApiKey(value: string | null): Promise<boolean> {
+  return persistProviderCredential("claudeApiKey", value)
 }
 
-/** Persist the Genius API token to disk. */
-export async function persistGeniusToken(token: string | null): Promise<void> {
-  useSettingsStore.getState().setGeniusToken(token)
-  try {
-    const store = await getStore()
-    if (token) {
-      await store.set("geniusToken", token)
-    } else {
-      await store.delete("geniusToken")
-    }
-  } catch {
-    console.warn("[settings] Failed to persist Genius token")
-  }
+export function persistDeepseekApiKey(value: string | null): Promise<boolean> {
+  return persistProviderCredential("deepseekApiKey", value)
 }
 
-/** Persist Pexels API key to disk. */
-export async function persistPexelsApiKey(key: string | null): Promise<void> {
-  useSettingsStore.getState().setPexelsApiKey(key)
-  try {
-    const store = await getStore()
-    if (key) await store.set("pexelsApiKey", key)
-    else await store.delete("pexelsApiKey")
-  } catch {
-    console.warn("[settings] Failed to persist Pexels API key")
-  }
+export function persistGeniusToken(value: string | null): Promise<boolean> {
+  return persistProviderCredential("geniusToken", value)
 }
 
-/** Persist Unsplash API key to disk. */
-export async function persistUnsplashApiKey(key: string | null): Promise<void> {
-  useSettingsStore.getState().setUnsplashApiKey(key)
-  try {
-    const store = await getStore()
-    if (key) await store.set("unsplashApiKey", key)
-    else await store.delete("unsplashApiKey")
-  } catch {
-    console.warn("[settings] Failed to persist Unsplash API key")
-  }
+export function persistPexelsApiKey(value: string | null): Promise<boolean> {
+  return persistProviderCredential("pexelsApiKey", value)
 }
 
-/** Persist Brave Search API key to disk. */
-export async function persistBraveApiKey(key: string | null): Promise<void> {
-  useSettingsStore.getState().setBraveApiKey(key)
-  try {
-    const store = await getStore()
-    if (key) await store.set("braveApiKey", key)
-    else await store.delete("braveApiKey")
-  } catch {
-    console.warn("[settings] Failed to persist Brave API key")
-  }
+export function persistUnsplashApiKey(value: string | null): Promise<boolean> {
+  return persistProviderCredential("unsplashApiKey", value)
+}
+
+export function persistBraveApiKey(value: string | null): Promise<boolean> {
+  return persistProviderCredential("braveApiKey", value)
 }
 
 /** Persist local image folder path to disk. */

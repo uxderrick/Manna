@@ -78,10 +78,13 @@ async fn ws_probe(
             .map_err(|_| "ws no server frame (timeout)".to_string())?
             .ok_or_else(|| "ws closed before first frame".to_string())?
             .map_err(|e| format!("ws recv: {e}"))?;
-        if let Message::Text(txt) = &first {
-            if !txt.contains("\"type\"") {
-                return Err(format!("ws unexpected first frame: {txt}"));
-            }
+        let Message::Text(txt) = first else {
+            return Err("ws closed or sent an unexpected frame before Begin".into());
+        };
+        let frame: serde_json::Value = serde_json::from_str(&txt)
+            .map_err(|_| "ws invalid ready frame".to_string())?;
+        if frame.get("type").and_then(serde_json::Value::as_str) != Some("Begin") {
+            return Err("ws server did not accept the streaming session".into());
         }
     }
 
@@ -136,6 +139,11 @@ pub(super) async fn verify_deepgram_key(api_key: String) -> Result<VerifyResult,
     })
 }
 
+fn assemblyai_probe_url() -> url::Url {
+    url::Url::parse("wss://streaming.assemblyai.com/v3/ws?sample_rate=16000&encoding=pcm_s16le&format_turns=true&speech_model=u3-rt-pro")
+        .expect("static AssemblyAI URL")
+}
+
 /// Verify an AssemblyAI API key: HTTP auth probe + WebSocket streaming probe.
 pub(super) async fn verify_assemblyai_key(api_key: String) -> Result<VerifyResult, String> {
     if api_key.trim().is_empty() {
@@ -154,19 +162,9 @@ pub(super) async fn verify_assemblyai_key(api_key: String) -> Result<VerifyResul
 
     let mut ws_err: Option<String> = None;
     if http_ok {
-        // v3 auth is via `token` query param, not an HTTP header.
-        let mut url =
-            url::Url::parse("wss://streaming.assemblyai.com/v3/ws").map_err(|e| e.to_string())?;
-        {
-            let mut q = url.query_pairs_mut();
-            q.append_pair("token", &api_key);
-            q.append_pair("sample_rate", "16000");
-            q.append_pair("encoding", "pcm_s16le");
-            q.append_pair("format_turns", "true");
-        }
+        let url = assemblyai_probe_url();
         let terminate = serde_json::json!({"type": "Terminate"}).to_string();
-        // Pass a placeholder header (ignored): ws_probe requires a header tuple.
-        ws_err = ws_probe(url, ("x-no-op", "1"), true, Some(&terminate))
+        ws_err = ws_probe(url, ("Authorization", &api_key), true, Some(&terminate))
             .await
             .err();
     }
@@ -295,6 +293,49 @@ pub(super) async fn verify_deepseek_key(api_key: String) -> Result<VerifyResult,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn probe_accepts_begin_and_uses_authorization_without_a_query_token() {
+        use futures_util::{SinkExt, StreamExt};
+        use tokio_tungstenite::tungstenite::{Message, handshake::server::{Request, Response}};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let mut url = assemblyai_probe_url();
+        assert!(!url.query_pairs().any(|(key, _)| key == "token"));
+        url.set_scheme("ws").unwrap();
+        url.set_host(Some("127.0.0.1")).unwrap();
+        url.set_port(Some(listener.local_addr().unwrap().port())).unwrap();
+        let server = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_hdr_async(tcp, |request: &Request, response: Response| {
+                assert_eq!(request.headers()["Authorization"], "synthetic-key");
+                assert!(!request.uri().to_string().contains("synthetic-key"));
+                Ok(response)
+            }).await.unwrap();
+            ws.send(Message::Text(r#"{"type":"Begin","id":"test"}"#.into())).await.unwrap();
+            let _ = ws.next().await;
+        });
+        ws_probe(url, ("Authorization", "synthetic-key"), true, Some(r#"{"type":"Terminate"}"#)).await.unwrap();
+        server.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn probe_requires_a_real_begin_and_rejects_error_or_closed_frames() {
+        use futures_util::SinkExt;
+        use tokio_tungstenite::tungstenite::Message;
+        for frame in [Message::Text(r#"{"type":"Error","error":"synthetic rejection"}"#.into()),
+                      Message::Text(r#"{"type":"Termination"}"#.into()),
+                      Message::Binary(vec![1,2,3].into()), Message::Close(None)] {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = url::Url::parse(&format!("ws://{}/", listener.local_addr().unwrap())).unwrap();
+            let server = tokio::spawn(async move {
+                let (tcp,_) = listener.accept().await.unwrap();
+                let mut ws = tokio_tungstenite::accept_async(tcp).await.unwrap();
+                let _ = ws.send(frame).await;
+            });
+            assert!(ws_probe(url, ("Authorization","synthetic-key"), true, None).await.is_err());
+            server.await.unwrap();
+        }
+    }
 
     #[tokio::test]
     async fn empty_keys_are_rejected_without_network_access() {

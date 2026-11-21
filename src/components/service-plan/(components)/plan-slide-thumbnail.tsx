@@ -1,3 +1,4 @@
+import { resolveChurchAsset } from "@/lib/church-assets"
 import type { ImageSlide } from "@/types"
 import { CanvasVerse } from "@/components/ui/canvas-verse"
 import { BUILTIN_THEMES } from "@/lib/builtin-themes"
@@ -24,7 +25,7 @@ export function PlanSlideThumbnail({
         </div>
       ) : (
         <img
-          src={image.url}
+          src={resolveChurchAsset(image.url)}
           alt={image.label}
           draggable={false}
           className="h-full w-full object-contain"

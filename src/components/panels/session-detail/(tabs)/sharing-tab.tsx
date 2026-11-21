@@ -1,3 +1,4 @@
+import { useChurchConnections } from "@/components/settings/(hooks)/use-church-connections"
 import {
   SermonAudioPanel,
   AudioUploadProgress,
@@ -45,13 +46,15 @@ export function SharingTab({
   const [audioState, setAudioState] = useState<AudioPublicationState>({
     mode: "excluded",
   })
+  const connections = useChurchConnections()
   const [copyState, setCopyState] = useState("")
   const { draft, operation, error, dirty } = sharing
   const busy = operation !== "idle"
   const isSms = kind === "sms"
   const label = isSms ? "SMS" : "Public Recap"
   const hasDraft = Boolean(isSms ? draft.sms : draft.title || draft.recap)
-  const canGenerate = summary && hasSermonContent(summary) && !summarizing
+  const canGenerate =
+    !summarizing && (!isSms || Boolean(summary && hasSermonContent(summary)))
   const formattedSms = formatSermonSms(draft.sms)
   const words = draft.recap.trim() ? draft.recap.trim().split(/\s+/).length : 0
   const copy = async (kind: "recap" | "sms") => {
@@ -73,8 +76,12 @@ export function SharingTab({
         <h2 className="text-base font-semibold tracking-tight">{label}</h2>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
           {isSms
-            ? "Review your message, preview the cost, and send it to your saved contact list."
-            : "Prepare and publish a short recap for your church."}
+            ? connections.sms
+              ? "Review your message, preview the cost, and send it to your saved contact list."
+              : "Prepare a message to copy into your SMS service."
+            : connections.publishing
+              ? "Prepare and publish a short recap for your church."
+              : "Prepare a recap to copy into your website or sharing service."}
         </p>
       </div>
       {operation === "loading" ? (
@@ -89,9 +96,10 @@ export function SharingTab({
               variant="outline"
               disabled={!canGenerate || busy}
               onClick={() => {
-                if (!summary) return
-                if (isSms) void sharing.generateSmsAlternatives(summary, title)
-                else void sharing.generate(summary, title, speaker, "recap")
+                if (isSms) {
+                  if (summary)
+                    void sharing.generateSmsAlternatives(summary, title)
+                } else void sharing.generate(title, speaker, "recap")
               }}
               title={
                 !isSms && hasDraft
@@ -129,7 +137,7 @@ export function SharingTab({
               Save changes
             </Button>
           </div>
-          {!canGenerate && (
+          {isSms && !canGenerate && (
             <p className="text-xs leading-relaxed text-muted-foreground">
               Generate a summary with sermon teaching to create AI drafts. You
               can also write your own below.
@@ -138,7 +146,7 @@ export function SharingTab({
           {!isSms && (
             <div
               className={
-                sermonAudioEnabled
+                connections.publishing && sermonAudioEnabled
                   ? "grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]"
                   : "min-w-0"
               }
@@ -179,28 +187,36 @@ export function SharingTab({
                 <p className="text-[11px] text-muted-foreground">
                   {words} words · Suggested length: 240–360
                 </p>
-                <PublicationActions
-                  publication={sharing.publication}
-                  disabled={
-                    busy ||
-                    (sermonAudioEnabled && audioState.mode === "busy") ||
-                    !draft.title.trim() ||
-                    !draft.recap.trim()
-                  }
-                  publishing={operation === "publishing"}
-                  onPublish={() =>
-                    void sharing.publish(
-                      title,
-                      speaker,
-                      sermonAudioEnabled && audioState.mode === "included",
-                      sermonAudioEnabled && audioState.mode === "included"
-                        ? audioState.revision
-                        : undefined
-                    )
-                  }
-                />
+                {connections.publishing && (
+                  <PublicationActions
+                    publication={sharing.publication}
+                    disabled={
+                      busy ||
+                      (sermonAudioEnabled && audioState.mode === "busy") ||
+                      !draft.title.trim() ||
+                      !draft.recap.trim()
+                    }
+                    publishing={operation === "publishing"}
+                    onPublish={() =>
+                      void sharing.publish(
+                        title,
+                        speaker,
+                        sermonAudioEnabled && audioState.mode === "included",
+                        sermonAudioEnabled && audioState.mode === "included"
+                          ? audioState.revision
+                          : undefined
+                      )
+                    }
+                  />
+                )}
+                {!connections.publishing && (
+                  <p className="text-xs text-muted-foreground">
+                    Copy the recap and paste it into your website or sharing
+                    service.
+                  </p>
+                )}
               </section>
-              {sermonAudioEnabled && (
+              {connections.publishing && sermonAudioEnabled && (
                 <aside aria-label="Sermon audio" className="min-w-0 space-y-3">
                   <SermonAudioPanel
                     sessionId={sharing.sessionId}

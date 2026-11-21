@@ -245,3 +245,27 @@ Before manually publishing anything, resolve publisher signing, NDI eligibility,
 The same Actions entry still supports the separate Windows build, installed-EXE retest and speech diagnostics options. Leave `prepare_draft` off when using those options. A run with no options selected runs only the Python packaging/release checks.
 
 The new workflow must be present in the commit used for a release. Until it is merged into the repository's default branch, select the working branch explicitly; older commits still contain the old release workflow.
+
+### Church profiles in public releases
+
+Public installations use **copy and paste** for recap and SMS sharing. They do
+not need a publishing or SMS account to edit and copy drafts. AI draft generation
+still needs the user's own DeepSeek key; manually written drafts do not.
+Existing device-local publishing and Comms360 configurations keep their direct
+actions. The app checks local configuration only; it never sends on startup.
+
+EWC artwork is no longer part of `public/` or new installers. This workstation's
+originals are preserved in the ignored `.private-church-assets/` folder and in
+`church-assets/` under the application-data folders for both `com.manna.app` and
+`com.manna.internal`. Back up that folder privately. Do not add it to a release
+or commit it. Development imports missing artwork from the local pack; release
+builds read only the installed device-local copy. To restore it on another EWC
+device, use **Settings → Church profile → Identity & branding → Restore legacy
+church artwork**, choose the pack folder, and reopen Manna between services.
+This imports only known artwork files, never credentials, contacts or sessions.
+Existing files are not overwritten. Saved plan/gallery image paths continue to
+resolve to these local files; devices without the pack use neutral fallbacks.
+
+Older commits and already-built installers still contain their original assets.
+These changes require new installers; they do not rewrite Git history or replace
+existing release downloads.

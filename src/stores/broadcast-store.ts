@@ -19,6 +19,7 @@ import { useBibleStore } from "@/stores/bible-store"
 import { useSettingsStore } from "@/stores/settings-store"
 import { resolveBlankBackground } from "@/lib/brand"
 import { validHighlights } from "@/lib/text-highlights"
+import { BACKGROUND_MEDIA, backgroundContext, loadBackgroundChoices, saveBackgroundChoices, withLiveBackground, type BackgroundChoices, type BackgroundContext } from "@/lib/live-backgrounds"
 
 type SelectedElement = "verse" | "reference" | null
 
@@ -26,6 +27,9 @@ interface BroadcastState {
   themes: BroadcastTheme[]
   activeThemeId: string
   altActiveThemeId: string
+  backgrounds: BackgroundChoices
+  setBackground: (context: BackgroundContext, id: string | null) => void
+  setBackgroundDimming: (context: BackgroundContext, dimming: number) => void
   outputHidden: boolean
   isLive: boolean
   previewVerse: VerseRenderData | null
@@ -171,6 +175,21 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   themes: [...BUILTIN_THEMES],
   activeThemeId: BUILTIN_THEMES[0].id,
   altActiveThemeId: BUILTIN_THEMES[0].id,
+  backgrounds: loadBackgroundChoices(),
+  setBackground: (context, id) => {
+    if (id !== null && !BACKGROUND_MEDIA.some((media) => media.id === id)) return
+    const backgrounds = { ...get().backgrounds, [context]: { ...get().backgrounds[context], id } }
+    set({ backgrounds })
+    saveBackgroundChoices(backgrounds)
+    get().syncBroadcastOutput()
+  },
+  setBackgroundDimming: (context, dimming) => {
+    if (!Number.isFinite(dimming)) return
+    const backgrounds = { ...get().backgrounds, [context]: { ...get().backgrounds[context], dimming: Math.max(0, Math.min(0.8, dimming)) } }
+    set({ backgrounds })
+    saveBackgroundChoices(backgrounds)
+    get().syncBroadcastOutput()
+  },
   outputHidden: false,
   isLive: false,
   previewVerse: null,
@@ -284,7 +303,10 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     const blank = resolveBlankBackground(useSettingsStore.getState().brand)
 
     void emit(`broadcast:verse-update:${outputId}`, {
-      theme,
+      sentAt: Date.now(),
+      theme: s.blankLogo || s.fullscreenImage || s.liveNotes
+        ? theme
+        : withLiveBackground(theme, s.backgrounds[backgroundContext(s.liveVerse)]),
       hidden: s.outputHidden,
       verse: s.liveVerse,
       blankLogo: s.blankLogo,
@@ -317,7 +339,20 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
     set({ isLive, outputHidden: !isLive })
     get().syncBroadcastOutput()
   },
-  setPreviewVerse: (previewVerse) => set({ previewVerse }),
+  setPreviewVerse: (previewVerse) => {
+    set({ previewVerse })
+    if (!previewVerse) return
+    const state = get()
+    for (const output of ["main", "alt"]) {
+      const id = output === "alt" ? state.altActiveThemeId : state.activeThemeId
+      const theme =
+        state.themes.find((theme) => theme.id === id) ?? state.themes[0]
+      if (theme)
+        void emit(`broadcast:preload:${output}`, { theme }).catch((error) =>
+          console.warn("[broadcast-store] preload failed", error)
+        )
+    }
+  },
   setLiveVerse: (liveVerse) => {
     releasePlanOutput()
     set({

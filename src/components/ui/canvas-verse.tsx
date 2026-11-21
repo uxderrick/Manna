@@ -1,3 +1,4 @@
+import { resolveChurchAsset } from "@/lib/church-assets"
 import {
   getSpeakerPortraitUrl,
   SPEAKER_LOGO_MARK,
@@ -19,7 +20,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     const img = new Image()
     img.onload = () => resolve(img)
     img.onerror = () => reject(new Error(`Failed to load image: ${url}`))
-    img.src = url
+    img.src = resolveChurchAsset(url)
   })
 }
 
@@ -66,7 +67,11 @@ export const CanvasVerse = memo(function CanvasVerse({
 }: CanvasVerseProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const videoLoopRef = useRef<ReturnType<typeof startLoopingVideo> | null>(null)
+  const paintRef = useRef<(() => void) | null>(null)
   const [containerWidth, setContainerWidth] = useState(0)
+  const videoUrl = fullscreenImage ? null : blankLogo ? blankVideoUrl
+    : theme.background.type === "video" ? theme.background.video?.url ?? null : null
 
   // Measure container width with ResizeObserver
   useEffect(() => {
@@ -124,6 +129,7 @@ export const CanvasVerse = memo(function CanvasVerse({
           ? theme.background.image?.url
           : undefined,
         theme.logo?.url,
+        theme.background.type === "video" ? theme.background.video?.poster : undefined,
         fullscreenImage?.url,
         getSpeakerPortraitUrl(fullscreenImage),
         getSpeakerPortraitUrl(fullscreenImage) ? SPEAKER_LOGO_MARK : undefined,
@@ -133,7 +139,6 @@ export const CanvasVerse = memo(function CanvasVerse({
     usedImages.forEach((url) =>
       imageUsers.set(url, (imageUsers.get(url) ?? 0) + 1)
     )
-    let videoLoop: ReturnType<typeof startLoopingVideo> | undefined
     let active = true
 
     const drawBlankLogo = (
@@ -143,7 +148,7 @@ export const CanvasVerse = memo(function CanvasVerse({
     ) => {
       cx.fillStyle = "#000"
       cx.fillRect(0, 0, w, h)
-      if (drawVideoCover(cx, videoLoop?.video ?? null, w, h)) return
+      if (drawVideoCover(cx, videoLoopRef.current?.video ?? null, w, h)) return
       const img = sharedImageCache.get(blankLogoUrl)
       if (img && img.complete && img.naturalWidth > 0) {
         const target = Math.min(w, h) * 0.99
@@ -185,6 +190,7 @@ export const CanvasVerse = memo(function CanvasVerse({
           renderVerse(cx, theme, verse, {
             scale,
             imageCache: sharedImageCache,
+            backgroundVideo: videoLoopRef.current?.video,
             collectWordHits: Boolean(onRenderResult),
           }),
         onRenderResult
@@ -202,12 +208,13 @@ export const CanvasVerse = memo(function CanvasVerse({
       .then(rerender)
       .catch(() => {})
 
-    if (blankLogo && blankVideoUrl && !fullscreenImage) {
-      videoLoop = startLoopingVideo(blankVideoUrl, rerender, rerender)
-    }
+    paintRef.current = rerender
 
     if (theme.background.type === "image" && theme.background.image?.url) {
       ensureImage(theme.background.image.url, rerender)
+    }
+    if (theme.background.type === "video" && theme.background.video?.poster) {
+      ensureImage(theme.background.video.poster, rerender)
     }
     if (theme.logo?.url) {
       ensureImage(theme.logo.url, rerender)
@@ -244,6 +251,7 @@ export const CanvasVerse = memo(function CanvasVerse({
           renderVerse(ctx, theme, verse, {
             scale,
             imageCache: sharedImageCache,
+            backgroundVideo: videoLoopRef.current?.video,
             collectWordHits: Boolean(onRenderResult),
           }),
         onRenderResult
@@ -251,7 +259,7 @@ export const CanvasVerse = memo(function CanvasVerse({
     }
     return () => {
       active = false
-      videoLoop?.stop()
+      paintRef.current = null
       usedImages.forEach((url) => {
         const users = (imageUsers.get(url) ?? 1) - 1
         if (users > 0) imageUsers.set(url, users)
@@ -272,6 +280,18 @@ export const CanvasVerse = memo(function CanvasVerse({
     containerWidth,
     onRenderResult,
   ])
+
+  // Text changes replace the paint callback, while the same video keeps playing.
+  useEffect(() => {
+    if (!videoUrl) return
+    const paint = () => paintRef.current?.()
+    const loop = startLoopingVideo(videoUrl, paint, paint)
+    videoLoopRef.current = loop
+    return () => {
+      loop.stop()
+      videoLoopRef.current = null
+    }
+  }, [videoUrl])
 
   return (
     <div ref={containerRef} className={cn("w-full", className)}>

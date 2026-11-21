@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+import { withLiveBackground } from "./live-backgrounds"
 import { BUILTIN_THEMES } from "./builtin-themes"
 import { computeVerseLayoutMetrics, renderVerse } from "./verse-renderer"
 function context() {
@@ -60,6 +61,20 @@ const theme = () => {
   return t
 }
 describe("theme rendering controls", () => {
+  it("paints decoded video beneath readable scripture and uses a still poster while loading", () => {
+    const t = withLiveBackground(theme(), { id: "aurora-cool", dimming: 0.25 })
+    const { ctx, draws } = context()
+    const drawImage = vi.fn()
+    ctx.drawImage = drawImage
+    const video = { readyState: 2, videoWidth: 1920, videoHeight: 1080 } as HTMLVideoElement
+    expect(renderVerse(ctx, t, verse, { backgroundVideo: video })).not.toBeNull()
+    expect(drawImage.mock.calls[0][0]).toBe(video)
+    expect(draws.some((draw) => draw.text.includes("For"))).toBe(true)
+    drawImage.mockClear()
+    const poster = { complete: true, naturalWidth: 1920, naturalHeight: 1080 } as HTMLImageElement
+    renderVerse(ctx, t, verse, { imageCache: new Map([[t.background.video!.poster!, poster]]) })
+    expect(drawImage.mock.calls[0][0]).toBe(poster)
+  })
   it("hides song titles without reserving reference space", () => {
     const t = theme()
     t.reference.standalone = null

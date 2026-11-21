@@ -1,6 +1,10 @@
+import { setChurchAssets } from "@/lib/church-assets"
+import { beforeEach as beforePrivatePack } from "vitest"
+beforePrivatePack(() => setChurchAssets({ "/service-slides/pastor-john-kennedy-starburst.png": "/managed/portrait.png", "/EWC-White.png": "/managed/logo.png" }))
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { downloadSessionSlide, renderSlideJpeg, renderSlidePng } from "./slide-download"
 
+vi.mock("@tauri-apps/api/core", () => ({ convertFileSrc: (path: string) => `asset:${path}` }))
 const save = vi.hoisted(() => vi.fn())
 vi.mock("./save-export", () => ({ saveBinaryExport: save }))
 vi.mock("@/lib/image-slide-renderer", () => ({ drawImageSlide: vi.fn() }))
@@ -65,8 +69,8 @@ describe("slide PNG downloads", () => {
     expect(canvas).toMatchObject({ width: 1920, height: 1080 })
     expect(urls).toEqual([
       "/bg.png",
-      "/service-slides/pastor-john-kennedy-starburst.png",
-      "/EWC-White.png",
+      "asset:/managed/portrait.png",
+      "asset:/managed/logo.png",
     ])
     expect(drawImageSlide).toHaveBeenCalledWith(
       expect.anything(),

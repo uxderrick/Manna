@@ -1,3 +1,4 @@
+import { ConnectionOnly } from "./connection-only"
 import { useEffect, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { toast } from "sonner"
@@ -53,18 +54,20 @@ export function ChurchMessaging() {
   }
   return (
     <div className="space-y-5">
-      <div className="rounded-lg border p-4">
-        <p className="text-xs font-medium">Sermon website</p>
-        <a
-          href="https://sermon.ewcadentan.com"
-          target="_blank"
-          rel="noreferrer"
-          className="mt-1 block text-xs text-muted-foreground underline underline-offset-4"
-        >
-          sermon.ewcadentan.com
-        </a>
-      </div>
-      {saved ? (
+      <ConnectionOnly kind="publishing">
+        <div className="rounded-lg border p-4">
+          <p className="text-xs font-medium">Sermon website</p>
+          <a
+            href="https://sermon.ewcadentan.com"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-1 block text-xs text-muted-foreground underline underline-offset-4"
+          >
+            sermon.ewcadentan.com
+          </a>
+        </div>
+      </ConnectionOnly>
+      {saved?.configured ? (
         <>
           <label className="block space-y-1.5 text-xs font-medium">
             Approved sender ID
@@ -102,7 +105,13 @@ export function ChurchMessaging() {
           </Button>
         </>
       ) : (
-        !error && <p className="text-xs text-muted-foreground">Loading…</p>
+        !error && (
+          <p className="text-xs text-muted-foreground">
+            {saved
+              ? "Copy messages from the SMS tab into your own service."
+              : "Loading…"}
+          </p>
+        )
       )}
       {error && (
         <p role="alert" className="text-xs text-destructive">

@@ -1,3 +1,4 @@
+import { resolveChurchAsset } from "@/lib/church-assets"
 import type { ImageSlide } from "@/types"
 import { drawImageSlide } from "@/lib/image-slide-renderer"
 import {
@@ -24,7 +25,7 @@ function loadImage(url: string): Promise<HTMLImageElement> {
       clearTimeout(timer)
       reject(new Error("The saved slide image could not be loaded."))
     }
-    image.src = url
+    image.src = resolveChurchAsset(url)
   })
 }
 

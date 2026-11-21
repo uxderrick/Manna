@@ -71,7 +71,6 @@ export function useSharingDrafts(sessionId: number) {
   }, [sessionId, retry])
 
   const generate = async (
-    summary: SermonSummary,
     title: string,
     speaker?: string | null,
     scope: "recap" | "sms" | "both" = "both"
@@ -87,7 +86,7 @@ export function useSharingDrafts(sessionId: number) {
     try {
       const value = await invoke<SharingDraft>("generate_sharing_draft", {
         apiKey,
-        summary: JSON.stringify(summary),
+        sessionId,
         title,
         speaker: speaker ?? null,
         previousDraft: {

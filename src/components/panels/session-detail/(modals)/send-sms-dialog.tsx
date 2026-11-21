@@ -7,7 +7,11 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { useSmsSend } from "../(hooks)/use-sms-send"
-import { canSubmitListSms, listSmsStatus } from "../(lib)/list-sms"
+import {
+  canSubmitListSms,
+  canStartAnotherListSms,
+  listSmsStatus,
+} from "../(lib)/list-sms"
 import { smsMetrics } from "../(lib)/sharing-drafts"
 import { SmsListProgress } from "../(components)/sms-list-progress"
 
@@ -23,10 +27,11 @@ export function SendSmsDialog({
   const metrics = smsMetrics(batch?.message ?? message)
   const busy = !["idle", "load-error"].includes(sms.mode)
   const submitting = sms.mode === "sending"
+  const messageFits = smsMetrics(message).segments === 1
   const canPreview =
     sms.settings?.configured &&
     sms.settings.contactListId &&
-    metrics.segments === 1 &&
+    messageFits &&
     !batch &&
     sms.mode === "idle"
   return (
@@ -76,6 +81,12 @@ export function SendSmsDialog({
                 </p>
               )}
             </section>
+            {batch && canStartAnotherListSms(batch) && !messageFits && (
+              <p role="alert" className="text-xs text-destructive">
+                Shorten your current SMS draft to one part before starting
+                another message.
+              </p>
+            )}
             <section aria-label="SMS contact list" className="space-y-1">
               <h3 className="text-xs font-medium">Saved contact list</h3>
               <p className="text-xs break-all text-muted-foreground">
@@ -152,6 +163,17 @@ export function SendSmsDialog({
             {!batch.providerId && batch.status !== "UNKNOWN" && (
               <Button variant="ghost" disabled={busy} onClick={sms.reset}>
                 New preview
+              </Button>
+            )}
+            {canStartAnotherListSms(batch) && (
+              <Button
+                variant="outline"
+                disabled={busy || !messageFits}
+                onClick={() => void sms.preview(message, batch.id)}
+              >
+                {sms.mode === "previewing"
+                  ? "Checking cost…"
+                  : "Send another message"}
               </Button>
             )}
             {batch.providerId && (

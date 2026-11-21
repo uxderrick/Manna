@@ -1,3 +1,4 @@
+import { resolveChurchAsset } from "@/lib/church-assets"
 import { toast } from "sonner"
 import { useBroadcastStore } from "@/stores/broadcast-store"
 import { invoke } from "@tauri-apps/api/core"
@@ -95,7 +96,7 @@ export function ChurchProfileAssets({ kinds }: { kinds: BrandAssetKind[] }) {
         <div key={kind} className="flex items-center gap-3">
           <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded border border-border bg-black/40">
             <img
-              src={resolveBrandAsset(kind, brand[field])}
+              src={resolveChurchAsset(resolveBrandAsset(kind, brand[field]))}
               alt={label}
               className="max-h-full max-w-full object-contain"
             />

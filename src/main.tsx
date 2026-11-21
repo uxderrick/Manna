@@ -1,3 +1,4 @@
+import { initializeChurchAssets } from "@/lib/church-assets"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 
@@ -34,15 +35,18 @@ window.addEventListener("keydown", (e) => {
   }
 }, true)
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <ThemeProvider defaultTheme="light">
-      <TooltipProvider>
-        <App />
-      </TooltipProvider>
-    </ThemeProvider>
-  </StrictMode>
-)
+void initializeChurchAssets().then(() => {
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <ThemeProvider defaultTheme="light">
+        <TooltipProvider>
+          <App />
+        </TooltipProvider>
+      </ThemeProvider>
+    </StrictMode>
+  )
+
+})
 
 hydrateCustomThemes()
 useSongStore.getState().hydrateSongs()

@@ -1,4 +1,5 @@
 import { backgroundWithEffects } from "./background-effects"
+import { drawVideoCover } from "./looping-video"
 import {
   numberedVerseLines,
   measureVerseWords,
@@ -265,12 +266,29 @@ function roundRect(
 function drawBackground(
   ctx: CanvasRenderingContext2D,
   theme: BroadcastTheme,
-  imageCache?: Map<string, HTMLImageElement>
+  imageCache?: Map<string, HTMLImageElement>,
+  video?: HTMLVideoElement | null
 ): void {
   const { width, height } = theme.resolution
   const bg = theme.background
 
   switch (bg.type) {
+    case "video": {
+      ctx.fillStyle = "#000000"
+      ctx.fillRect(0, 0, width, height)
+      if (!drawVideoCover(ctx, video ?? null, width, height)) {
+        const poster = imageCache?.get(bg.video?.poster ?? "")
+        if (poster?.complete && poster.naturalWidth > 0) {
+          const scale = Math.max(width / poster.naturalWidth, height / poster.naturalHeight)
+          const w = poster.naturalWidth * scale
+          const h = poster.naturalHeight * scale
+          ctx.drawImage(poster, (width - w) / 2, (height - h) / 2, w, h)
+        }
+      }
+      ctx.fillStyle = `rgba(0, 0, 0, ${bg.video?.dimming ?? 0.25})`
+      ctx.fillRect(0, 0, width, height)
+      break
+    }
     case "solid":
       ctx.fillStyle = bg.color
       ctx.fillRect(0, 0, width, height)
@@ -1363,7 +1381,7 @@ function renderVerseImpl(
     scaledTheme.resolution.height
   )
   // Draw background
-  drawBackground(ctx, scaledTheme, options?.imageCache)
+  drawBackground(ctx, scaledTheme, options?.imageCache, options?.backgroundVideo)
 
   // Draw text box if enabled
   if (scaledTheme.textBox.enabled) {

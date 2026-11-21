@@ -23,3 +23,9 @@ pub mod sermon_title;
 pub mod video_assets;
 
 pub mod sermon_audio;
+
+pub mod connections;
+
+pub mod church_assets;
+
+pub mod credentials;

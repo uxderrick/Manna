@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest"
 
 const disk = vi.hoisted(() => new Map<string, unknown>())
-const invoke = vi.hoisted(() => vi.fn().mockResolvedValue("whisper"))
+const invoke = vi.hoisted(() => vi.fn().mockImplementation(async (command: string) => command === "get_default_stt_provider" ? "whisper" : null))
 vi.mock("@tauri-apps/api/core", () => ({ invoke }))
 vi.mock("@tauri-apps/api/event", () => ({ emit: vi.fn() }))
 vi.mock("@tauri-apps/plugin-store", () => ({
@@ -25,7 +25,7 @@ it.each(["deepgram", "assemblyai", "whisper"])("keeps a saved %s choice", async 
   const { hydrateSettings, useSettingsStore } = await import("./settings-store")
   await hydrateSettings()
   expect(useSettingsStore.getState().sttProvider).toBe(provider)
-  expect(invoke).not.toHaveBeenCalled()
+  expect(invoke).not.toHaveBeenCalledWith("get_default_stt_provider")
 })
 
 it("keeps the previous implicit provider for an existing completed setup", async () => {
@@ -33,5 +33,5 @@ it("keeps the previous implicit provider for an existing completed setup", async
   const { hydrateSettings, useSettingsStore } = await import("./settings-store")
   await hydrateSettings()
   expect(useSettingsStore.getState().sttProvider).toBe("deepgram")
-  expect(invoke).not.toHaveBeenCalled()
+  expect(invoke).not.toHaveBeenCalledWith("get_default_stt_provider")
 })

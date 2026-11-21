@@ -1,3 +1,6 @@
+import { setChurchAssets } from "@/lib/church-assets"
+import { beforeEach as beforePrivatePack } from "vitest"
+beforePrivatePack(() => setChurchAssets({ "/service-slides/pastor-john-kennedy-starburst.png": "/managed/portrait.png", "/EWC-White.png": "/managed/logo.png" }))
 import { expect, it, vi } from "vitest"
 import { drawImageSlide } from "./image-slide-renderer"
 import type { ImageSlide } from "@/types"

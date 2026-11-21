@@ -53,7 +53,7 @@ it.each(["sms", "recap"] as const)(
   "reports unchanged %s instead of silently succeeding",
   async (scope) => {
     await act(async () => {
-      await current.generate(summary, "Faith", null, scope)
+      await current.generate("Faith", null, scope)
     })
     expect(current.error).toContain("same wording")
     expect(current.draft).toEqual(original)
@@ -69,7 +69,7 @@ it.each(["sms", "recap"] as const)(
     }
     api.invoke.mockResolvedValueOnce(next)
     await act(async () => {
-      await current.generate(summary, "Faith", null, scope)
+      await current.generate("Faith", null, scope)
     })
     expect(api.invoke).toHaveBeenLastCalledWith(
       "generate_sharing_draft",
@@ -98,7 +98,7 @@ it("passes the current linked SMS for comparison and applies its replacement", a
   })
   await act(async () => current.retry())
   await act(async () => {
-    await current.generate(summary, "Faith", null, "sms")
+    await current.generate("Faith", null, "sms")
   })
   expect(api.invoke).toHaveBeenLastCalledWith(
     "generate_linked_sms",
@@ -157,4 +157,19 @@ it("preserves options and the selected draft when generation fails", async () =>
   expect(current.smsAlternatives).toEqual(alternatives)
   expect(current.draft).toEqual(original)
   expect(current.error).toContain("Network unavailable")
+})
+
+it("requests the saved session transcript instead of sending a rewritten summary", async () => {
+  api.invoke.mockResolvedValueOnce({
+    ...original,
+    recap: "Set your mind. This one is deliberate.",
+  })
+  await act(async () => {
+    await current.generate("Faith", null, "recap")
+  })
+  const args = api.invoke.mock.calls.find(
+    ([command]) => command === "generate_sharing_draft"
+  )?.[1]
+  expect(args.sessionId).toBe(12)
+  expect(args).not.toHaveProperty("summary")
 })

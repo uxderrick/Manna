@@ -2,6 +2,8 @@
 //!
 //! Frontend passes API keys from settings; we never persist them here.
 
+mod download;
+
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -309,26 +311,6 @@ fn slugify(s: &str) -> String {
         .join("-")
 }
 
-fn extension_from_url_or_content_type(url: &str, content_type: Option<&str>) -> String {
-    if let Some(ct) = content_type {
-        let ct = ct.to_ascii_lowercase();
-        if ct.contains("png") { return "png".into() }
-        if ct.contains("webp") { return "webp".into() }
-        if ct.contains("gif") { return "gif".into() }
-        if ct.contains("svg") { return "svg".into() }
-        if ct.contains("avif") { return "avif".into() }
-        if ct.contains("heic") || ct.contains("heif") { return "heic".into() }
-        if ct.contains("bmp") { return "bmp".into() }
-        if ct.contains("tiff") { return "tiff".into() }
-        if ct.contains("jpeg") || ct.contains("jpg") { return "jpg".into() }
-    }
-    // Fall back to URL extension.
-    let clean = url.split('?').next().unwrap_or(url);
-    let dot = clean.rfind('.').unwrap_or(0);
-    let ext = clean[dot + 1..].to_lowercase();
-    if IMAGE_EXTS.contains(&ext.as_str()) { ext } else { "jpg".into() }
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 struct LibrarySidecar {
@@ -356,16 +338,8 @@ pub async fn save_image_to_library(
         .build()
         .map_err(|e| e.to_string())?;
     let resp = client.get(&url).send().await.map_err(|e| e.to_string())?;
-    if !resp.status().is_success() {
-        return Err(format!("Download failed: HTTP {}", resp.status()));
-    }
-    let content_type = resp
-        .headers()
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.to_string());
-    let ext = extension_from_url_or_content_type(&url, content_type.as_deref());
-    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    let bytes = download::read_image(resp).await?;
+    let ext = download::image_extension(&bytes)?;
 
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -375,7 +349,7 @@ pub async fn save_image_to_library(
         let s = slugify(&label);
         if s.is_empty() { "image".to_string() } else { s }
     };
-    let base = format!("{slug}-{provider}-{stamp}");
+    let base = format!("{slug}-{}", uuid::Uuid::new_v4());
     let file_path = dir.join(format!("{base}.{ext}"));
     let sidecar_path = dir.join(format!("{base}.json"));
 

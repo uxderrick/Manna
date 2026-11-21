@@ -1,3 +1,4 @@
+import { resolveChurchAsset } from "@/lib/church-assets"
 import { useState } from "react"
 import { toast } from "sonner"
 import { useSettingsStore, persistBrandConfig } from "@/stores/settings-store"
@@ -83,7 +84,7 @@ export function GivingDetails() {
         />
       </label>
       <img
-        src={preview.url}
+        src={resolveChurchAsset(preview.url)}
         alt="Giving slide preview"
         className="aspect-video w-full rounded-md border bg-black object-contain"
       />

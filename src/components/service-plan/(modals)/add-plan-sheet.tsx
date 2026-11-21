@@ -1,3 +1,4 @@
+import { resolveChurchAsset } from "@/lib/church-assets"
 import { CLOSING_SLIDE } from "../(lib)/closing-slide"
 import { PRAYER_SLIDE } from "../(lib)/prayer-slide"
 import {
@@ -78,7 +79,10 @@ export function AddPlanSheet({ open, onOpenChange, adding, onAdd }: Props) {
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="right-auto left-1/2 max-h-[85vh] w-full max-w-2xl -translate-x-1/2">
+      <DrawerContent
+        className="right-auto left-1/2 max-h-[85vh] w-full max-w-2xl -translate-x-1/2"
+        style={{ animationDuration: "150ms", transitionDuration: "150ms" }}
+      >
         <DrawerHeader>
           <div className="flex items-center justify-between gap-3">
             <DrawerTitle>Add a slide</DrawerTitle>
@@ -107,8 +111,12 @@ export function AddPlanSheet({ open, onOpenChange, adding, onAdd }: Props) {
                 className="overflow-hidden rounded-lg border text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50"
               >
                 <img
-                  src={image}
+                  src={resolveChurchAsset(image!)}
                   alt={label}
+                  loading="lazy"
+                  decoding="async"
+                  width={384}
+                  height={216}
                   className="aspect-video w-full bg-black object-contain"
                 />
                 <span className="block p-3 text-sm font-medium">{label}</span>

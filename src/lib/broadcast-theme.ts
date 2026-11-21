@@ -120,6 +120,7 @@ export function parseBroadcastTheme(input: unknown): BroadcastTheme {
       "solid",
       "gradient",
       "image",
+      "video",
       "transparent",
     ]) ||
     !oneOf(theme.layout.anchor, [
@@ -191,6 +192,9 @@ export function parseBroadcastTheme(input: unknown): BroadcastTheme {
         url
       ))
   const image = theme.background.image
+  const video = theme.background.video
+  if (theme.background.type === "video" && (!video || !asset(video.url) || !video.url || !inRange(video.dimming, 0, 0.8) || (video.poster !== undefined && !asset(video.poster))))
+    throw new Error("Theme video settings are invalid.")
   if (theme.background.type === "image" && !image)
     throw new Error("Theme image settings are missing.")
   if (

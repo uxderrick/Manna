@@ -23,8 +23,8 @@ export function AssemblyCredential() {
     status: "idle",
   })
 
-  const handleSaveAssemblyKey = () => {
-    persistAssemblyAiApiKey(assemblyKeyValue || null)
+  const handleSaveAssemblyKey = async () => {
+    if (!(await persistAssemblyAiApiKey(assemblyKeyValue || null))) return
     setAssemblySaved(true)
     setTimeout(() => setAssemblySaved(false), 2000)
   }
@@ -42,7 +42,7 @@ export function AssemblyCredential() {
       if (result.ok) {
         setAssemblyVerify({ status: "ok", detail: result.detail })
         if (assemblyKeyValue !== assemblyAiApiKey)
-          persistAssemblyAiApiKey(assemblyKeyValue)
+          if (!(await persistAssemblyAiApiKey(assemblyKeyValue))) throw new Error("Could not save key securely")
       } else {
         setAssemblyVerify({ status: "fail", detail: result.detail })
       }

@@ -116,7 +116,7 @@ fn saved_list_send_cannot_be_replaced_or_used_for_another_session() {
     let mut batch = sample();
     batch.provider_id = Some("send_1".into());
     save(dir.path(), &batch).unwrap();
-    assert!(ensure_new_preview(dir.path(), 42).is_err());
+    assert!(ensure_new_preview(dir.path(), 42, None).is_err());
     assert!(read(dir.path(), 43).unwrap().is_none());
     assert_eq!(
         normalize_list_id("11111111 2222 4333 8444 555555555555").unwrap(),
@@ -176,4 +176,89 @@ async fn live_list_preview_and_existing_progress_are_read_only() {
         assert_eq!(progress.id, id);
         assert!(client.list_delivered(id).await.unwrap() <= progress.total_recipients);
     }
+}
+
+#[test]
+fn another_preview_preserves_the_previous_send_record() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut first = sample();
+    first.provider_id = Some("first-campaign".into());
+    first.status = "COMPLETED".into();
+    // An existing installation may have only the old single-record file.
+    write_private(&file(dir.path(), 42).unwrap(), &first).unwrap();
+    let mut second = sample();
+    second.message = "A different follow-up message.".into();
+    save(dir.path(), &second).unwrap();
+    let archived: ListSms = serde_json::from_slice(
+        &std::fs::read(dir.path().join(format!("list-send-42-{}.json", first.id))).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(archived.provider_id.as_deref(), Some("first-campaign"));
+    assert_eq!(archived.message, first.message);
+    assert_eq!(read(dir.path(), 42).unwrap().unwrap().id, second.id);
+    assert_ne!(first.id, second.id);
+}
+
+#[test]
+fn another_send_requires_explicit_current_reference_and_never_bypasses_uncertainty() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut accepted = sample();
+    accepted.provider_id = Some("first-send".into());
+    accepted.status = "QUEUED".into();
+    save(dir.path(), &accepted).unwrap();
+    assert!(ensure_new_preview(dir.path(), 42, None).is_err());
+    assert!(ensure_new_preview(dir.path(), 42, Some("outdated-reference")).is_err());
+    assert!(ensure_new_preview(dir.path(), 42, Some(&accepted.id)).is_ok());
+    accepted.status = "UNKNOWN".into();
+    save(dir.path(), &accepted).unwrap();
+    assert!(ensure_new_preview(dir.path(), 42, Some(&accepted.id)).is_err());
+    accepted.provider_id = None;
+    save(dir.path(), &accepted).unwrap();
+    assert!(ensure_new_preview(dir.path(), 42, Some(&accepted.id)).is_err());
+    assert!(ensure_new_preview(dir.path(), 42, None).is_err());
+}
+
+#[tokio::test]
+async fn intentional_second_send_gets_a_new_key_and_retries_do_not_send_again() {
+    let (base, requests) = mock_server(vec![
+        (200, r#"{"success":true,"data":{"totalRecipients":1,"totalParts":1,"totalEstimatedCost":"0.05","currency":"CREDITS"}}"#),
+        (202, r#"{"success":true,"data":{"campaignId":"first-send","status":"QUEUED","totalRecipients":1}}"#),
+        (200, r#"{"success":true,"data":{"totalRecipients":1,"totalParts":1,"totalEstimatedCost":"0.05","currency":"CREDITS"}}"#),
+        (202, r#"{"success":true,"data":{"campaignId":"second-send","status":"QUEUED","totalRecipients":1}}"#),
+    ]).await;
+    let dir = tempfile::tempdir().unwrap();
+    let client = CommsClient::with_base("local-test-key", base);
+    let mut first = sample();
+    submit(dir.path(), &mut first, &client).await.unwrap();
+    ensure_new_preview(dir.path(), 42, Some(&first.id)).unwrap();
+    let mut second = sample();
+    second.message = "The second deliberate message.".into();
+    save(dir.path(), &second).unwrap();
+    assert!(ensure_new_preview(dir.path(), 42, Some(&first.id)).is_err());
+    submit(dir.path(), &mut second, &client).await.unwrap();
+    let mut recovered = read(dir.path(), 42).unwrap().unwrap();
+    submit(dir.path(), &mut recovered, &client).await.unwrap();
+    let requests = requests.await.unwrap();
+    assert_eq!(requests.len(), 4);
+    assert!(requests[1]
+        .to_lowercase()
+        .contains(&format!("idempotency-key: {}", first.id)));
+    assert!(requests[3]
+        .to_lowercase()
+        .contains(&format!("idempotency-key: {}", second.id)));
+    assert_ne!(first.id, second.id);
+    assert_eq!(recovered.provider_id.as_deref(), Some("second-send"));
+    let preserved: ListSms =
+        serde_json::from_slice(&std::fs::read(archive_file(dir.path(), &first).unwrap()).unwrap())
+            .unwrap();
+    assert_eq!(preserved.provider_id.as_deref(), Some("first-send"));
+}
+
+#[test]
+fn invalid_archive_reference_cannot_escape_private_storage() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut batch = sample();
+    batch.id = "../outside".into();
+    assert!(save(dir.path(), &batch).is_err());
+    assert!(read(dir.path(), 42).unwrap().is_none());
 }

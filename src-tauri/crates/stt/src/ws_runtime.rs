@@ -55,6 +55,11 @@ pub trait WsProvider: Send + Sync + 'static {
         false
     }
 
+    /// PCM rate for providers that require real-time audio delivery.
+    fn realtime_sample_rate(&self) -> Option<u32> {
+        None
+    }
+
     /// Parse one text frame and forward events.
     ///
     /// Returns `Ok(true)` to break out of the receive loop (e.g. explicit
@@ -228,6 +233,12 @@ async fn try_connect<P: WsProvider>(
     audio_closed: Arc<AtomicBool>,
 ) -> Result<(), SttError> {
     let tag = provider.log_tag();
+    let realtime_rate = provider.realtime_sample_rate();
+    if realtime_rate == Some(0) {
+        return Err(SttError::ConnectionFailed(
+            "Audio sample rate must be positive".into(),
+        ));
+    }
     let url = provider.build_url()?;
 
     let mut request = url
@@ -272,7 +283,11 @@ async fn try_connect<P: WsProvider>(
         KeepAlive,
         Close,
     }
-    let (ws_tx, mut ws_rx) = tokio::sync::mpsc::channel::<WsCommand>(64);
+    // Keep AssemblyAI's outbound queue near one second, rather than 16 seconds.
+    let capacity = if realtime_rate.is_some() { 4 } else { 64 };
+    let (ws_tx, mut ws_rx) = tokio::sync::mpsc::channel::<WsCommand>(capacity);
+    let batch_samples = realtime_rate.map_or(BATCH_SAMPLES, |rate| (rate / 10).max(1) as usize);
+    let min_batch_bytes = realtime_rate.map_or(0, |rate| (rate / 20).max(1) as usize * 2);
 
     // Blocking audio reader: crossbeam → tokio channel.
     let audio_reader = {
@@ -281,12 +296,12 @@ async fn try_connect<P: WsProvider>(
         let send_keepalive = keepalive.is_some();
         let connection_ended = connection_ended.clone();
         tokio::task::spawn_blocking(move || {
-            let mut batch_buf: Vec<u8> = Vec::with_capacity(BATCH_SAMPLES * 2);
-            let batch_byte_threshold = BATCH_SAMPLES * 2;
+            let mut batch_buf: Vec<u8> = Vec::with_capacity(batch_samples * 2);
+            let batch_byte_threshold = batch_samples * 2;
             let mut last_send = std::time::Instant::now();
             let keepalive_interval = Duration::from_secs(5);
 
-            loop {
+            'capture: loop {
                 if connection_ended.load(Ordering::SeqCst) {
                     break;
                 }
@@ -300,16 +315,17 @@ async fn try_connect<P: WsProvider>(
                         for sample in &samples {
                             batch_buf.extend_from_slice(&sample.to_le_bytes());
                         }
-                        if batch_buf.len() >= batch_byte_threshold {
-                            let data = std::mem::take(&mut batch_buf);
+                        while batch_buf.len() >= batch_byte_threshold {
+                            let remainder = batch_buf.split_off(batch_byte_threshold);
+                            let data = std::mem::replace(&mut batch_buf, remainder);
                             if ws_tx.blocking_send(WsCommand::Audio(data)).is_err() {
-                                break;
+                                break 'capture;
                             }
                             last_send = std::time::Instant::now();
                         }
                     }
                     Err(crossbeam_channel::RecvTimeoutError::Timeout) => {
-                        if !batch_buf.is_empty() {
+                        if !batch_buf.is_empty() && batch_buf.len() >= min_batch_bytes {
                             let data = std::mem::take(&mut batch_buf);
                             if ws_tx.blocking_send(WsCommand::Audio(data)).is_err() {
                                 break;
@@ -326,6 +342,10 @@ async fn try_connect<P: WsProvider>(
                     Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {
                         audio_closed.store(true, Ordering::SeqCst);
                         if !batch_buf.is_empty() {
+                            // Preserve the final words; pad only a sub-50ms tail with silence.
+                            if batch_buf.len() < min_batch_bytes {
+                                batch_buf.resize(min_batch_bytes, 0);
+                            }
                             let data = std::mem::take(&mut batch_buf);
                             let _ = ws_tx.blocking_send(WsCommand::Audio(data));
                         }
@@ -338,15 +358,31 @@ async fn try_connect<P: WsProvider>(
     };
 
     // Async writer: tokio channel → WebSocket.
+    let writer_cancelled = cancelled.clone();
     let mut ws_writer = tokio::spawn(async move {
         let mut sent_audio = false;
+        let mut next_audio_at = tokio::time::Instant::now();
         while let Some(cmd) = ws_rx.recv().await {
             match cmd {
                 WsCommand::Audio(data) => {
+                    if realtime_rate.is_some() {
+                        tokio::time::sleep_until(next_audio_at).await;
+                        if writer_cancelled.load(Ordering::SeqCst) {
+                            let _ = write.send(Message::Text(close_frame.clone().into())).await;
+                            let _ = write.close().await;
+                            break;
+                        }
+                    }
+                    let samples = data.len() / 2;
                     if let Err(e) = write.send(Message::Binary(data.into())).await {
                         log::error!("{tag} ws_writer: audio send error: {e}");
                         send_err.store(true, Ordering::SeqCst);
                         break;
+                    }
+                    if let Some(rate) = realtime_rate {
+                        // Anchor to the actual send, so a stall never earns catch-up credit.
+                        next_audio_at = tokio::time::Instant::now()
+                            + Duration::from_micros(samples as u64 * 1_000_000 / u64::from(rate));
                     }
                     if !sent_audio {
                         log::info!("{tag}: first audio batch sent");
@@ -444,6 +480,324 @@ async fn try_connect<P: WsProvider>(
 mod prepared_connection_tests {
     use super::*;
     use tokio::net::TcpListener;
+    struct LocalAssemblyAI {
+        url: String,
+        client: crate::AssemblyAIClient,
+    }
+    impl WsProvider for LocalAssemblyAI {
+        fn log_tag(&self) -> &'static str {
+            "LocalAssemblyAI"
+        }
+        fn build_url(&self) -> Result<Url, SttError> {
+            Ok(Url::parse(&self.url).unwrap())
+        }
+        fn auth_header(&self) -> Result<Option<HeaderValue>, SttError> {
+            Ok(None)
+        }
+        fn keepalive_frame(&self) -> Option<String> {
+            None
+        }
+        fn close_frame(&self) -> String {
+            self.client.close_frame()
+        }
+        fn requires_session_begin(&self) -> bool {
+            true
+        }
+        fn realtime_sample_rate(&self) -> Option<u32> {
+            self.client.realtime_sample_rate()
+        }
+        fn parse_message<'a>(
+            &'a self,
+            text: &'a str,
+            tx: &'a mpsc::Sender<TranscriptEvent>,
+        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<bool, SttError>> + Send + 'a>>
+        {
+            self.client.parse_message(text, tx)
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn live_audio_reaches_provider_before_two_hundred_ms() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let provider = LocalAssemblyAI {
+            url: format!("ws://{}/", listener.local_addr().unwrap()),
+            client: crate::AssemblyAIClient::new(crate::SttConfig::default()),
+        };
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(tcp).await.unwrap();
+            socket
+                .send(Message::Text(r#"{"type":"Begin"}"#.into()))
+                .await
+                .unwrap();
+            ready_tx.send(()).unwrap();
+            let start = tokio::time::Instant::now();
+            let mut first = None;
+            while let Some(Ok(message)) = socket.next().await {
+                match message {
+                    Message::Binary(_) => {
+                        first.get_or_insert(start.elapsed());
+                    }
+                    Message::Text(_) => {
+                        let _ = socket
+                            .send(Message::Text(r#"{"type":"Termination"}"#.into()))
+                            .await;
+                    }
+                    Message::Close(_) => break,
+                    _ => {}
+                }
+            }
+            first.unwrap()
+        });
+        let (tx, rx) = crossbeam_channel::unbounded();
+        let producer = tokio::spawn(async move {
+            ready_rx.await.unwrap();
+            for _ in 0..20 {
+                tx.send(vec![100; 320]).unwrap();
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        });
+        let (events, _rx) = mpsc::channel(16);
+        try_connect(
+            &provider,
+            rx,
+            events,
+            Arc::new(AtomicBool::new(false)),
+            Arc::new(AtomicBool::new(false)),
+        )
+        .await
+        .unwrap();
+        producer.await.unwrap();
+        let first = server.await.unwrap();
+        assert!(
+            first < Duration::from_millis(200),
+            "First live audio waited {first:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn assemblyai_buffered_audio_is_paced_and_uses_valid_chunks() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let provider = LocalAssemblyAI {
+            url: format!("ws://{}/", listener.local_addr().unwrap()),
+            client: crate::AssemblyAIClient::new(crate::SttConfig::default()),
+        };
+        let server = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(tcp).await.unwrap();
+            socket
+                .send(Message::Text(r#"{"type":"Begin"}"#.into()))
+                .await
+                .unwrap();
+            let start = tokio::time::Instant::now();
+            let mut frames = Vec::new();
+            while let Some(Ok(message)) = socket.next().await {
+                match message {
+                    Message::Binary(bytes) => frames.push((bytes.len() / 2, start.elapsed())),
+                    Message::Text(_) => {
+                        let _ = socket
+                            .send(Message::Text(r#"{"type":"Termination"}"#.into()))
+                            .await;
+                    }
+                    Message::Close(_) => {
+                        let _ = socket.close(None).await;
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+            frames
+        });
+        let (tx, rx) = crossbeam_channel::unbounded();
+        // Deliberately backlogged audio, including a callback larger than 1s.
+        tx.send(vec![100; 32_000]).unwrap();
+        tx.send(vec![100; 16_000]).unwrap();
+        drop(tx);
+        let (events, _rx) = mpsc::channel(16);
+        tokio::time::timeout(
+            Duration::from_secs(8),
+            try_connect(
+                &provider,
+                rx,
+                events,
+                Arc::new(AtomicBool::new(false)),
+                Arc::new(AtomicBool::new(false)),
+            ),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let frames = server.await.unwrap();
+        assert_eq!(frames.iter().map(|(n, _)| n).sum::<usize>(), 48_000);
+        assert!(
+            frames.iter().all(|(n, _)| (800..=16_000).contains(n)),
+            "Each chunk must be 50–1000ms: {frames:?}"
+        );
+        assert!(
+            frames.last().unwrap().1 >= Duration::from_millis(2_500),
+            "Backlogged audio must not be sent in a burst: {frames:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn assemblyai_reconnect_resumes_transcripts_without_bursting() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let provider = LocalAssemblyAI {
+            url: format!("ws://{}/", listener.local_addr().unwrap()),
+            client: crate::AssemblyAIClient::new(crate::SttConfig::default()),
+        };
+        let server = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let mut first = tokio_tungstenite::accept_async(tcp).await.unwrap();
+            first
+                .send(Message::Text(r#"{"type":"Begin"}"#.into()))
+                .await
+                .unwrap();
+            assert!(matches!(first.next().await, Some(Ok(Message::Binary(_)))));
+            first.close(None).await.unwrap();
+            drop(first);
+            let (tcp, _) = listener.accept().await.unwrap();
+            let mut second = tokio_tungstenite::accept_async(tcp).await.unwrap();
+            second
+                .send(Message::Text(r#"{"type":"Begin"}"#.into()))
+                .await
+                .unwrap();
+            let mut times = Vec::new();
+            let start = tokio::time::Instant::now();
+            while let Some(Ok(message)) = second.next().await {
+                match message {
+                    Message::Binary(bytes) => {
+                        times.push((bytes.len() / 2, start.elapsed()));
+                        if times.len() == 3 {
+                            second.send(Message::Text(r#"{"type":"Turn","transcript":"Resumed test speech","end_of_turn":true}"#.into())).await.unwrap();
+                        }
+                    }
+                    Message::Text(_) => {
+                        let _ = second
+                            .send(Message::Text(r#"{"type":"Termination"}"#.into()))
+                            .await;
+                    }
+                    Message::Close(_) => {
+                        let _ = second.close(None).await;
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+            times
+        });
+        let (tx, rx) = crossbeam_channel::bounded(64);
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let stop = cancelled.clone();
+        let producer = tokio::spawn(async move {
+            while !stop.load(Ordering::SeqCst) {
+                if tx.try_send(vec![100; 4_000]).is_err() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(250)).await;
+            }
+        });
+        let (events, mut event_rx) = mpsc::channel(32);
+        let worker = tokio::spawn({
+            let cancelled = cancelled.clone();
+            async move { run_stream(&provider, false, rx, events, cancelled).await }
+        });
+        let mut connections = 0;
+        let mut reconnects = 0;
+        tokio::time::timeout(Duration::from_secs(8), async {
+            while let Some(event) = event_rx.recv().await {
+                match event {
+                    TranscriptEvent::Connected => connections += 1,
+                    TranscriptEvent::Reconnecting => reconnects += 1,
+                    TranscriptEvent::Final { transcript, .. }
+                        if transcript == "Resumed test speech" =>
+                    {
+                        return
+                    }
+                    TranscriptEvent::Error(error) => panic!("Unexpected fatal error: {error}"),
+                    _ => {}
+                }
+            }
+            panic!("Transcript channel ended before recovery");
+        })
+        .await
+        .unwrap();
+        cancelled.store(true, Ordering::SeqCst);
+        producer.await.unwrap();
+        tokio::time::timeout(Duration::from_secs(3), worker)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let times = server.await.unwrap();
+        assert_eq!(connections, 2);
+        assert!(reconnects >= 1);
+        let audio_before_third = times[..2].iter().map(|(samples, _)| samples).sum::<usize>();
+        let minimum = Duration::from_secs_f64(audio_before_third as f64 / 16_000.0);
+        assert!(times[2].1.saturating_sub(times[0].1) + Duration::from_millis(20) >= minimum);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn assemblyai_short_tail_is_preserved_in_one_valid_final_chunk() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let provider = LocalAssemblyAI {
+            url: format!("ws://{}/", listener.local_addr().unwrap()),
+            client: crate::AssemblyAIClient::new(crate::SttConfig::default()),
+        };
+        let server = tokio::spawn(async move {
+            let (tcp, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(tcp).await.unwrap();
+            socket
+                .send(Message::Text(r#"{"type":"Begin"}"#.into()))
+                .await
+                .unwrap();
+            let mut frames = Vec::new();
+            while let Some(Ok(message)) = socket.next().await {
+                match message {
+                    Message::Binary(bytes) => frames.push(bytes),
+                    Message::Text(_) => {
+                        let _ = socket
+                            .send(Message::Text(r#"{"type":"Termination"}"#.into()))
+                            .await;
+                    }
+                    Message::Close(_) => {
+                        let _ = socket.close(None).await;
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+            frames
+        });
+        let (tx, rx) = crossbeam_channel::unbounded();
+        let producer = tokio::spawn(async move {
+            tx.send(vec![100; 160]).unwrap();
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            tx.send(vec![100; 160]).unwrap();
+        });
+        let (events, _rx) = mpsc::channel(16);
+        try_connect(
+            &provider,
+            rx,
+            events,
+            Arc::new(AtomicBool::new(false)),
+            Arc::new(AtomicBool::new(false)),
+        )
+        .await
+        .unwrap();
+        producer.await.unwrap();
+        let frames = server.await.unwrap();
+        assert_eq!(frames.len(), 1);
+        let samples: Vec<i16> = frames[0]
+            .chunks_exact(2)
+            .map(|b| i16::from_le_bytes([b[0], b[1]]))
+            .collect();
+        assert_eq!(samples.len(), 800);
+        assert_eq!(&samples[..320], &[100; 320]);
+        assert!(samples[320..].iter().all(|s| *s == 0));
+    }
+
     #[tokio::test]
     async fn fresh_session_without_begin_returns_a_timeout() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

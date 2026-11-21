@@ -12,8 +12,8 @@ export function UnsplashCredential() {
 
   const [unsplashSaved, setUnsplashSaved] = useState(false)
 
-  const handleSaveUnsplash = () => {
-    persistUnsplashApiKey(unsplashValue || null)
+  const handleSaveUnsplash = async () => {
+    if (!(await persistUnsplashApiKey(unsplashValue || null))) return
     setUnsplashSaved(true)
     setTimeout(() => setUnsplashSaved(false), 2000)
   }

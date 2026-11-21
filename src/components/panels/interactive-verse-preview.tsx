@@ -33,6 +33,12 @@ export function InteractiveVersePreview({
   const anchorRef = useRef<{ word: WordHitBox; x: number; y: number; pointerId: number } | null>(null)
   const [selection, setSelection] = useState<SelectionRange | null>(null)
   const [toolbar, setToolbar] = useState<{ x: number; y: number } | null>(null)
+  const [selectionReference, setSelectionReference] = useState(verse?.reference)
+  if (selectionReference !== verse?.reference) {
+    setSelectionReference(verse?.reference)
+    setSelection(null)
+    setToolbar(null)
+  }
 
   const handleRender = useCallback((result: VerseLayoutMetrics | null) => {
     hitsRef.current = result?.wordHits ?? []

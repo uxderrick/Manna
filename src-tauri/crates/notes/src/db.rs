@@ -289,7 +289,7 @@ impl SessionDb {
             .optional()?;
         match parsed {
             Some(Ok(session)) => Ok(session),
-            Some(Err(e)) => Err(SessionError::Serialization(e)),
+            Some(Err(e)) => Err(e),
             None => Err(SessionError::NotFound(id.to_string())),
         }
     }
@@ -304,12 +304,7 @@ impl SessionDb {
 
         let mut sessions = Vec::new();
         for r in rows {
-            sessions.push(r?.map_err(|_| {
-                SessionError::Serialization(serde_json::Error::io(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "Failed to deserialize session row",
-                )))
-            })?);
+            sessions.push(r??);
         }
         Ok(sessions)
     }
@@ -982,19 +977,14 @@ impl SessionDb {
     pub fn get_recent_sessions(&self, limit: i64) -> Result<Vec<SermonSession>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, title, speaker, date, series_name, tags, started_at, ended_at,
-                    status, planned_scriptures, summary, created_at, updated_at, audio_path
+                    status, planned_scriptures, summary, created_at, updated_at, audio_path, title_source
              FROM sermon_sessions ORDER BY created_at DESC LIMIT ?1",
         )?;
         let rows = stmt.query_map(params![limit], |row| Ok(row_to_session(row)))?;
 
         let mut sessions = Vec::new();
         for r in rows {
-            sessions.push(r?.map_err(|_| {
-                SessionError::Serialization(serde_json::Error::io(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "Failed to deserialize session row",
-                )))
-            })?);
+            sessions.push(r??);
         }
         Ok(sessions)
     }
@@ -1015,37 +1005,33 @@ impl SessionDb {
 
 /// Map a database row to a `SermonSession`, deserializing JSON columns.
 ///
-/// Returns `Err` only when JSON deserialization fails — column reads use
-/// the infallible `rusqlite::Row` API and propagate through `?` in the
-/// calling `query_row` / `query_map`.
-fn row_to_session(row: &Row<'_>) -> std::result::Result<SermonSession, serde_json::Error> {
-    let tags_str: String = row.get_unwrap(5);
-    let scriptures_str: String = row.get_unwrap(9);
-    let status_str: String = row.get_unwrap(8);
+/// Column and JSON errors propagate to callers instead of aborting the app.
+fn row_to_session(row: &Row<'_>) -> Result<SermonSession> {
+    let tags_str: String = row.get(5)?;
+    let scriptures_str: String = row.get(9)?;
+    let status_str: String = row.get(8)?;
 
     let tags: Vec<String> = serde_json::from_str(&tags_str)?;
     let planned_scriptures: Vec<PlannedScripture> = serde_json::from_str(&scriptures_str)?;
     let status = SessionStatus::from_str(&status_str).unwrap_or(SessionStatus::Planned);
 
-    // `audio_path` was added by a later migration; tolerate the column being
-    // absent in legacy rows by treating a missing read as `None`.
-    let audio_path: Option<String> = row.get(13).ok().flatten();
+    let audio_path: Option<String> = row.get("audio_path")?;
 
     Ok(SermonSession {
-        id: row.get_unwrap(0),
-        title: row.get_unwrap(1),
-        title_source: row.get_unwrap("title_source"),
-        speaker: row.get_unwrap(2),
-        date: row.get_unwrap(3),
-        series_name: row.get_unwrap(4),
+        id: row.get(0)?,
+        title: row.get(1)?,
+        title_source: row.get("title_source")?,
+        speaker: row.get(2)?,
+        date: row.get(3)?,
+        series_name: row.get(4)?,
         tags,
-        started_at: row.get_unwrap(6),
-        ended_at: row.get_unwrap(7),
+        started_at: row.get(6)?,
+        ended_at: row.get(7)?,
         status,
         planned_scriptures,
-        summary: row.get_unwrap(10),
-        created_at: row.get_unwrap(11),
-        updated_at: row.get_unwrap(12),
+        summary: row.get(10)?,
+        created_at: row.get(11)?,
+        updated_at: row.get(12)?,
         audio_path,
     })
 }
@@ -1102,6 +1088,49 @@ fn row_to_distribution(row: &Row<'_>) -> rusqlite::Result<SessionDistribution> {
 mod tests {
     use super::*;
     use crate::models::CreateSessionRequest;
+
+    #[test]
+    fn malformed_session_column_returns_error_without_panicking() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = SessionDb::open(&dir.path().join("bad-row.db")).unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO sermon_sessions(title,date) VALUES(X'00','2026-10-22')",
+                [],
+            )
+            .unwrap();
+        assert!(db.list_sessions().is_err());
+    }
+
+    #[test]
+    fn analytics_loads_live_and_completed_sessions_with_title_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = SessionDb::open(&dir.path().join("analytics.db")).unwrap();
+        assert!(db.get_recent_sessions(10).unwrap().is_empty());
+        for automatic in [false, true] {
+            let session = db
+                .create_session(&CreateSessionRequest {
+                    title_is_automatic: automatic,
+                    title: "Synthetic sermon".into(),
+                    speaker: None,
+                    date: "2026-10-22".into(),
+                    series_name: None,
+                    tags: vec![],
+                    planned_scriptures: vec![],
+                })
+                .unwrap();
+            db.start_session(session.id).unwrap();
+            let recent = db.get_recent_sessions(10).unwrap();
+            let loaded = recent.iter().find(|row| row.id == session.id).unwrap();
+            assert_eq!(loaded.title_source, session.title_source);
+            db.end_session(session.id).unwrap();
+            assert!(db
+                .get_recent_sessions(10)
+                .unwrap()
+                .iter()
+                .any(|row| row.id == session.id));
+        }
+    }
 
     #[test]
     fn audio_path_round_trip() {

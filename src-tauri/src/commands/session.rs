@@ -52,11 +52,13 @@ pub fn end_session(db: State<'_, DbState>, id: i64) -> Result<SermonSession, Str
 }
 
 #[tauri::command]
-pub fn delete_session(db: State<'_, DbState>, id: i64) -> Result<(), String> {
-    db.lock()
-        .map_err(|e| e.to_string())?
-        .delete_session(id)
-        .map_err(|e| e.to_string())
+pub fn delete_session(
+    state: State<'_, Mutex<crate::state::AppState>>,
+    db: State<'_, DbState>, id: i64,
+) -> Result<(), String> {
+    let state = state.lock().map_err(|e| e.to_string())?;
+    let db = db.lock().map_err(|e| e.to_string())?;
+    delete_idle_session(&state, &db, id)
 }
 
 #[tauri::command]
@@ -274,4 +276,47 @@ pub fn delete_distribution(db: State<'_, DbState>, id: i64) -> Result<(), String
         .map_err(|e| e.to_string())?
         .delete_distribution(id)
         .map_err(|e| e.to_string())
+}
+
+fn delete_idle_session(state: &crate::state::AppState, db: &SessionDb, id: i64) -> Result<(), String> {
+    state.ensure_session_audio_idle(id)?;
+    db.delete_session(id).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod deletion_tests {
+    use super::*;
+    use std::sync::atomic::Ordering;
+    fn fixture() -> (tempfile::TempDir, SessionDb, i64) {
+        let dir = tempfile::tempdir().unwrap();
+        let db = SessionDb::open(&dir.path().join("sessions.db")).unwrap();
+        let s = db.create_session(&CreateSessionRequest {
+            title: "Synthetic session".into(), title_is_automatic: false,
+            speaker: None, date: "2026-10-23".into(), series_name: None,
+            tags: vec![], planned_scriptures: vec![],
+        }).unwrap();
+        db.start_session(s.id).unwrap();
+        (dir, db, s.id)
+    }
+    #[test]
+    fn active_and_stopping_sessions_cannot_be_deleted() {
+        for stopping in [false,true] {
+            let (_dir, db, id) = fixture();
+            let mut state = crate::state::AppState::new();
+            state.transcription_session_id = Some(id);
+            state.stt_stopping = stopping;
+            state.stt_active.store(!stopping, Ordering::SeqCst);
+            assert!(delete_idle_session(&state, &db, id).is_err());
+            assert!(db.get_session(id).is_ok());
+        }
+    }
+    #[test]
+    fn inactive_session_can_be_deleted_while_another_is_recording() {
+        let (_dir, db, id) = fixture();
+        let mut state = crate::state::AppState::new();
+        state.transcription_session_id = Some(id+1);
+        state.stt_active.store(true, Ordering::SeqCst);
+        delete_idle_session(&state, &db, id).unwrap();
+        assert!(db.get_session(id).is_err());
+    }
 }

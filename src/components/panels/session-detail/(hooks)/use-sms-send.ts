@@ -43,7 +43,7 @@ export function useSmsSend(sessionId: number) {
       mounted.current = false
     }
   }, [sessionId])
-  const preview = async (message: string) => {
+  const preview = async (message: string, previousSendId?: string) => {
     if (inFlight.current) return
     inFlight.current = true
     setError("")
@@ -52,6 +52,7 @@ export function useSmsSend(sessionId: number) {
       const value = await invoke<ListSms>("preview_contact_list_sms", {
         sessionId,
         message,
+        previousSendId: previousSendId ?? null,
       })
       if (mounted.current) setBatch(value)
     } catch (reason) {

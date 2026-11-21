@@ -12,8 +12,8 @@ export function GeniusCredential() {
 
   const [geniusSaved, setGeniusSaved] = useState(false)
 
-  const handleSaveGeniusToken = () => {
-    persistGeniusToken(geniusValue || null)
+  const handleSaveGeniusToken = async () => {
+    if (!(await persistGeniusToken(geniusValue || null))) return
     setGeniusSaved(true)
     setTimeout(() => setGeniusSaved(false), 2000)
   }

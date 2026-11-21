@@ -22,6 +22,58 @@ describe("broadcast store sync", () => {
     vi.resetModules()
   })
 
+  it("switches a background live on both outputs without changing verse or history", async () => {
+    const { useBroadcastStore } = await import("./broadcast-store")
+    const verse = { reference: "John 3:16", segments: [{ text: "For God so loved the world" }] }
+    useBroadcastStore.setState({ liveVerse: verse, isLive: true })
+    const history = useBroadcastStore.getState().history
+    useBroadcastStore.getState().setBackground("scripture", "aurora-cool")
+    for (const output of ["main", "alt"]) {
+      expect(emitMock).toHaveBeenCalledWith(`broadcast:verse-update:${output}`, expect.objectContaining({
+        verse,
+        theme: expect.objectContaining({ background: expect.objectContaining({ type: "video" }) }),
+      }))
+    }
+    expect(useBroadcastStore.getState().history).toBe(history)
+    expect(useBroadcastStore.getState().liveVerse).toBe(verse)
+  })
+
+  it("remembers independent song and scripture backgrounds and restores the theme default", async () => {
+    const { useBroadcastStore } = await import("./broadcast-store")
+    const state = useBroadcastStore.getState()
+    state.setBackground("scripture", "aurora-cool")
+    state.setBackground("song", "still-waters")
+    useBroadcastStore.setState({ liveVerse: { reference: "Song", hideReference: true, segments: [] } })
+    emitMock.mockClear()
+    state.syncBroadcastOutput()
+    expect(emitMock).toHaveBeenCalledWith("broadcast:verse-update:main", expect.objectContaining({
+      theme: expect.objectContaining({ background: expect.objectContaining({ type: "image", image: expect.objectContaining({ url: "/backgrounds/still-waters.png" }) }) }),
+    }))
+    expect(useBroadcastStore.getState().backgrounds.scripture.id).toBe("aurora-cool")
+    state.setBackground("song", null)
+    expect(emitMock).toHaveBeenLastCalledWith("broadcast:verse-update:alt", expect.objectContaining({ theme: state.themes[0] }))
+  })
+
+  it("warms projector assets when staging a verse without changing live output", async () => {
+    const { useBroadcastStore } = await import("./broadcast-store")
+    const verse = {
+      reference: "John 3:16",
+      segments: [{ text: "For God so loved the world" }],
+    }
+    useBroadcastStore.getState().setPreviewVerse(verse)
+    for (const output of ["main", "alt"]) {
+      expect(emitMock).toHaveBeenCalledWith(`broadcast:preload:${output}`, {
+        theme: useBroadcastStore.getState().themes[0],
+      })
+    }
+    expect(useBroadcastStore.getState().liveVerse).toBeNull()
+    expect(
+      emitMock.mock.calls.some(([event]) =>
+        event.startsWith("broadcast:verse-update:")
+      )
+    ).toBe(false)
+  })
+
   it("hides both outputs without losing the content needed by remote Show", async () => {
     const { useBroadcastStore } = await import("./broadcast-store")
     const verse = {

@@ -21,8 +21,8 @@ export function DeepseekCredential() {
     status: "idle",
   })
 
-  const handleSaveDeepseekKey = () => {
-    persistDeepseekApiKey(deepseekKeyValue || null)
+  const handleSaveDeepseekKey = async () => {
+    if (!(await persistDeepseekApiKey(deepseekKeyValue || null))) return
     setDeepseekSaved(true)
     setTimeout(() => setDeepseekSaved(false), 2000)
   }
@@ -40,7 +40,7 @@ export function DeepseekCredential() {
       if (result.ok) {
         setDeepseekVerify({ status: "ok", detail: result.detail })
         if (deepseekKeyValue !== deepseekApiKey)
-          persistDeepseekApiKey(deepseekKeyValue)
+          if (!(await persistDeepseekApiKey(deepseekKeyValue))) throw new Error("Could not save key securely")
       } else {
         setDeepseekVerify({ status: "fail", detail: result.detail })
       }

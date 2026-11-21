@@ -1,3 +1,4 @@
+import { resolveChurchAsset } from "@/lib/church-assets"
 import { CreateSessionForm } from "./sessions-landing/(components)/create-session-form"
 import { useEffect, useMemo, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
@@ -48,6 +49,7 @@ export function SessionsLanding() {
   const closeSessions = useSessionStore((s) => s.closeSessions)
   const workspaceUnlocked = useSessionStore((s) => s.workspaceUnlocked)
   const activeTitle = useSessionStore((s) => s.activeSession?.title)
+  const protectedSessionId = useSessionStore((s) => s.activeSession?.status === "live" ? s.activeSession.id : null)
   const brand = useSettingsStore((s) => s.brand)
 
   const [sessions, setSessions] = useState<SermonSession[]>([])
@@ -156,7 +158,7 @@ export function SessionsLanding() {
   }
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return
+    if (!deleteTarget || deleteTarget.id === protectedSessionId) return
     const id = deleteTarget.id
     setDeleting(true)
     try {
@@ -252,7 +254,7 @@ export function SessionsLanding() {
         <header className="flex flex-col items-center gap-3 text-center">
           <div className="rounded-full bg-card p-2 ring-2 ring-primary/30 ring-offset-4 ring-offset-background">
             <img
-              src={resolveBrandAsset("logo", brand.logoPath)}
+              src={resolveChurchAsset(resolveBrandAsset("logo", brand.logoPath))}
               alt={resolveChurchName(brand.churchName)}
               className="size-16 rounded-full"
             />
@@ -340,6 +342,7 @@ export function SessionsLanding() {
                   session={session}
                   stats={stats[session.id]}
                   onClick={() => handleOpenPast(session)}
+                  deleteDisabled={session.id === protectedSessionId}
                   onDelete={(e) => handleDelete(session, e)}
                 />
               ))}
@@ -425,10 +428,12 @@ function SessionCard({
   stats,
   onClick,
   onDelete,
+  deleteDisabled,
 }: {
   session: SermonSession
   stats: SessionRowStats | undefined
   onClick: () => void
+  deleteDisabled: boolean
   onDelete: (e: React.MouseEvent) => void
 }) {
   return (
@@ -466,7 +471,8 @@ function SessionCard({
         <button
           type="button"
           onClick={onDelete}
-          title="Delete session"
+          disabled={deleteDisabled}
+          title={deleteDisabled ? "End this session before deleting it" : "Delete session"}
           className="shrink-0 rounded-md p-1.5 text-muted-foreground/50 opacity-0 transition-all group-hover:opacity-100 hover:bg-destructive/15 hover:text-destructive"
         >
           <Trash2Icon className="size-3.5" />

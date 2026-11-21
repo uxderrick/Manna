@@ -1,21 +1,21 @@
 import { useMemo, useState } from "react"
-import { MusicIcon, PlayIcon, PlusIcon, SearchIcon } from "lucide-react"
+import { MusicIcon, PlusIcon, SearchIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PanelHeader } from "@/components/ui/panel-header"
 import { cn } from "@/lib/utils"
-import { searchSongs } from "@/lib/song-search"
+import { useSongSearch } from "@/components/songs/use-song-search"
+import { SongResults } from "@/components/songs/song-results"
 import { useQueueStore, useSongStore, useSettingsStore } from "@/stores"
-import type { Song } from "@/types"
 import { PasteLyricsDialog } from "@/components/songs/paste-lyrics-dialog"
 import { OnlineSearchResults } from "@/components/songs/online-search-results"
 import { SongDetailDrawer } from "@/components/songs/song-detail-drawer"
-import { SourceBadge } from "@/components/songs/source-badge"
 
 type Tab = "local" | "online" | "ewc"
 
 export function SongsPanel() {
   const allSongs = useSongStore((s) => s.songs)
+  const legacyEwc = useSettingsStore((s) => s.brand.legacyEwc)
   const enabledHymnals = useSettingsStore((s) => s.enabledHymnals)
   const enqueueSong = useQueueStore((s) => s.enqueueSong)
   const presentSongLive = useQueueStore((s) => s.presentSongLive)
@@ -44,9 +44,8 @@ export function SongsPanel() {
   )
 
   // Local tab searches all local songs; EWC tab searches within EWC-Live songs.
-  const filtered = useMemo(
-    () => searchSongs(tab === "ewc" ? ewcSongs : songs, query),
-    [songs, ewcSongs, query, tab],
+  const { songs: filtered, pending, resultQuery } = useSongSearch(
+    tab === "ewc" ? ewcSongs : songs, query, tab !== "online",
   )
 
   return (
@@ -88,7 +87,7 @@ export function SongsPanel() {
         >
           Search Online
         </button>
-        <button
+        {legacyEwc && <button
           className={cn(
             "rounded px-2 py-1 transition-colors",
             tab === "ewc" ? "bg-muted font-semibold text-foreground" : "text-muted-foreground hover:bg-muted/50",
@@ -96,10 +95,10 @@ export function SongsPanel() {
           onClick={() => setTab("ewc")}
         >
           EWC Live ({ewcSongs.length})
-        </button>
+        </button>}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className={cn("min-h-0 flex-1", tab === "online" ? "overflow-auto" : "flex flex-col")} aria-busy={tab !== "online" && pending}>
         {tab === "online" ? (
           <OnlineSearchResults
             query={query}
@@ -108,6 +107,8 @@ export function SongsPanel() {
               setDetailId(songId)
             }}
           />
+        ) : filtered.length === 0 && pending ? (
+          <div role="status" className="p-4 text-xs text-muted-foreground">Searching…</div>
         ) : filtered.length === 0 ? (
           tab === "ewc" ? (
             <div className="px-4 py-12 text-center text-xs text-muted-foreground">
@@ -117,76 +118,19 @@ export function SongsPanel() {
             <EmptyLocal onPaste={() => setPasteOpen(true)} onOnline={() => setTab("online")} />
           )
         ) : (
-          <ul className="divide-y divide-border/40">
-            {filtered.map((song) => (
-              <SongRow
-                key={song.id}
-                song={song}
-                onOpen={() => setDetailId(song.id)}
-                onAdd={() => enqueueSong(song.id)}
-                onJump={() => presentSongLive(song.id)}
-              />
-            ))}
-          </ul>
+          <SongResults
+            key={`${tab}:${resultQuery}`}
+            songs={filtered}
+            onOpen={setDetailId}
+            onAdd={enqueueSong}
+            onJump={presentSongLive}
+          />
         )}
       </div>
 
       <PasteLyricsDialog open={pasteOpen} onOpenChange={setPasteOpen} />
       <SongDetailDrawer songId={detailId} onClose={() => setDetailId(null)} />
     </div>
-  )
-}
-
-function SongRow({
-  song,
-  onOpen,
-  onAdd,
-  onJump,
-}: {
-  song: Song
-  onOpen: () => void
-  onAdd: () => void
-  onJump: () => void
-}) {
-  return (
-    <li className="group flex items-center gap-3 p-3 transition-colors hover:bg-muted/40">
-      <SourceBadge source={song.source} />
-      <button onClick={onOpen} className="min-w-0 flex-1 text-left">
-        <div className="flex items-baseline gap-2">
-          {song.number !== null && (
-            <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
-              {song.number}
-            </span>
-          )}
-          <span className="truncate text-sm font-medium">{song.title}</span>
-        </div>
-        {song.author && (
-          <div className="truncate text-xs text-muted-foreground">{song.author}</div>
-        )}
-      </button>
-      <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-        <Button
-          size="xs"
-          variant="default"
-          onClick={(e) => { e.stopPropagation(); onJump() }}
-          className="h-6 gap-1 px-2 text-[10px]"
-          title="Broadcast immediately"
-        >
-          <PlayIcon className="size-2.5" />
-          Go Live
-        </Button>
-        <Button
-          size="xs"
-          variant="outline"
-          onClick={(e) => { e.stopPropagation(); onAdd() }}
-          className="h-6 gap-1 px-2 text-[10px]"
-          title="Add to queue"
-        >
-          <PlusIcon className="size-2.5" />
-          RTQ
-        </Button>
-      </div>
-    </li>
   )
 }
 

@@ -21,8 +21,8 @@ export function DeepgramCredential() {
     status: "idle",
   })
 
-  const handleSaveDeepgramKey = () => {
-    persistDeepgramApiKey(deepgramKeyValue || null)
+  const handleSaveDeepgramKey = async () => {
+    if (!(await persistDeepgramApiKey(deepgramKeyValue || null))) return
     setDeepgramSaved(true)
     setTimeout(() => setDeepgramSaved(false), 2000)
   }
@@ -40,7 +40,7 @@ export function DeepgramCredential() {
       if (result.ok) {
         setDeepgramVerify({ status: "ok", detail: result.detail })
         if (deepgramKeyValue !== deepgramApiKey)
-          persistDeepgramApiKey(deepgramKeyValue)
+          if (!(await persistDeepgramApiKey(deepgramKeyValue))) throw new Error("Could not save key securely")
       } else {
         setDeepgramVerify({ status: "fail", detail: result.detail })
       }

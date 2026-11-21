@@ -1,3 +1,6 @@
+import { setChurchAssets } from "@/lib/church-assets"
+import { beforeEach as beforePrivatePack } from "vitest"
+beforePrivatePack(() => setChurchAssets({ "/service-slides/pastor-john-kennedy-starburst.png": "/managed/portrait.png", "/EWC-White.png": "/managed/logo.png" }))
 import { expect, it } from "vitest"
 import type { ImageSlide } from "@/types"
 import {
@@ -46,4 +49,9 @@ it("keeps announcement and image-only slides free of the portrait", () => {
     getSpeakerPortraitUrl({ url: slide.url, label: slide.label })
   ).toBeUndefined()
   expect(getSpeakerPortraitUrl(null)).toBeUndefined()
+})
+
+it("does not attach a private speaker photo in a fresh installation", () => {
+  setChurchAssets({})
+  expect(getSpeakerPortraitUrl(slide)).toBeUndefined()
 })

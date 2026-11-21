@@ -1,3 +1,4 @@
+import { ConnectionOnly } from "@/components/settings/(components)/connection-only"
 import { CopyIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { useSharingDrafts } from "../(hooks)/use-sharing-drafts"
@@ -62,11 +63,16 @@ export function SmsDraftEditor({
           Shorten this message to keep it in one SMS.
         </p>
       )}
-      <SmsSendAction
-        sessionId={sharing.sessionId}
-        message={formattedSms}
-        disabled={busy || !draft.sms.trim()}
-      />
+      <ConnectionOnly kind="sms">
+        <SmsSendAction
+          sessionId={sharing.sessionId}
+          message={formattedSms}
+          disabled={busy || !draft.sms.trim()}
+        />
+      </ConnectionOnly>
+      <p className="text-xs text-muted-foreground">
+        Copy this message and paste it into your SMS service.
+      </p>
     </section>
   )
 }

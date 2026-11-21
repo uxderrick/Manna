@@ -60,6 +60,7 @@ export interface RenderOptions {
   offsetY?: number
   scale?: number // Scale factor for rendering at display size (e.g., 0.42 for 400px panel)
   imageCache?: Map<string, HTMLImageElement>
+  backgroundVideo?: HTMLVideoElement | null
   collectWordHits?: boolean
 }
 
@@ -77,7 +78,8 @@ export interface BroadcastTheme {
   updatedAt: number
   resolution: { width: number; height: number }
   background: {
-    type: "solid" | "gradient" | "image" | "transparent"
+    type: "solid" | "gradient" | "image" | "video" | "transparent"
+    video?: { url: string; dimming: number; poster?: string } | null
     color: string
     gradient: {
       type: "linear" | "radial"

@@ -69,3 +69,6 @@ scripts/hymnals/.cache/
 /build-resources/
 /artifacts/
 __pycache__/
+
+# Church-specific artwork belongs to the device, not the public installer.
+/.private-church-assets/

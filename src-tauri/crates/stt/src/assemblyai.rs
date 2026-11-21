@@ -25,6 +25,20 @@ pub struct AssemblyAIClient {
     cancelled: Arc<AtomicBool>,
 }
 
+#[cfg(test)]
+mod latency_tests {
+    use super::*;
+
+    #[test]
+    fn long_turns_request_continuous_partial_transcripts() {
+        let client = AssemblyAIClient::new(SttConfig::default());
+        let url = client.build_url().unwrap();
+        assert!(url
+            .query_pairs()
+            .any(|(key, value)| key == "continuous_partials" && value == "true"));
+    }
+}
+
 impl std::fmt::Debug for AssemblyAIClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AssemblyAIClient")
@@ -57,6 +71,8 @@ impl WsProvider for AssemblyAIClient {
             q.append_pair("sample_rate", &self.config.sample_rate.to_string());
             q.append_pair("encoding", "pcm_s16le");
             q.append_pair("format_turns", "true");
+            // Keep references arriving during long, uninterrupted sermon turns.
+            q.append_pair("continuous_partials", "true");
             // AAI expects keyterms_prompt as a JSON-encoded array string, not comma-separated.
             let all = priority_keyterms(100);
             let keyterms_json = serde_json::to_string(&all)
@@ -82,6 +98,10 @@ impl WsProvider for AssemblyAIClient {
 
     fn close_frame(&self) -> String {
         serde_json::json!({ "type": "Terminate" }).to_string()
+    }
+
+    fn realtime_sample_rate(&self) -> Option<u32> {
+        Some(self.config.sample_rate)
     }
 
     fn requires_session_begin(&self) -> bool {

@@ -1,6 +1,5 @@
 import { useSessionStore } from "@/stores/session-store"
 import { resolveImageSlideTitle } from "../(lib)/image-text-slide-title"
-import { DEFAULT_SPEAKER_NAME } from "@/lib/speaker-portrait"
 import { useRef, useState } from "react"
 import { toast } from "sonner"
 import { ImageIcon, PlayIcon } from "lucide-react"
@@ -166,7 +165,7 @@ export function ImageTextSlideEditor({
                 rows={4}
                 placeholder={
                   layout === "title"
-                    ? DEFAULT_SPEAKER_NAME
+                    ? "Speaker name"
                     : "Date, location, and other details"
                 }
                 disabled={busy}

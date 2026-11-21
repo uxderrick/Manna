@@ -45,8 +45,13 @@ export function ApiKeyStep({ onContinue }: { onContinue: () => void | Promise<vo
     if (!key.trim()) return
     setSaving(true)
     try {
-      if (provider === "deepgram") await persistDeepgramApiKey(key)
-      else await persistAssemblyAiApiKey(key)
+      const saved = provider === "deepgram"
+        ? await persistDeepgramApiKey(key)
+        : await persistAssemblyAiApiKey(key)
+      if (!saved) {
+        setStatus({ ok: false, detail: "Could not save the key securely. Try again." })
+        return
+      }
       await persistSttProvider(provider)
       await onContinue()
     } finally {

@@ -1,3 +1,4 @@
+import { resolveChurchAsset } from "@/lib/church-assets"
 import { useState } from "react"
 import { ImageIcon } from "lucide-react"
 import { toast } from "sonner"
@@ -82,7 +83,7 @@ export function SlidePresetEditor({
             />
           ) : (
             <img
-              src={image}
+              src={resolveChurchAsset(image)}
               alt={`${label} preview`}
               className="aspect-video w-full object-contain"
             />

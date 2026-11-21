@@ -60,14 +60,49 @@ fn read(directory: &Path, session: i64) -> Result<Option<ListSms>, String> {
         Err(_) => Err("Could not read the saved SMS send.".into()),
     }
 }
+fn archive_file(directory: &Path, batch: &ListSms) -> Result<PathBuf, String> {
+    if batch.session_id <= 0 || uuid::Uuid::parse_str(&batch.id).is_err() {
+        return Err("Invalid saved SMS reference.".into());
+    }
+    Ok(directory.join(format!("list-send-{}-{}.json", batch.session_id, batch.id)))
+}
 fn save(directory: &Path, batch: &ListSms) -> Result<(), String> {
+    let archive = archive_file(directory, batch)?;
+    // Preserve older installations' single send record before replacing the current preview.
+    if let Some(previous) = read(directory, batch.session_id)? {
+        if previous.id != batch.id {
+            write_private(&archive_file(directory, &previous)?, &previous)?;
+        }
+    }
+    write_private(&archive, batch)?;
     write_private(&file(directory, batch.session_id)?, batch)
 }
-fn ensure_new_preview(directory: &Path, session: i64) -> Result<(), String> {
-    if read(directory, session)?
-        .is_some_and(|send| send.provider_id.is_some() || send.status == "UNKNOWN")
+fn ensure_new_preview(
+    directory: &Path,
+    session: i64,
+    previous_send_id: Option<&str>,
+) -> Result<(), String> {
+    let previous = read(directory, session)?;
+    if previous
+        .as_ref()
+        .is_some_and(|send| send.status == "UNKNOWN")
     {
-        return Err("An SMS send already exists for this session. Check its progress instead of creating another send.".into());
+        return Err("The previous SMS submission is uncertain. Retry its saved submission before starting another message.".into());
+    }
+    if let Some(expected) = previous_send_id {
+        if !previous
+            .as_ref()
+            .is_some_and(|send| send.id == expected && send.provider_id.is_some())
+        {
+            return Err(
+                "The previous SMS changed. Reopen the SMS window before starting another message."
+                    .into(),
+            );
+        }
+    } else if previous.is_some_and(|send| send.provider_id.is_some()) {
+        return Err(
+            "An SMS send already exists. Use Send another message to prepare a new preview.".into(),
+        );
     }
     Ok(())
 }
@@ -174,6 +209,7 @@ pub async fn preview_contact_list_sms(
     db: State<'_, Mutex<SessionDb>>,
     session_id: i64,
     message: String,
+    previous_send_id: Option<String>,
 ) -> Result<ListSms, String> {
     let _guard = runtime.0.lock().await;
     {
@@ -184,7 +220,7 @@ pub async fn preview_contact_list_sms(
     }
     validate_message(&message)?;
     let directory = root(&app)?;
-    ensure_new_preview(&directory, session_id)?;
+    ensure_new_preview(&directory, session_id, previous_send_id.as_deref())?;
     let config = read_config(&directory)?.ok_or("Add Comms360 in Settings → API Keys first.")?;
     let contact_list_id = normalize_list_id(&config.contact_list_id)?;
     let preview = CommsClient::new(&config.key)?

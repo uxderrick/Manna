@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "broadcast-logging",
+  "description": "Lets projector windows save broadcast timing measurements.",
+  "windows": ["broadcast", "broadcast-alt"],
+  "permissions": ["log:allow-log"]
+}

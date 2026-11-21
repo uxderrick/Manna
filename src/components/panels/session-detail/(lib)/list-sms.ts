@@ -55,3 +55,9 @@ export function listSmsStatus(status: string) {
     )[status] ?? status
   )
 }
+
+export function canStartAnotherListSms(
+  send: Pick<ListSms, "status" | "providerId">
+) {
+  return Boolean(send.providerId) && send.status !== "UNKNOWN"
+}

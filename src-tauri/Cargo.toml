@@ -35,7 +35,7 @@ authors = ["Faithful"]
 license = "MIT"
 repository = "https://github.com/openbezal/rhema"
 edition = "2021"
-rust-version = "1.77.2"
+rust-version = "1.90"
 
 [lib]
 name = "app_lib"
@@ -49,7 +49,7 @@ serde_json.workspace = true
 serde.workspace = true
 log.workspace = true
 tokio.workspace = true
-tauri = { version = "2.10.3", features = ["protocol-asset", "devtools"] }
+tauri = { version = "2.12.5", features = ["protocol-asset", "devtools"] }
 tauri-plugin-log = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
@@ -74,6 +74,8 @@ url = "2"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-process = "2.3.1"
 keepawake = "0.5"
+infer = "0.22"
+keyring = { version = "3.6.3", features = ["apple-native", "windows-native"] }
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]

@@ -246,6 +246,8 @@ pub fn run() {
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(tauri_plugin_log::log::LevelFilter::Info)
+                .max_file_size(5_000_000)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(5))
                 .build(),
         )
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -294,6 +296,8 @@ pub fn run() {
             }
         }))
         .invoke_handler(tauri::generate_handler![
+            commands::credentials::get_provider_credential,
+            commands::credentials::set_provider_credential,
             quit_app,
             open_devtools,
             get_flavor,
@@ -342,6 +346,9 @@ pub fn run() {
             commands::sermon_audio::suggest_sermon_audio,
             commands::sermon_audio::prepare_sermon_audio,
             commands::sermon_audio::read_prepared_sermon_audio,
+            commands::connections::get_church_connections,
+            commands::church_assets::get_private_church_assets,
+            commands::church_assets::import_private_church_assets,
             commands::sms::get_comms360_settings,
             commands::sms::save_comms360_settings,
             commands::sms::get_test_sms_batch,
