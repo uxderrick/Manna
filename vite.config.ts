@@ -1,4 +1,5 @@
 import path from "path"
+import { realpathSync } from "node:fs"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
@@ -9,6 +10,9 @@ export default defineConfig({
   server: {
     port: 3000,
     strictPort: true,
+    fs: {
+      allow: [__dirname, realpathSync(path.resolve(__dirname, "node_modules"))],
+    },
   },
   build: {
     outDir: "build",
