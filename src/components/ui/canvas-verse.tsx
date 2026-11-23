@@ -119,7 +119,7 @@ export const CanvasVerse = memo(function CanvasVerse({
       if (!fullscreenImage) return
       drawImageSlide(
         cx,
-        sharedImageCache.get(fullscreenImage.mediaType === "video" ? fullscreenImage.poster ?? "" : fullscreenImage.url),
+        sharedImageCache.get(fullscreenImage.mediaType ? fullscreenImage.poster ?? "" : fullscreenImage.url),
         fullscreenImage,
         w,
         h,
@@ -136,7 +136,7 @@ export const CanvasVerse = memo(function CanvasVerse({
           : undefined,
         theme.logo?.url,
         theme.background.type === "video" ? theme.background.video?.poster : undefined,
-        fullscreenImage?.mediaType === "video" ? fullscreenImage.poster : fullscreenImage?.url,
+        fullscreenImage?.mediaType ? fullscreenImage.poster : fullscreenImage?.url,
         getSpeakerPortraitUrl(fullscreenImage),
         getSpeakerPortraitUrl(fullscreenImage) ? SPEAKER_LOGO_MARK : undefined,
         blankLogo ? blankLogoUrl : undefined,
@@ -226,7 +226,7 @@ export const CanvasVerse = memo(function CanvasVerse({
       ensureImage(theme.logo.url, rerender)
     }
     if (fullscreenImage?.url) {
-      const poster = fullscreenImage.mediaType === "video" ? fullscreenImage.poster : fullscreenImage.url
+      const poster = fullscreenImage.mediaType ? fullscreenImage.poster : fullscreenImage.url
       if (poster) ensureImage(poster, rerender)
       const portraitUrl = getSpeakerPortraitUrl(fullscreenImage)
       if (portraitUrl) {

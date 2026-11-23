@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Manna YouTube player</title>
+    <style>
+      html,
+      body,
+      #player {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="player"></div>
+    <script>
+      const params = new URLSearchParams(location.search)
+      const id = params.get("video") || ""
+      const muted = params.get("muted") === "1"
+      const start = Number(params.get("start") || 0)
+      const requestedVolume = Number(params.get("volume") ?? 100)
+      const volume = Number.isFinite(requestedVolume)
+        ? Math.max(0, Math.min(100, requestedVolume))
+        : 100
+      let player
+      const report = (state, message) =>
+        parent.postMessage(
+          { type: "manna-youtube-status", videoId: id, state, message },
+          "*"
+        )
+      window.addEventListener("message", (event) => {
+        if (
+          event.source !== parent ||
+          !player ||
+          event.data?.type !== "manna-youtube-command"
+        )
+          return
+        const command = event.data.command
+        if (command?.action === "play") player.playVideo()
+        if (command?.action === "pause") player.pauseVideo()
+        if (
+          command?.action === "volume" &&
+          Number.isFinite(command.volume) &&
+          command.volume >= 0 &&
+          command.volume <= 100
+        )
+          player.setVolume(muted ? 0 : command.volume)
+      })
+      window.onYouTubeIframeAPIReady = () => {
+        player = new YT.Player("player", {
+          host: "https://www.youtube.com",
+          width: "100%",
+          height: "100%",
+          videoId: id,
+          playerVars: {
+            autoplay: 1,
+            controls: 1,
+            playsinline: 1,
+            mute: 1,
+            start: Number.isSafeInteger(start) && start >= 0 ? start : 0,
+            origin: location.origin,
+          },
+          events: {
+            onReady: (event) => {
+              if (muted) event.target.mute()
+              else {
+                event.target.setVolume(volume)
+                event.target.unMute()
+              }
+              event.target.playVideo()
+            },
+            onStateChange: (event) => {
+              const state = { 1: "playing", 2: "paused", 0: "ended" }[
+                event.data
+              ]
+              if (state) report(state)
+            },
+            onAutoplayBlocked: () =>
+              report(
+                "blocked",
+                "Press Play to start audio. If it stays blocked, press Play in the output window."
+              ),
+            onError: (event) => {
+              const messages = {
+                100: "This video is private or unavailable.",
+                101: "This video does not allow embedded playback.",
+                150: "This video does not allow embedded playback.",
+                153: "YouTube could not verify the player. Restart Manna and try again.",
+              }
+              report(
+                "error",
+                messages[event.data] ||
+                  "YouTube could not play this video. Check your connection and link."
+              )
+            },
+          },
+        })
+      }
+      if (/^[A-Za-z0-9_-]{11}$/.test(id)) {
+        const script = document.createElement("script")
+        script.src = "https://www.youtube.com/iframe_api"
+        script.onerror = () =>
+          report(
+            "error",
+            "Could not connect to YouTube. Check your internet connection."
+          )
+        document.head.append(script)
+      } else report("error", "Invalid YouTube link.")
+    </script>
+  </body>
+</html>

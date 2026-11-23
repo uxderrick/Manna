@@ -12,8 +12,10 @@ export interface PrayerSlideContent {
 export interface ImageSlide {
   url: string
   label: string
-  mediaType?: "video"
+  mediaType?: "video" | "youtube"
   poster?: string
+  playbackId?: string
+  volume?: number
   textOverlay?: SlideTextOverlay
   prayer?: { planItemId: number; content: PrayerSlideContent; index: number }
 }

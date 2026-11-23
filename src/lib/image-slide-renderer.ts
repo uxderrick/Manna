@@ -16,8 +16,8 @@ export function drawImageSlide(
   ctx.save()
   ctx.fillStyle = "#000000"
   ctx.fillRect(0, 0, width, height)
-  if (slide.mediaType === "video") {
-    if (!drawVideoCover(ctx, video ?? null, width, height) && image?.complete && image.naturalWidth > 0) {
+  if (slide.mediaType) {
+    if (!(slide.mediaType === "video" && drawVideoCover(ctx, video ?? null, width, height)) && image?.complete && image.naturalWidth > 0) {
       const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight)
       const w = image.naturalWidth * scale
       const h = image.naturalHeight * scale

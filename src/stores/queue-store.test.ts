@@ -206,3 +206,9 @@ it("keeps video metadata when a loop is queued", () => {
     kind: "image", url: "/candle.mp4", mediaType: "video", thumbnailUrl: "/candle.jpg",
   })
 })
+
+it("retains YouTube link metadata in the queue without downloading a file", () => {
+  useQueueStore.setState({items:[],activeIndex:null})
+  useQueueStore.getState().enqueueImage({url:"https://www.youtube.com/watch?v=M7lc1UVf-VE",label:"Worship",mediaType:"youtube",provider:"youtube"})
+  expect(useQueueStore.getState().items[0]).toMatchObject({kind:"image",mediaType:"youtube",provider:"youtube",url:"https://www.youtube.com/watch?v=M7lc1UVf-VE"})
+})

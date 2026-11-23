@@ -453,6 +453,8 @@ pub fn run() {
             commands::service_plan::plan_save_session_as_template,
             commands::assets::save_brand_asset,
             commands::video_assets::import_blank_video,
+            commands::youtube::youtube_player_url,
+            commands::youtube::youtube_output_visible,
             commands::assets::delete_brand_asset,
             commands::images::import_library_image,
         ])

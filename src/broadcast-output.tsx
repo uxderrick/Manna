@@ -1,3 +1,4 @@
+import { YouTubePlayer } from "@/components/broadcast/youtube-player"
 import { initializeChurchAssets, resolveChurchAsset } from "@/lib/church-assets"
 import { getSpeakerPortraitUrl, SPEAKER_LOGO_MARK } from "@/lib/speaker-portrait"
 import { drawImageSlide } from "@/lib/image-slide-renderer"
@@ -5,10 +6,10 @@ import { startLoopingVideo, drawVideoCover } from "@/lib/looping-video"
 import { afterBroadcastPaint } from "@/lib/after-broadcast-paint"
 import { info } from "@tauri-apps/plugin-log"
 import { createRoot } from "react-dom/client"
-import { useRef, useEffect, useCallback } from "react"
+import { useRef, useEffect, useCallback, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
-import { listen } from "@tauri-apps/api/event"
+import { listen, emit } from "@tauri-apps/api/event"
 import { insetsToTransform, IDENTITY_INSETS, type CalibrationInsets } from "@/lib/projector-calibration"
 import { renderVerse } from "@/lib/verse-renderer"
 import { renderNotes } from "@/lib/notes-renderer"
@@ -203,6 +204,7 @@ interface AnnouncementPayload {
 }
 
 export function BroadcastCanvas() {
+  const [youtubeSlide, setYoutubeSlide] = useState<ImageSlide | null>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const videoLoopRef = useRef<ReturnType<typeof startLoopingVideo> | null>(null)
   const videoUrlRef = useRef<string | null>(null)
@@ -255,7 +257,7 @@ export function BroadcastCanvas() {
       }
 
       if (fullscreenImage) {
-        drawImageSlide(ctx, imageCacheRef.current.get(fullscreenImage.mediaType === "video" ? fullscreenImage.poster ?? "" : fullscreenImage.url), fullscreenImage, width, height, imageCacheRef.current.get(getSpeakerPortraitUrl(fullscreenImage) ?? ""), imageCacheRef.current.get(SPEAKER_LOGO_MARK), videoLoopRef.current?.video)
+        drawImageSlide(ctx, fullscreenImage.mediaType === "youtube" ? undefined : imageCacheRef.current.get(fullscreenImage.mediaType ? fullscreenImage.poster ?? "" : fullscreenImage.url), fullscreenImage, width, height, imageCacheRef.current.get(getSpeakerPortraitUrl(fullscreenImage) ?? ""), imageCacheRef.current.get(SPEAKER_LOGO_MARK), videoLoopRef.current?.video)
         if (announcement && announcement.mode === "ticker") {
           drawTickerAnnouncement(ctx, width, height, announcement.text, tickerOffsetRef.current)
         }
@@ -467,6 +469,29 @@ export function BroadcastCanvas() {
     setTimeout(() => void pushNdiFrame(), 300)
   }, [pushNdiFrame])
 
+  const syncYouTube = useCallback(() => {
+    const data = latestData.current
+    const slide = data?.fullscreenImage
+    if (!data || data.hidden || announcementRef.current || slide?.mediaType !== "youtube") {
+      setYoutubeSlide(null)
+      return
+    }
+    if (ndiConfigRef.current.active) {
+      setYoutubeSlide(null)
+      if (OUTPUT_ID === "main") {
+        void emit("broadcast:youtube-status", {
+          url: slide.url,
+          state: "error",
+          message: "YouTube needs HDMI or a projector output. Stop NDI before playing it.",
+        }).catch(() => {})
+      }
+      return
+    }
+    setYoutubeSlide((current) =>
+      current?.url === slide.url && current.playbackId === slide.playbackId && current.volume === slide.volume ? current : slide
+    )
+  }, [])
+
   const syncVideo = useCallback(() => {
     const data = latestData.current
     const canPlay = data && !data.hidden && !data.notes && announcementRef.current?.mode !== "slide"
@@ -512,12 +537,13 @@ export function BroadcastCanvas() {
       const renderStarted = performance.now()
       latestData.current = event.payload
       syncVideo()
+      syncYouTube()
       warmTheme(event.payload.theme)
       if (event.payload.blankLogo) {
         preloadImage(event.payload.blankLogoUrl || BLANK_LOGO_URL, "Blank logo")
       }
       const slide = event.payload.fullscreenImage
-      const poster = slide?.mediaType === "video" ? slide.poster : slide?.url
+      const poster = slide?.mediaType === "youtube" ? undefined : slide?.mediaType ? slide.poster : slide?.url
       if (poster) preloadImage(poster, "Fullscreen media poster")
       const portraitUrl = getSpeakerPortraitUrl(event.payload.fullscreenImage)
       if (portraitUrl) {
@@ -545,6 +571,7 @@ export function BroadcastCanvas() {
     const unlistenAnnouncement = currentWindow.listen<AnnouncementPayload | null>(`broadcast:announcement:${OUTPUT_ID}`, (event) => {
       announcementRef.current = event.payload
       syncVideo()
+      syncYouTube()
       tickerOffsetRef.current = 0
       if (announcementTimerRef.current !== null) {
         clearTimeout(announcementTimerRef.current)
@@ -554,6 +581,7 @@ export function BroadcastCanvas() {
         announcementTimerRef.current = window.setTimeout(() => {
           announcementRef.current = null
           syncVideo()
+          syncYouTube()
           announcementTimerRef.current = null
           draw()
           pushNdiBurst()
@@ -566,6 +594,7 @@ export function BroadcastCanvas() {
 
     const unlistenNdiConfig = currentWindow.listen<NdiConfigEventPayload>(`broadcast:ndi-config:${OUTPUT_ID}`, (event) => {
       ndiConfigRef.current = event.payload
+      syncYouTube()
       logDebug("Received broadcast:ndi-config", event.payload)
       // Push burst when NDI becomes active
       if (event.payload.active) pushNdiBurst()
@@ -582,6 +611,7 @@ export function BroadcastCanvas() {
             width: status.width,
             height: status.height,
           }
+          syncYouTube()
           logDebug("Fetched NDI status on mount", status)
         }
       })
@@ -608,7 +638,7 @@ export function BroadcastCanvas() {
         clearTimeout(announcementTimerRef.current)
       }
     }
-  }, [draw, logDebug, warmTheme, preloadImage, pushNdiFrame, pushNdiBurst, syncVideo])
+  }, [draw, logDebug, warmTheme, preloadImage, pushNdiFrame, pushNdiBurst, syncVideo, syncYouTube])
 
   // Slow keepalive: push one frame every 2s if idle (prevents NDI receivers from dropping the source)
   useEffect(() => {
@@ -661,7 +691,8 @@ export function BroadcastCanvas() {
   }, [])
 
   return (
-    <canvas
+    <>
+      <canvas
       ref={canvasRef}
       onDoubleClick={handleDoubleClick}
       style={{
@@ -671,8 +702,17 @@ export function BroadcastCanvas() {
         objectFit: "contain",
       }}
     />
+      {youtubeSlide && (
+        <YouTubePlayer
+          key={youtubeSlide.playbackId ?? youtubeSlide.url}
+          url={youtubeSlide.url}
+          muted={OUTPUT_ID !== "main"}
+          volume={youtubeSlide.volume ?? 100}
+        />
+      )}
+    </>
   )
 }
 
 const root = document.getElementById("broadcast-root")!
-void initializeChurchAssets().then(() => createRoot(root).render(<BroadcastCanvas />))
+if (root) void initializeChurchAssets().then(() => createRoot(root).render(<BroadcastCanvas />))

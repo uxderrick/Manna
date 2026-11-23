@@ -143,3 +143,9 @@ it("plays a saved video plan item without scripture or song text", () => {
     url: "/loop.mp4", label: "Candlelight", mediaType: "video", poster: "/loop.jpg",
   })
 })
+
+it("preserves a YouTube link when a saved plan item goes live", () => {
+  setFullscreenImage.mockReset()
+  activatePlanItem(mkItem("blank", {type:"blank",showLogo:false,imageUrl:"https://www.youtube.com/watch?v=M7lc1UVf-VE",imageLabel:"Worship",mediaType:"youtube",poster:"https://i.ytimg.com/vi/M7lc1UVf-VE/hqdefault.jpg"}))
+  expect(setFullscreenImage).toHaveBeenCalledWith({url:"https://www.youtube.com/watch?v=M7lc1UVf-VE",label:"Worship",mediaType:"youtube",poster:"https://i.ytimg.com/vi/M7lc1UVf-VE/hqdefault.jpg"})
+})

@@ -39,6 +39,7 @@ interface BroadcastState {
   setBlankLogo: (active: boolean) => void
   fullscreenImage: ImageSlide | null
   setFullscreenImage: (img: ImageSlide | null) => void
+  setYouTubeVolume: (volume: number) => void
   liveNotes: NotesSlide | null
   setLiveNotes: (slide: NotesSlide | null) => void
   /** Monitor index where the operator chose to put the projector this session. */
@@ -227,11 +228,18 @@ export const useBroadcastStore = create<BroadcastState>((set, get) => ({
   projectorMonitorIndex: null,
   setProjectorMonitorIndex: (projectorMonitorIndex) =>
     set({ projectorMonitorIndex }),
+  setYouTubeVolume: (volume) => {
+    const slide = get().fullscreenImage
+    if (slide?.mediaType !== "youtube" || !Number.isFinite(volume)) return
+    set({ fullscreenImage: { ...slide, volume: Math.max(0, Math.min(100, Math.round(volume))) } })
+    get().syncBroadcastOutput()
+  },
   fullscreenImage: null,
   setFullscreenImage: (fullscreenImage) => {
     releasePlanOutput()
     set({
-      fullscreenImage,
+      fullscreenImage: fullscreenImage?.mediaType === "youtube"
+        ? { ...fullscreenImage, playbackId: crypto.randomUUID(), volume: 100 } : fullscreenImage,
       outputHidden: false,
       blankLogo: fullscreenImage ? false : get().blankLogo,
       liveVerse: fullscreenImage ? null : get().liveVerse,

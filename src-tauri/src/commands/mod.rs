@@ -29,3 +29,5 @@ pub mod connections;
 pub mod church_assets;
 
 pub mod credentials;
+
+pub mod youtube;

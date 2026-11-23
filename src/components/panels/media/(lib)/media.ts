@@ -1,11 +1,18 @@
+import type { YouTubeLink } from "@/lib/youtube"
 import { BACKGROUND_MEDIA } from "@/lib/live-backgrounds"
 
 export type Tab = "local" | "online"
-export type Provider = "pexels" | "unsplash" | "brave" | "local" | "library"
+export type Provider =
+  | "pexels"
+  | "unsplash"
+  | "brave"
+  | "local"
+  | "library"
+  | "youtube"
 
 export interface MediaHit {
   id: string
-  mediaType?: "video"
+  mediaType?: "video" | "youtube"
   url: string
   thumbnailUrl: string
   label: string
@@ -46,3 +53,18 @@ export const BUILTIN_LOOPS: MediaHit[] = BACKGROUND_MEDIA.filter(
   width: 1920,
   height: 1080,
 }))
+
+export function youtubeMedia(link: YouTubeLink): MediaHit {
+  return {
+    id: `youtube-${link.videoId}`,
+    mediaType: "youtube",
+    url: link.url,
+    thumbnailUrl: link.poster,
+    label: link.label,
+    provider: "youtube",
+    photographer: null,
+    photographerUrl: null,
+    width: 1920,
+    height: 1080,
+  }
+}

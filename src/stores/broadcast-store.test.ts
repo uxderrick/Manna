@@ -315,3 +315,16 @@ describe("broadcast store sync", () => {
     expect(useQueueStore.getState().items[0].id).toBe("existing")
   })
 })
+
+it("keeps the selected YouTube volume when output visibility changes", async () => {
+  const { useBroadcastStore } = await import("./broadcast-store")
+  emitMock.mockResolvedValue(undefined)
+  const state = useBroadcastStore.getState()
+  state.setFullscreenImage({url:"https://www.youtube.com/watch?v=M7lc1UVf-VE",label:"Worship",mediaType:"youtube"})
+  const playback = useBroadcastStore.getState().fullscreenImage?.playbackId
+  state.setYouTubeVolume(35)
+  expect(useBroadcastStore.getState().fullscreenImage).toMatchObject({volume:35,playbackId:playback})
+  state.setLive(false)
+  state.setLive(true)
+  expect(useBroadcastStore.getState().fullscreenImage?.volume).toBe(35)
+})

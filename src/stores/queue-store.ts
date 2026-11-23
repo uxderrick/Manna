@@ -37,8 +37,8 @@ interface QueueState {
   jumpLiveSong: (songId: string) => void
   jumpToSongNumber: (num: number) => void
   presentSongLive: (songId: string) => void
-  enqueueImage: (input: { url: string; label: string; thumbnailUrl?: string; mediaType?: "video"; provider: Extract<QueueItem, { kind: "image" }>["provider"] }) => void
-  presentImageLive: (input: { url: string; label: string; thumbnailUrl?: string; mediaType?: "video"; provider: Extract<QueueItem, { kind: "image" }>["provider"] }) => void
+  enqueueImage: (input: { url: string; label: string; thumbnailUrl?: string; mediaType?: "video" | "youtube"; provider: Extract<QueueItem, { kind: "image" }>["provider"] }) => void
+  presentImageLive: (input: { url: string; label: string; thumbnailUrl?: string; mediaType?: "video" | "youtube"; provider: Extract<QueueItem, { kind: "image" }>["provider"] }) => void
 }
 
 function stanzaIndexById(song: Song, stanzaId: string): number {

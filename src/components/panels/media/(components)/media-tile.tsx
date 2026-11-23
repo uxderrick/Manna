@@ -48,12 +48,12 @@ export function MediaTile({
           />
         )}
       </div>
-      {hit.mediaType === "video" && (
+      {hit.mediaType && (
         <span className="absolute top-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">
-          Loop
+          {hit.mediaType === "youtube" ? "YouTube" : "Loop"}
         </span>
       )}
-      <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
         <span className="rounded bg-black/55 px-1 py-px text-[7px] font-semibold tracking-wide text-white uppercase">
           {hit.provider}
         </span>
@@ -86,13 +86,15 @@ export function MediaTile({
               onDelete()
             }}
             className="rounded bg-destructive/85 p-0.5 text-white hover:bg-destructive"
-            title="Delete from disk"
+            title={
+              hit.mediaType === "youtube" ? "Remove link" : "Delete from disk"
+            }
           >
             <Trash2Icon className="size-2.5" />
           </button>
         )}
       </div>
-      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/85 to-transparent p-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/85 to-transparent p-1.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
         <p className="truncate text-xs text-white">{hit.label}</p>
         <div className="flex gap-1">
           <Button

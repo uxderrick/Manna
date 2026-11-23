@@ -1,3 +1,8 @@
+import {
+  loadYouTubeLinks,
+  parseYouTubeLink,
+  saveYouTubeLinks,
+} from "@/lib/youtube"
 import { useEffect, useMemo, useState } from "react"
 import { invoke, convertFileSrc } from "@tauri-apps/api/core"
 import { open as openDialog, ask } from "@tauri-apps/plugin-dialog"
@@ -7,6 +12,7 @@ import { useServicePlan } from "@/hooks/use-service-plan"
 import { validateVideo } from "@/lib/looping-video"
 import {
   BUILTIN_LOOPS,
+  youtubeMedia,
   isVideoPath,
   type MediaHit,
   type Tab,
@@ -39,11 +45,13 @@ export function useMediaLibrary() {
   const enqueueImage = useQueueStore((s) => s.enqueueImage)
   const { addItem: addPlanItem } = useServicePlan()
 
-  const search = async () => {
+  const search = async (forceLocal = false) => {
+    const sourceTab = forceLocal ? "local" : tab
+    const searchQuery = forceLocal ? "" : query
     setError(null)
     setLoading(true)
     try {
-      if (tab === "online") {
+      if (sourceTab === "online") {
         // Run any configured provider in parallel, interleave the results
         // round-robin so each source surfaces near the top of the grid.
         const calls: Array<Promise<MediaHit[]>> = []
@@ -105,6 +113,7 @@ export function useMediaLibrary() {
 
         const libDir = libraryDir
         const withAssetUrls: MediaHit[] = [
+          ...loadYouTubeLinks().map(youtubeMedia),
           ...BUILTIN_LOOPS,
           ...libHits.map((h) => ({
             ...h,
@@ -125,7 +134,7 @@ export function useMediaLibrary() {
           })),
         ]
 
-        const q = query.trim().toLowerCase()
+        const q = searchQuery.trim().toLowerCase()
         setHits(
           q
             ? withAssetUrls.filter((h) => h.label.toLowerCase().includes(q))
@@ -234,6 +243,10 @@ export function useMediaLibrary() {
   const resolveBroadcastUrl = async (hit: MediaHit): Promise<string> => {
     // Local images: broadcast window can't reliably fetch asset:// URLs from
     // a sibling webview, so embed the bytes as a data URL the projector renders directly.
+    if (hit.mediaType === "youtube") {
+      if (!parseYouTubeLink(hit.url)) throw new Error("Invalid YouTube link.")
+      return hit.url
+    }
     if (hit.mediaType === "video") {
       await validateVideo(hit.url)
       return hit.url
@@ -254,6 +267,15 @@ export function useMediaLibrary() {
   }
 
   const onGoLive = async (hit: MediaHit) => {
+    if (hit.mediaType === "youtube") {
+      const ndi = await invoke<{ active: boolean } | null>("get_ndi_status", {
+        outputId: "main",
+      })
+      if (ndi?.active)
+        throw new Error(
+          "YouTube needs a projector or HDMI output. Stop NDI before playing it."
+        )
+    }
     const url = await resolveBroadcastUrl(hit)
     presentImageLive({
       url,
@@ -304,6 +326,13 @@ export function useMediaLibrary() {
   }
 
   const onDelete = async (hit: MediaHit) => {
+    if (hit.mediaType === "youtube") {
+      saveYouTubeLinks(
+        loadYouTubeLinks().filter((link) => link.url !== hit.url)
+      )
+      setHits((previous) => previous.filter((item) => item.id !== hit.id))
+      return
+    }
     const folder = hit.validationFolder ?? localFolder
     if (!hit.localPath || !folder) return
     const ok = await ask(
@@ -347,6 +376,18 @@ export function useMediaLibrary() {
     })
   }
 
+  const addYouTube = async (url: string, label: string) => {
+    const link = parseYouTubeLink(url, label)
+    if (!link) throw new Error("Paste a valid YouTube video link.")
+    saveYouTubeLinks([
+      link,
+      ...loadYouTubeLinks().filter((saved) => saved.videoId !== link.videoId),
+    ])
+    setTab("local")
+    setQuery("")
+    await search(true)
+  }
+
   const run = (action: () => Promise<void>) => {
     setError(null)
     void action().catch((error: unknown) =>
@@ -355,6 +396,7 @@ export function useMediaLibrary() {
   }
 
   return {
+    addYouTube,
     placeholder,
     tab,
     setTab,

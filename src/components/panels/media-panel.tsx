@@ -1,3 +1,4 @@
+import { OnlineSourceFilter } from "./media/(components)/online-source-filter"
 import {
   SearchIcon,
   FolderIcon,
@@ -5,16 +6,19 @@ import {
   UploadIcon,
   XIcon,
 } from "lucide-react"
+import { AddYouTubeLink } from "./media/(modals)/add-youtube-link"
+import { YouTubeControls } from "./media/(components)/youtube-controls"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { PanelHeader } from "@/components/ui/panel-header"
 import { cn } from "@/lib/utils"
 import { useMediaLibrary } from "./media/(hooks)/use-media-library"
 import { MediaTile } from "./media/(components)/media-tile"
-import type { Tab, OnlineFilter } from "./media/(lib)/media"
+import type { Tab } from "./media/(lib)/media"
 
 export function MediaPanel() {
   const {
+    addYouTube,
     placeholder,
     tab,
     setTab,
@@ -100,7 +104,14 @@ export function MediaPanel() {
             {t}
           </button>
         ))}
+        {tab === "local" && (
+          <div className="ml-auto">
+            <AddYouTubeLink onAdd={addYouTube} />
+          </div>
+        )}
       </div>
+
+      <YouTubeControls />
 
       {tab === "local" && localFolder && (
         <div className="flex items-center gap-1.5 border-b border-border/40 bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
@@ -146,64 +157,14 @@ export function MediaPanel() {
       {tab === "online" &&
         (pexelsKey || unsplashKey || braveKey) &&
         hits.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1 border-b border-border/40 px-2 py-1.5">
-            {(() => {
-              const counts: Record<OnlineFilter, number> = {
-                all: hits.length,
-                pexels: hits.filter((h) => h.provider === "pexels").length,
-                unsplash: hits.filter((h) => h.provider === "unsplash").length,
-                brave: hits.filter((h) => h.provider === "brave").length,
-              }
-              const chips: {
-                id: OnlineFilter
-                label: string
-                show: boolean
-              }[] = [
-                { id: "all", label: "All", show: true },
-                {
-                  id: "pexels",
-                  label: "Pexels",
-                  show: !!pexelsKey && counts.pexels > 0,
-                },
-                {
-                  id: "unsplash",
-                  label: "Unsplash",
-                  show: !!unsplashKey && counts.unsplash > 0,
-                },
-                {
-                  id: "brave",
-                  label: "Brave",
-                  show: !!braveKey && counts.brave > 0,
-                },
-              ]
-              return chips
-                .filter((c) => c.show)
-                .map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setOnlineFilter(c.id)}
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors",
-                      onlineFilter === c.id
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground hover:bg-muted/60"
-                    )}
-                  >
-                    {c.label}
-                    <span
-                      className={cn(
-                        "rounded-full px-1 text-[9px] tabular-nums",
-                        onlineFilter === c.id
-                          ? "bg-primary-foreground/20"
-                          : "bg-foreground/10"
-                      )}
-                    >
-                      {counts[c.id]}
-                    </span>
-                  </button>
-                ))
-            })()}
-          </div>
+          <OnlineSourceFilter
+            hits={hits}
+            pexelsKey={pexelsKey}
+            unsplashKey={unsplashKey}
+            braveKey={braveKey}
+            onlineFilter={onlineFilter}
+            setOnlineFilter={setOnlineFilter}
+          />
         )}
 
       {error && (
@@ -253,8 +214,9 @@ export function MediaPanel() {
                       : undefined
                   }
                   onDelete={
-                    (hit.provider === "local" || hit.provider === "library") &&
-                    hit.localPath
+                    hit.mediaType === "youtube" ||
+                    ((hit.provider === "local" || hit.provider === "library") &&
+                      hit.localPath)
                       ? () => run(() => onDelete(hit))
                       : undefined
                   }
