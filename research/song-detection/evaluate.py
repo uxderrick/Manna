@@ -43,6 +43,10 @@ def load_feats(row):
     ch = FEAT_DIR.parent / "features_chcqt" / (stem + ".npy")
     if ch.exists():
         f["chcqt"] = np.load(ch)
+    if "clews" in os.environ.get("LAYERS", ""):
+        import soundfile as sf
+
+        f["wav"] = sf.read(wav_path(row), dtype="float32")[0]
     return f
 
 
@@ -91,7 +95,8 @@ def slice_feats(f, t0, t1):
     c, d = int(t0 / CHROMA_FRAME_S), int(t1 / CHROMA_FRAME_S)
     return {"f0": f["f0"][a:b], "vprob": f["vprob"][a:b],
             "chroma": f["chroma"][:, c:d], "cqt": f["cqt"][:, c:d],
-            "chcqt": f["chcqt"][int(t0 / 0.04):int(t1 / 0.04)] if "chcqt" in f else None}
+            "chcqt": f["chcqt"][int(t0 / 0.04):int(t1 / 0.04)] if "chcqt" in f else None,
+            "wav": f["wav"][int(t0 * 16000):int(t1 * 16000)] if "wav" in f else None}
 
 
 def rank_of(scores, truth):
@@ -162,6 +167,11 @@ def make_layers(enabled=()):
 
         layers["coverhunter"] = Layer(CoverHunterIndex(), lambda ix, s, n, f: ix.add(s, f["chcqt"]),
                                       lambda ix, q: ix.score(q["chcqt"]))
+    if "clews" in enabled:  # MIT code + weights; needs .venv-ch (torch, nnAudio)
+        from clews_layer import ClewsIndex
+
+        layers["clews"] = Layer(ClewsIndex(), lambda ix, s, n, f: ix.add(s, n, f["wav"]),
+                                lambda ix, q: ix.score(q["wav"]))
     return layers | {
         "melody": Layer(Index(), lambda ix, s, n, f: ix.add(s, n, *melody_keys(f["f0"], f["vprob"], mp)),
                         lambda ix, q: ix.score(*melody_keys(q["f0"], q["vprob"], mp)), fin),
@@ -186,6 +196,8 @@ FUSIONS = {
     "chroma+cqt": [("chroma-align", 1), ("cqt-align", 1)],
     "chroma+cqt+harm": [("chroma-align", 1), ("cqt-align", 1), ("harmony", 0.5)],
     "ch+chroma+cqt": [("coverhunter", 1), ("chroma-align", 0.5), ("cqt-align", 0.5)],
+    "clews+chroma+cqt": [("clews", 1), ("chroma-align", 0.5), ("cqt-align", 0.5)],
+    "clews+coverhunter": [("clews", 1), ("coverhunter", 1)],
 }
 
 
@@ -220,7 +232,7 @@ def main():
     for win in windows:
         if COHORT:
             for name, layer in layers.items():
-                if "align" in name or name == "coverhunter":
+                if "align" in name or name in ("coverhunter", "clews"):
                     layer.calibrate(db_feats, win)
         results = defaultdict(list)  # method -> ranks
         per_song = defaultdict(lambda: defaultdict(list))
@@ -242,6 +254,8 @@ def main():
                     plan = {truth, *rng.choice(others, PLAN_SIZE - 1, replace=False)}
                 for name, s in scores.items():
                     if plan:
+                        # Report the full-DB ranking too, so one pass gives both.
+                        results[name + " (all)"].append(rank_of(s, truth))
                         s = {k: v for k, v in s.items() if k in plan}  # empty -> miss
                     rk = rank_of(s, truth)
                     results[name].append(rk)

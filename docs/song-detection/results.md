@@ -1,4 +1,4 @@
-# Song Detection: Prototype Results (Phase 2, first pass)
+# Song Detection: Prototype Results (Phase 2)
 
 Date: 2026-11-24. Code: [research/song-detection](../../research/song-detection/).
 
@@ -33,9 +33,18 @@ Date: 2026-11-24. Code: [research/song-detection](../../research/song-detection/
 | CQT alignment (keeps octaves) | 30% | 44% | 46% | 69% |
 | Chroma + CQT | 35% | 52% | 51% | 79% |
 | **CoverHunter** (pretrained, research only) | **59%** | **78%** | **75%** | **91%** |
-| **CoverHunter + chroma + CQT** | **65%** | 77% | **76%** | **92%** |
+| CoverHunter + chroma + CQT | 65% | 77% | 76% | 92% |
+| **CLEWS** (Sony, MIT, segment-based) | **85%** | **92%** | **89%** | **98%** |
+| **CLEWS + chroma + CQT** | 81% | 91% | **90%** | 97% |
 
-At 5 s with the plan, the CoverHunter combination gets 60% top-1 and 87% top-3.
+At 5 s with the plan, the CoverHunter combination gets 60% top-1 and 87% top-3; CLEWS alone gets
+75% top-1 and 92% top-3. **CLEWS passes both 10 s targets on clean recordings.** Every song is at
+75% or better with the plan; the hard ones improved most (God Will Make a Way 81%, Raise a
+Hallelujah 78%).
+
+CLEWS cost on this Intel Mac CPU: 197 M parameters (787 MB at full precision, 394 MB half
+precision, about 200 MB 8-bit) and 2.7 s per 10 s clip. CoverHunter is 6 M parameters and 0.06 s.
+References are embedded once (20 s segments every 10 s) and cached.
 
 ## What we learned
 1. **Melody can't be heard inside a band without separating the voice.** A pitch tracker on the
@@ -60,6 +69,13 @@ At 5 s with the plan, the CoverHunter combination gets 60% top-1 and 87% top-3.
 ## Decision: models and training
 - **Plan:** an AI cover-song embedding as the main layer, with Manna's own system around it
   (plan prior, meter filter, fusion, operator top-3).
+- **Lead model: CLEWS** (github.com/sony/clews; code and checkpoints stated MIT on Zenodo record
+  15045900). Its training data (Discogs-VI / SHS100K, YouTube audio) carries non-commercial
+  research terms, and the authors don't say whether those reach the weights. That's low risk
+  in-house, but confirm with Sony before any commercial release.
+- **Engineering work: size and speed.** Try 8-bit quantisation and ONNX export first. Then
+  distil CLEWS into a small model (CoverHunter-sized) using CLEWS as the teacher. This is where
+  our own training comes in.
 - **No song-specific training:** adding a song is enrolment (compute and store its keys).
 - **Licensing:** CoverHunter's code and weights have **no licence**, so they cannot ship, even
   in-house. Options:
@@ -67,9 +83,8 @@ At 5 s with the plan, the CoverHunter combination gets 60% top-1 and 87% top-3.
   2. Use a properly licensed cover-song model. Candidates such as Discogs-VINet and CLEWS still
      need their licences checked. Non-commercial licences are acceptable while Manna stays
      in-house.
-  3. **Re-implement the published architecture and train it ourselves on short (5–15 s)
-     clips, including gospel and worship music.** This is where training comes in, and it is
-     expected to beat the borrowed model.
+  3. Re-implement the published architecture and train it ourselves on short (5–15 s) clips,
+     including gospel and worship music. Now superseded by CLEWS plus distillation.
 
 ## Next steps
 1. Record phone clips in church (sung, keyboard, full band), about 3 per song, and re-run.
