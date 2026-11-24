@@ -84,6 +84,24 @@ anyway.
   be poorly scaled for CLEWS (true song median 0.59 vs best wrong 0.36). A raw-cosine rejection
   rule is a likely improvement.
 
+## Learning from the church's own singing (`learning_eval.py`)
+Manna will ship a base fingerprint library and keep adding confirmed live performances as extra
+references. The model never changes; the library grows. Simulation: a performance in `songs/vb`
+is the query, and another performance of the same song is added to the library first, as if the
+church had sung it before. Same 146 clips (10 s, CLEWS 8-bit, raw cosine):
+
+| Library | All 22: top-1 | Plan of 6: top-1 |
+|---|---|---|
+| Base only | 73% | 83% |
+| **+ 1 earlier performance of that song** | **84%** | **92%** |
+
+Notes for the in-app engine:
+- **Raw cosine gap (top vs runner-up, with the plan):** right picks have a median gap of 0.28,
+  wrong picks 0.034. A gap of at least 0.06 keeps 93% of right picks and 26% of wrong ones.
+- **Cohort normalisation** (each reference's typical similarity to other songs) adds about 6–8
+  points over raw cosine: 91% vs 85% with the plan. It is cheap to precompute whenever a reference
+  is added.
+
 ## What we learned
 1. **Melody can't be heard inside a band without separating the voice.** A pitch tracker on the
    full mix follows the bass. With the bass filtered out it lands in the singing range, but
