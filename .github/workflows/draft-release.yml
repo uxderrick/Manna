@@ -92,6 +92,8 @@ jobs:
         with:
           # ort rc.12 requires the Cargo layout used by this validated compiler.
           toolchain: 1.94.1
+          # apple-bindgen requires formatted bindings before post-processing.
+          components: rustfmt
           targets: aarch64-apple-darwin
       - uses: actions/setup-python@v5
         with:

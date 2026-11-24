@@ -38,6 +38,8 @@ jobs:
         with:
           # ort rc.12 requires the Cargo layout used by this validated compiler.
           toolchain: 1.94.1
+          # apple-bindgen requires formatted bindings before post-processing.
+          components: rustfmt
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
