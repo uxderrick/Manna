@@ -57,10 +57,16 @@ def export():
 
 
 def quantize(fp32):
+    """8-bit weights. onnxruntime's CPU ConvInteger kernel needs unsigned
+    weights, and the CQT filter bank (first conv) stays fp32 to keep the
+    frequency analysis exact."""
+    import onnx
     from onnxruntime.quantization import QuantType, quantize_dynamic
 
+    graph = onnx.load(str(fp32), load_external_data=False).graph
+    keep = [n.name for n in graph.node if n.name.startswith("/cqt/")]
     int8 = OUT / "clews_int8.onnx"
-    quantize_dynamic(str(fp32), str(int8), weight_type=QuantType.QInt8)
+    quantize_dynamic(str(fp32), str(int8), weight_type=QuantType.QUInt8, nodes_to_exclude=keep)
     return int8
 
 

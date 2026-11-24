@@ -13,6 +13,7 @@ embedded as overlapping shingles the same length as the query.
 The checkpoint is a pickle, so it is loaded with an unpickler that only
 accepts torch / numpy / omegaconf / container types.
 """
+import os
 import pickle
 import sys
 import types
@@ -65,7 +66,37 @@ def load_model():
 
 REF_SHINGLE_S = 20.0  # CLEWS training length
 REF_HOP_S = 10.0
-CACHE = DATA / "cache" / "clews"
+# CLEWS_BACKEND=torch (default) or the stem of a file in models/clews-onnx,
+# e.g. clews_fp32 / clews_int8_static.
+BACKEND = os.environ.get("CLEWS_BACKEND", "torch")
+CACHE = DATA / "cache" / ("clews" if BACKEND == "torch" else f"clews-{BACKEND}")
+ONNX_DIR = DATA / "models" / "clews-onnx"
+
+
+def _repeat_pad(wav, n):
+    if len(wav) >= n:
+        return wav[:n]
+    return np.tile(wav, int(np.ceil(n / max(len(wav), 1))))[:n]
+
+
+class _OnnxModel:
+    """Same embedding as the PyTorch model, from the exported ONNX graph,
+    which takes fixed 20 s windows (shorter shingles are repeat-padded, as
+    CLEWS does internally)."""
+
+    def __init__(self, name):
+        import onnxruntime as ort
+
+        opts = ort.SessionOptions()
+        opts.intra_op_num_threads = 6
+        self.sess = ort.InferenceSession(str(ONNX_DIR / f"{name}.onnx"), opts, providers=["CPUExecutionProvider"])
+
+    def embed(self, wav, length_s, hop_s):
+        n, hop, win = int(length_s * SR), int(hop_s * SR), int(REF_SHINGLE_S * SR)
+        starts = range(0, max(len(wav) - n, 0) + 1, hop)
+        frames = np.stack([_repeat_pad(_repeat_pad(wav[s : s + n], n), win) for s in starts]).astype(np.float32)
+        out = [self.sess.run(None, {"audio": frames[i : i + 8]})[0] for i in range(0, len(frames), 8)]
+        return np.concatenate(out)
 
 
 class ClewsIndex:
@@ -74,11 +105,14 @@ class ClewsIndex:
     similarity between the query and any shingle of that song."""
 
     def __init__(self):
-        self.model = load_model()
+        self.onnx = _OnnxModel(BACKEND) if BACKEND != "torch" else None
+        self.model = None if self.onnx else load_model()
         self.songs, self.embs = [], []
         CACHE.mkdir(parents=True, exist_ok=True)
 
     def _embed(self, wav, length_s, hop_s):
+        if self.onnx:
+            return self.onnx.embed(wav, length_s, hop_s)
         import torch
 
         with torch.inference_mode():

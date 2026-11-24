@@ -42,9 +42,25 @@ At 5 s with the plan, the CoverHunter combination gets 60% top-1 and 87% top-3; 
 75% or better with the plan; the hard ones improved most (God Will Make a Way 81%, Raise a
 Hallelujah 78%).
 
-CLEWS cost on this Intel Mac CPU: 197 M parameters (787 MB at full precision, 394 MB half
-precision, about 200 MB 8-bit) and 2.7 s per 10 s clip. CoverHunter is 6 M parameters and 0.06 s.
-References are embedded once (20 s segments every 10 s) and cached.
+CLEWS cost on this Intel Mac CPU: 197 M parameters (787 MB at full precision) and 2.7 s per clip
+in PyTorch. CoverHunter is 6 M parameters and 0.06 s. References are embedded once (20 s segments
+every 10 s) and cached.
+
+**Shippable form (`clews_export.py`):** ONNX, with input = raw 16 kHz audio in a fixed 20 s window,
+so the CQT is inside the graph. Output = a normalised 1024-d vector. Manna can run this through
+`ort`.
+
+| Variant | Size | Speed per window (6 / 2 threads) | 10 s, plan: top-1 / top-3 | All 22: top-1 / top-3 |
+|---|---|---|---|---|
+| PyTorch | 787 MB | 2.7 s | 88.7% / 98.1% | 85.2% / 92.2% |
+| ONNX fp32 | 798 MB | 0.37 / 0.60 s | identical (cosine 1.000) | |
+| **ONNX 8-bit, static, calibrated on songs** | **208 MB** | **0.27 / 0.45 s** | **91.4% / 98.1%** | 83.7% / 92.6% |
+
+- The 8-bit model keeps the CQT filter bank at full precision.
+- On music it agrees with full precision at cosine 0.989 (lowest 0.943). Random noise is not a
+  valid test here: the quick dynamic 8-bit model looked broken on noise (0.75) but was fine on
+  music (0.973).
+- Scoring every 2 s on 2 threads uses about a quarter of two cores, leaving room for Whisper.
 
 ## Live listening (`stream_eval.py`)
 This simulates a song starting and the engine re-scoring every 2 s on the last 4–15 s of audio:
