@@ -63,6 +63,7 @@ rhema-broadcast = { path = "crates/broadcast" }
 rhema-detection = { path = "crates/detection", default-features = false, features = ["vector-search"] }
 rhema-api = { path = "crates/api" }
 rhema-notes = { path = "crates/notes" }
+rhema-songmatch = { path = "crates/songmatch" }
 crossbeam-channel = "0.5"
 dirs = "6"
 dotenvy = "0.15"
@@ -84,7 +85,7 @@ rusqlite = { version = "0.34", features = ["bundled"] }
 [features]
 default = ["whisper", "onnx"]
 whisper = ["rhema-stt/whisper"]
-onnx = ["rhema-detection/onnx"]
+onnx = ["rhema-detection/onnx", "rhema-songmatch/onnx"]
 # Internal installers can verify the real packaged app without microphone/API use.
 package-check = ["onnx"]
 

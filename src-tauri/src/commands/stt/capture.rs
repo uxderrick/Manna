@@ -163,6 +163,8 @@ pub(super) fn spawn(config: CaptureConfig) -> std::io::Result<std::thread::JoinH
                 w
             };
 
+            let song_detection: State<'_, crate::commands::song_detection::SongDetectionRuntime> = fan_app.state();
+
             // Start capture on THIS thread — AudioCapture stays here.
             let capture = match rhema_audio::capture::start(config, audio_tx) {
                 Ok(c) => c,
@@ -251,7 +253,10 @@ pub(super) fn spawn(config: CaptureConfig) -> std::io::Result<std::thread::JoinH
                             }
                         }
 
-                        // (b) Forward all audio to STT provider
+                        // (b) Song detection (drops the frame if it is not listening)
+                        song_detection.feed(&frame.samples);
+
+                        // (c) Forward all audio to STT provider
                         let _ = audio_send_tx.try_send(frame.samples);
                     }
                     Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}

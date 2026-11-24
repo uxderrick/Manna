@@ -11,11 +11,17 @@ workspace = true
 serde = { workspace = true, features = ["derive"] }
 log.workspace = true
 thiserror.workspace = true
-ort = { version = "2.0.0-rc.12", optional = true }
+ort = { version = "2.0.0-rc.12", optional = true, default-features = false, features = ["std"] }
 
 [features]
 default = []
-onnx = ["ort"]
+# ONNX Runtime linked as usual (release builds, CI).
+onnx = ["onnx-core", "ort/default"]
+# Local testing only: load an older ONNX Runtime (>= 1.20, e.g. the one in a
+# Python `onnxruntime` wheel) at run time from ORT_DYLIB_PATH. Used where no
+# current runtime exists (Intel Macs).
+onnx-dynamic = ["onnx-core", "ort/load-dynamic", "ort/api-20"]
+onnx-core = ["dep:ort"]
 
 [dev-dependencies]
 serde_json.workspace = true

@@ -71,10 +71,10 @@ pub fn finish(mut raw: Vec<f32>, batch: usize) -> Result<Vec<Vec<f32>>> {
         .collect())
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-core")]
 pub use onnx::OnnxEmbedder;
 
-#[cfg(feature = "onnx")]
+#[cfg(feature = "onnx-core")]
 mod onnx {
     use std::path::Path;
     use std::sync::Mutex;
@@ -93,10 +93,13 @@ mod onnx {
     impl OnnxEmbedder {
         /// `threads`: intra-op threads; 2 keeps room for speech recognition.
         pub fn load(model_path: &Path, threads: usize) -> Result<Self> {
-            let err = |e: ort::Error| SongMatchError::Model(e.to_string());
+            // ONNX Runtime applies every graph optimisation by default (setting
+            // `Level3` would mean layout-only on new runtimes and fail on old).
+            // Builder steps return errors of different types; all display.
+            fn err(e: impl std::fmt::Display) -> SongMatchError {
+                SongMatchError::Model(e.to_string())
+            }
             let session = Session::builder()
-                .map_err(err)?
-                .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)
                 .map_err(err)?
                 .with_intra_threads(threads.max(1))
                 .map_err(err)?

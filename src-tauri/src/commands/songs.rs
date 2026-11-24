@@ -86,11 +86,14 @@ pub fn save_song(
 }
 
 #[tauri::command]
-pub fn delete_song(db: State<'_, DbState>, id: String) -> Result<(), String> {
+pub fn delete_song(app: tauri::AppHandle, db: State<'_, DbState>, id: String) -> Result<(), String> {
     db.lock()
         .map_err(|e| e.to_string())?
         .delete_song(&id)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    // Its fingerprints were deleted with it.
+    super::song_detection::songs_changed(&app);
+    Ok(())
 }
 
 #[derive(Serialize, Deserialize)]

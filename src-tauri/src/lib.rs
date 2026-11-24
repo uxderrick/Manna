@@ -264,6 +264,7 @@ pub fn run() {
         .manage(Mutex::new(commands::remote::HttpRuntime::new()))
         .manage(commands::sms::SmsRuntime::default())
         .manage(commands::sermon_audio::AudioEditRuntime::default())
+        .manage(commands::song_detection::SongDetectionRuntime::default())
         .manage(Mutex::new({
             let app_data = dirs::data_dir()
                 .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -422,6 +423,14 @@ pub fn run() {
             commands::songs::get_song,
             commands::songs::save_song,
             commands::songs::delete_song,
+            commands::song_detection::get_song_detection_status,
+            commands::song_detection::set_song_detection_listening,
+            commands::song_detection::set_song_detection_plan,
+            commands::song_detection::reset_song_detection,
+            commands::song_detection::confirm_detected_song,
+            commands::song_detection::enroll_song_audio,
+            commands::song_detection::list_song_fingerprints,
+            commands::song_detection::delete_song_fingerprint,
             commands::songs::search_genius,
             commands::songs::fetch_genius_lyrics,
             commands::songs::search_lrclib,

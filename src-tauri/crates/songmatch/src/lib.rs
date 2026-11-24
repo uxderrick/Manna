@@ -12,10 +12,13 @@
 //!   operator-added, learned from confirmed services) and scores a query.
 //! - [`policy`] turns scores into "keep listening", a top-3 suggestion, or a
 //!   confident commit.
+//! - [`listener::Matcher`] ties them together for live audio: checks every
+//!   2 s, resets on silence, and learns from confirmed songs.
 
 pub mod buffer;
 pub mod embedder;
 pub mod library;
+pub mod listener;
 pub mod policy;
 
 /// Audio sample rate the model expects (and Manna captures at).

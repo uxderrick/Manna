@@ -10,6 +10,7 @@ pub mod recording;
 pub mod remote;
 pub mod service_plan;
 pub mod session;
+pub mod song_detection;
 pub mod songs;
 pub mod storage;
 pub mod stt;

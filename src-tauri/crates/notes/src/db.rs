@@ -249,6 +249,7 @@ impl SessionDb {
             self.conn.execute("ALTER TABLE sermon_sessions ADD COLUMN title_source TEXT NOT NULL DEFAULT 'manual'", [])?;
         }
         self.migrate_session_slides()?;
+        self.migrate_song_fingerprints()?;
         Ok(())
     }
 
