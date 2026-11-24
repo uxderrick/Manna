@@ -1,6 +1,7 @@
-use crate::db::BibleDb;
+use crate::db::{BibleDb, USER_SCHEMA};
 use crate::error::BibleError;
 use crate::models::{Book, Verse};
+use crate::user_store::is_user_translation;
 
 impl BibleDb {
     /// # Panics
@@ -13,14 +14,21 @@ impl BibleDb {
         translation_id: i64,
         limit: usize,
     ) -> Result<Vec<Verse>, BibleError> {
+        // Each database has its own FTS index keyed by its verse ids; the
+        // combined `verses` view has no rowid to join on.
+        let schema = if self.user.is_some() && is_user_translation(translation_id) {
+            USER_SCHEMA
+        } else {
+            "main"
+        };
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare(&format!(
             "SELECT v.id, v.translation_id, v.book_number, v.book_name, v.book_abbreviation, v.chapter, v.verse, v.text \
-             FROM verses_fts fts \
-             JOIN verses v ON v.rowid = fts.rowid \
+             FROM {schema}.verses_fts fts \
+             JOIN {schema}.verses v ON v.id = fts.rowid \
              WHERE fts.text MATCH ?1 AND v.translation_id = ?2 \
              LIMIT ?3",
-        )?;
+        ))?;
         #[expect(
             clippy::cast_possible_wrap,
             reason = "limit is a small page-size value that fits in i64"

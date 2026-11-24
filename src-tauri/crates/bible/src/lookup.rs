@@ -274,7 +274,7 @@ mod location_tests {
              INSERT INTO verses VALUES (1, 1, 1, 1, 1), (2, 2, 1, 1, 1),
                  (9000000000, 3, 43, 3, 16), (4, 4, 1, 1, 1), (5, 99, 1, 1, 1);",
         ).unwrap();
-        BibleDb { conn: Mutex::new(conn) }
+        BibleDb { conn: Mutex::new(conn), user: None }
     }
 
     #[test]
@@ -303,7 +303,7 @@ mod location_tests {
 
     #[test]
     fn invalid_database_returns_error() {
-        let db = BibleDb { conn: Mutex::new(rusqlite::Connection::open_in_memory().unwrap()) };
+        let db = BibleDb { conn: Mutex::new(rusqlite::Connection::open_in_memory().unwrap()), user: None };
         assert!(db.load_verse_locations("en").is_err());
     }
 }
