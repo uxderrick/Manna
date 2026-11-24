@@ -14,7 +14,25 @@ export type {
 } from "./transcript"
 export type { Translation, Book, Verse, CrossReference } from "./bible"
 export type { QueueItem } from "./queue"
-export type { Song, SongStanza, SongSource, LineMode, GeniusHit, LrclibHit, OnlineHit, HymnalSource } from "./song"
+export type {
+  Song,
+  SongStanza,
+  SongSource,
+  LineMode,
+  GeniusHit,
+  LrclibHit,
+  OnlineHit,
+  HymnalSource,
+} from "./song"
+export type {
+  ImportSourceKind,
+  DetectedImportSource,
+  ImportFailure,
+  ContentImportReport,
+  BibleImportStatus,
+  BibleImportReport,
+  ContentImportResult,
+} from "./import"
 export { GHS_SEED_VERSION, HYMNAL_SOURCES, HYMNAL_NAMES, HYMNAL_BADGES, isHymnalSource } from "./song"
 export type { DetectionResult, DetectionStatus } from "./detection"
 import type { SlideTextOverlay, PrayerSlideContent } from "./broadcast"

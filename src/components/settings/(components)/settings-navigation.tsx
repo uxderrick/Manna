@@ -11,6 +11,7 @@ import {
   HardDriveIcon,
   MonitorIcon,
   PaletteIcon,
+  DownloadIcon,
 } from "lucide-react"
 import { StoragePanel } from "@/components/panels/settings/storage"
 import { ProjectorCalibrationSection } from "@/components/settings/projector-calibration"
@@ -23,6 +24,7 @@ import { BibleSection } from "../(tabs)/bible-tab"
 import { RemoteControlSection } from "../(tabs)/remote-control-tab"
 import { HelpSection } from "../(tabs)/help-tab"
 import { HymnalsSection } from "../(tabs)/hymnals-tab"
+import { ImportSection } from "../(tabs)/import-tab"
 import { ApiKeysSection } from "../(tabs)/api-keys-tab"
 export type NavSection = SettingsSection
 
@@ -62,6 +64,12 @@ export const navItems: {
     id: "hymnals",
     group: "Setup",
     icon: <MusicIcon strokeWidth={2} />,
+  },
+  {
+    name: "Import",
+    id: "import",
+    group: "Setup",
+    icon: <DownloadIcon strokeWidth={2} />,
   },
   {
     name: "API Keys",
@@ -129,6 +137,7 @@ export const sectionTitles: Record<NavSection, string> = {
   branding: "Church Profile",
   presentation: "Presentation",
   hymnals: "Hymnals",
+  import: "Import from Other Software",
   remote: "Remote Control",
   "api-keys": "API Keys",
   storage: "Storage",
@@ -144,6 +153,7 @@ export const sectionComponents: Record<NavSection, React.FC> = {
   branding: BrandingSection,
   presentation: HighlightSettingsSection,
   hymnals: HymnalsSection,
+  import: ImportSection,
   remote: RemoteControlSection,
   "api-keys": ApiKeysSection,
   storage: StoragePanel,

@@ -1,4 +1,15 @@
-export type SongSource = "ghs" | "mhb" | "sankey" | "sda" | "genius" | "lrclib" | "easyworship" | "custom"
+export type SongSource =
+  | "ghs"
+  | "mhb"
+  | "sankey"
+  | "sda"
+  | "genius"
+  | "lrclib"
+  | "easyworship"
+  | "openlp"
+  | "propresenter"
+  | "ccli"
+  | "custom"
 
 export type LineMode = "line" | "stanza-pair" | "stanza-full"
 

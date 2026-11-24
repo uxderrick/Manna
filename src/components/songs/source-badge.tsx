@@ -4,6 +4,9 @@ import { cn } from "@/lib/utils"
 
 const EXTRA_BADGES: Partial<Record<SongSource, string>> = {
   easyworship: "EW",
+  openlp: "OLP",
+  propresenter: "PP",
+  ccli: "CCLI",
   custom: "CUSTOM",
 }
 

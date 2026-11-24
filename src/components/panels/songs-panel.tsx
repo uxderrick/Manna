@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react"
-import { MusicIcon, PlayIcon, PlusIcon, SearchIcon } from "lucide-react"
+import { DownloadIcon, MusicIcon, PlayIcon, PlusIcon, SearchIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PanelHeader } from "@/components/ui/panel-header"
 import { cn } from "@/lib/utils"
 import { searchSongs } from "@/lib/song-search"
 import { useQueueStore, useSongStore, useSettingsStore } from "@/stores"
+import { isHymnalSource } from "@/types"
 import type { Song } from "@/types"
 import { PasteLyricsDialog } from "@/components/songs/paste-lyrics-dialog"
+import { openSettings } from "@/lib/settings-dialog"
 import { OnlineSearchResults } from "@/components/songs/online-search-results"
 import { SongDetailDrawer } from "@/components/songs/song-detail-drawer"
 import { SourceBadge } from "@/components/songs/source-badge"
@@ -27,12 +29,9 @@ export function SongsPanel() {
   const songs = useMemo(
     () =>
       allSongs.filter(
-        (s) =>
-          s.source === "custom" ||
-          s.source === "genius" ||
-          s.source === "lrclib" ||
-          s.source === "easyworship" ||
-          enabledHymnals.includes(s.source),
+        // Bundled hymnals can be switched off in settings; everything the
+        // church added (pasted, online, imported) always shows.
+        (s) => !isHymnalSource(s.source) || enabledHymnals.includes(s.source),
       ),
     [allSongs, enabledHymnals],
   )
@@ -66,6 +65,16 @@ export function SongsPanel() {
         <Button size="sm" variant="outline" onClick={() => setPasteOpen(true)} className="shrink-0 gap-1 text-xs">
           <PlusIcon className="size-3" />
           New
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => openSettings("import")}
+          className="shrink-0 gap-1 text-xs"
+          title="Import songs, slides, services and Bibles from OpenLP, EasyWorship, ProPresenter or SongSelect"
+        >
+          <DownloadIcon className="size-3" />
+          Import
         </Button>
       </div>
 
