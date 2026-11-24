@@ -1,0 +1,22 @@
+[package]
+name = "rhema-songmatch"
+version = "0.1.0"
+edition = "2021"
+description = "Recognise which song is being sung or played from its sound (CLEWS embeddings)"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+log.workspace = true
+thiserror.workspace = true
+ort = { version = "2.0.0-rc.12", optional = true }
+
+[features]
+default = []
+onnx = ["ort"]
+
+[dev-dependencies]
+serde_json.workspace = true
+base64 = "0.22"

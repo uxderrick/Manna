@@ -5184,6 +5184,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rhema-songmatch"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "log",
+ "ort",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "rhema-stt"
 version = "0.1.0"
 dependencies = [

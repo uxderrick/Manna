@@ -8,6 +8,7 @@ members = [
     "crates/broadcast",
     "crates/api",
     "crates/notes",
+    "crates/songmatch",
 ]
 resolver = "2"
 
