@@ -90,6 +90,8 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - uses: dtolnay/rust-toolchain@stable
         with:
+          # ort rc.12 requires the Cargo layout used by this validated compiler.
+          toolchain: 1.94.1
           targets: aarch64-apple-darwin
       - uses: actions/setup-python@v5
         with:

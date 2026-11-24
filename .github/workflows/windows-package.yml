@@ -56,6 +56,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          # ort rc.12 requires the Cargo layout used by this validated compiler.
+          toolchain: 1.94.1
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -189,6 +192,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          # ort rc.12 requires the Cargo layout used by this validated compiler.
+          toolchain: 1.94.1
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'

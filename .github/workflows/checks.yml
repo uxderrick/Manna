@@ -35,6 +35,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          # ort rc.12 requires the Cargo layout used by this validated compiler.
+          toolchain: 1.94.1
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
