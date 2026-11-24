@@ -123,6 +123,19 @@ def decide(steps, plan, threshold, abs_threshold=None):
     return None, None
 
 
+def decide_layer(steps, plan, layer, min_t, margin):
+    """Commit to one layer's top candidate once `min_t` seconds have been heard
+    and it leads the runner-up by `margin` (cohort-normalised units)."""
+    for step in steps:
+        if step["t"] < min_t:
+            continue
+        sc = step["layers"][layer]
+        ranked = sorted(((sc.get(c, -3.0), c) for c in plan), reverse=True)
+        if ranked[0][0] - ranked[1][0] >= margin:
+            return step["t"], ranked[0][1]
+    return None, None
+
+
 def report():
     data = json.loads(OUT.read_text())
     streams = data["streams"]
@@ -165,6 +178,22 @@ def report():
     good = sorted([p for p in points if p[2] <= MAX_WRONG and p[3] <= MAX_UNKNOWN], reverse=True)[:5]
     for by10, by20, w, fp, th, ab in good or sorted(points, key=lambda p: p[2] + p[3])[:5]:
         print(f"  margin {th:.2f} abs {ab}: correct by 10s {by10:.0%}, by 20s {by20:.0%}, wrong {w:.0%}, unknown false {fp:.0%}")
+
+    # Tuned policy (2026-11-24, on these streams, so optimistic): CLEWS layer
+    # alone, no commit before 6 s, cohort-z margin >= 0.2 at one checkpoint.
+    if "clews" in streams[0]["steps"][0].get("layers", {}):
+        ok, wrong, fp = [], 0, 0
+        for s in streams:
+            t, song = decide_layer(s["steps"], s["known_plan"], "clews", 6, 0.2)
+            if song == s["truth"]:
+                ok.append(t)
+            elif song is not None:
+                wrong += 1
+            fp += decide_layer(s["steps"], s["unknown_plan"], "clews", 6, 0.2)[1] is not None
+        ct = np.array(ok)
+        print(f"\ntuned policy (CLEWS only, >=6 s, margin 0.2): correct by 10s {np.sum(ct <= 10) / n:.0%}, "
+              f"by 14s {np.sum(ct <= 14) / n:.0%}, by 20s {np.sum(ct <= 20) / n:.0%}, wrong {wrong / n:.0%}, "
+              f"unknown false {fp / n:.0%}")
 
     per = defaultdict(list)
     for s in streams:

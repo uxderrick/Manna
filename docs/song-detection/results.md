@@ -46,6 +46,28 @@ CLEWS cost on this Intel Mac CPU: 197 M parameters (787 MB at full precision, 39
 precision, about 200 MB 8-bit) and 2.7 s per 10 s clip. CoverHunter is 6 M parameters and 0.06 s.
 References are embedded once (20 s segments every 10 s) and cached.
 
+## Live listening (`stream_eval.py`)
+This simulates a song starting and the engine re-scoring every 2 s on the last 4–15 s of audio:
+91 starts from 26 recordings, with a 6-song plan. It reports how long until a confident commit,
+how often the commit is wrong, and how often a song that is **not** in Manna gets committed to
+anyway.
+
+| Policy | Correct by 10 s | by 14 s | by 20 s | Wrong | Song not in Manna → false pick |
+|---|---|---|---|---|---|
+| Fused layers, commit at any time (margin 1.0) | 59% | — | 77% | 16% | 41% |
+| **CLEWS only, from 6 s, margin 0.2** | **59%** | **70%** | **75%** | **1%** | **4%** |
+
+- **Per-moment accuracy is already high.** CLEWS ranks the right song first for 85% of streams at
+  10 s and 90% from 14 s. The losses came from committing on short, noisy early windows.
+- **The tuned policy rarely commits wrong**, and almost never mistakes an unknown song for a known
+  one. About 25% of starts stay undecided at 20 s. For those, the operator gets the top-3 chip,
+  which holds the right song 98% of the time at 10 s.
+- **The policy was tuned on these same streams, so it is optimistic.** Phone recordings in church
+  are the real test.
+- **Raw similarities are not yet used.** The cohort-normalised "absolute strength" turned out to
+  be poorly scaled for CLEWS (true song median 0.59 vs best wrong 0.36). A raw-cosine rejection
+  rule is a likely improvement.
+
 ## What we learned
 1. **Melody can't be heard inside a band without separating the voice.** A pitch tracker on the
    full mix follows the bass. With the bass filtered out it lands in the singing range, but
