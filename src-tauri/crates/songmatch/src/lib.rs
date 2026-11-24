@@ -14,11 +14,14 @@
 //!   confident commit.
 //! - [`listener::Matcher`] ties them together for live audio: checks every
 //!   2 s, resets on silence, and learns from confirmed songs.
+//! - [`lyrics::LyricsIndex`] finds songs from the live transcript (the words
+//!   being sung), with no recordings needed.
 
 pub mod buffer;
 pub mod embedder;
 pub mod library;
 pub mod listener;
+pub mod lyrics;
 pub mod policy;
 
 /// Audio sample rate the model expects (and Manna captures at).

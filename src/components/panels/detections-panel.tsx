@@ -1,4 +1,5 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
+import { invoke } from "@tauri-apps/api/core"
 import { PanelHeader } from "@/components/ui/panel-header"
 import { ConfidenceDot } from "@/components/ui/confidence-dot"
 import { Button } from "@/components/ui/button"
@@ -10,6 +11,8 @@ import { presentQueuedVerseLive } from "@/lib/queue-verse"
 import { getWorkspaceMode, getWorkspaceModeCopy } from "@/lib/workspace-mode"
 import { retranslateDetections } from "@/lib/retranslate-detections"
 import type { DetectionResult } from "@/types"
+import { SongMatches } from "@/components/panels/song-matches"
+import { useSongMatchStore, type DetectionMode, type SongModeStatus } from "@/stores/song-match-store"
 
 const SOURCE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   direct: { bg: "bg-green-500/15", text: "text-green-600", label: "Direct" },
@@ -163,7 +166,44 @@ function DetectionCard({ detection }: { detection: DetectionResult }) {
   )
 }
 
+function ModeSwitch() {
+  const mode = useSongMatchStore((s) => s.mode)
+  const [busy, setBusy] = useState(false)
+  const choose = async (next: DetectionMode) => {
+    if (next === mode || busy) return
+    setBusy(true)
+    const store = useSongMatchStore.getState()
+    store.setMode(next)
+    try {
+      const status = await invoke<SongModeStatus>("set_song_mode", { enabled: next === "songs" })
+      store.setStatus(next === "songs" ? status : null)
+    } catch (error) {
+      console.error("Could not switch song detection", error)
+      store.setMode(mode)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div data-slot="detections-mode" className="flex rounded-full border border-border p-0.5" role="radiogroup" aria-label="Detect">
+      {(["verses", "songs"] as const).map((m) => (
+        <button
+          key={m}
+          role="radio"
+          aria-checked={mode === m}
+          disabled={busy}
+          onClick={() => void choose(m)}
+          className={`rounded-full px-2 py-0.5 text-[0.625rem] font-medium capitalize transition-colors ${mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          {m}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function DetectionsPanel() {
+  const mode = useSongMatchStore((s) => s.mode)
   const { detections } = useDetection()
   // Resolve new native detections too, including payloads without translation metadata.
   useEffect(() => {
@@ -190,15 +230,17 @@ export function DetectionsPanel() {
       data-slot="detections-panel"
       className="flex h-full min-w-0 flex-col overflow-hidden bg-card"
     >
-      <PanelHeader title="Recent detections">
+      <PanelHeader title={mode === "songs" ? "Song matches" : "Recent detections"}>
+        <ModeSwitch />
         <button
-          onClick={() => detectionActions.clearDetections()}
-          className="text-[0.625rem] text-muted-foreground transition-colors hover:text-foreground"
+          onClick={() => (mode === "songs" ? useSongMatchStore.getState().clear() : detectionActions.clearDetections())}
+          className="ml-1.5 text-[0.625rem] text-muted-foreground transition-colors hover:text-foreground"
         >
           Clear all
         </button>
       </PanelHeader>
 
+      {mode === "songs" ? <SongMatches /> : (
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="flex flex-col gap-0">
           {detections.length === 0 && !isTranscribing && (
@@ -248,6 +290,7 @@ export function DetectionsPanel() {
           ))}
         </div>
       </div>
+      )}
     </div>
   )
 }

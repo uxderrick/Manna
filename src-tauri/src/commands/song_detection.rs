@@ -8,8 +8,10 @@
 //!   confirms during a service;
 //! - the capture fan-out hands every microphone frame to
 //!   [`SongDetectionRuntime::feed`], which never blocks it;
-//! - a worker thread runs the matcher and emits [`EVENT_SONG_DETECTION`]
-//!   with the current decision (listening, top-3 suggestions, or a commit).
+//! - a worker thread runs the sound matcher; while the operator has the
+//!   detections panel switched to songs, final transcripts are also matched
+//!   against every song's lyrics ([`on_transcript`]). Both emit
+//!   [`EVENT_SONG_MATCHES`] with the best candidates.
 //!
 //! The CLEWS model (`clews_int8.onnx`, about 208 MB) is not bundled yet. It
 //! is looked for in the app data folder, then the resources, then (in
@@ -28,7 +30,8 @@ use rhema_notes::{SessionDb, SongFingerprint, SongFingerprintInfo};
 use rhema_songmatch::embedder::{embed_reference, Embedder};
 use rhema_songmatch::library::{Library, Reference, Source};
 use rhema_songmatch::listener::{Learned, ListenerConfig, Matcher, Update};
-use rhema_songmatch::policy::Decision;
+use rhema_songmatch::lyrics::{LyricsConfig, LyricsIndex, SongLyrics, TranscriptWindow};
+use rhema_songmatch::policy::{Candidate, Decision, PolicyConfig};
 use rhema_songmatch::{EMBED_DIM, SAMPLE_RATE_HZ};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -43,7 +46,9 @@ const QUEUE_FRAMES: usize = 800;
 /// Shortest recording worth enrolling, in seconds.
 const MIN_ENROL_S: f32 = 10.0;
 
-pub const EVENT_SONG_DETECTION: &str = "song_detection";
+pub const EVENT_SONG_MATCHES: &str = "song_matches";
+/// Transcript words kept for lyrics matching (about two sung lines).
+const LYRICS_WINDOW_WORDS: usize = 24;
 pub const EVENT_SONG_FINGERPRINTS_CHANGED: &str = "song_fingerprints_changed";
 
 type DbState = Mutex<SessionDb>;
@@ -62,10 +67,25 @@ struct Engine {
 }
 
 /// Shared state; `feed` is called from the audio thread for every frame.
-#[derive(Default)]
 pub struct SongDetectionRuntime {
     listening: AtomicBool,
     engine: Mutex<Option<Engine>>,
+    /// The operator switched detections to songs.
+    songs_mode: AtomicBool,
+    lyrics: Mutex<Option<LyricsIndex>>,
+    window: Mutex<TranscriptWindow>,
+}
+
+impl Default for SongDetectionRuntime {
+    fn default() -> Self {
+        Self {
+            listening: AtomicBool::new(false),
+            engine: Mutex::new(None),
+            songs_mode: AtomicBool::new(false),
+            lyrics: Mutex::new(None),
+            window: Mutex::new(TranscriptWindow::new(LYRICS_WINDOW_WORDS)),
+        }
+    }
 }
 
 impl SongDetectionRuntime {
@@ -101,19 +121,42 @@ impl SongDetectionRuntime {
     }
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct SongDetectionPayload {
-    pub heard_seconds: f32,
-    pub decision: Decision,
-    /// First commit to this song in this stretch of music: time to present it.
-    pub new_commit: bool,
+pub struct SongMatchItem {
+    pub song_id: String,
+    /// 0 to 1. Lyrics: share of the sung phrases found in the song. Sound:
+    /// the lead in cohort units, scaled so the commit margin is about 0.5.
+    pub score: f32,
+    /// Lyrics only: the stanza being sung (stanzas in order, chorus last).
+    pub stanza: Option<usize>,
+    /// Lyrics only: the line most like what was heard.
+    pub line: Option<String>,
 }
 
-impl From<Update> for SongDetectionPayload {
-    fn from(u: Update) -> Self {
-        Self { heard_seconds: u.heard_s, decision: u.decision, new_commit: u.new_commit }
-    }
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SongMatchesPayload {
+    /// `lyrics` or `sound`.
+    pub source: &'static str,
+    /// Best first; empty means nothing matches (clear the list).
+    pub matches: Vec<SongMatchItem>,
+    /// The first match is confident enough to present.
+    pub confident: bool,
+}
+
+fn sound_score(c: &Candidate) -> f32 {
+    (c.z / (2.0 * PolicyConfig::default().margin)).clamp(0.0, 1.0)
+}
+
+fn sound_payload(update: &Update) -> SongMatchesPayload {
+    let item = |c: &Candidate| SongMatchItem { song_id: c.song_id.clone(), score: sound_score(c), stanza: None, line: None };
+    let (matches, confident) = match &update.decision {
+        Decision::Listening => (Vec::new(), false),
+        Decision::Suggest { candidates } => (candidates.iter().map(item).collect(), false),
+        Decision::Commit { candidate } => (vec![item(candidate)], true),
+    };
+    SongMatchesPayload { source: "sound", matches, confident }
 }
 
 #[derive(Serialize)]
@@ -147,14 +190,14 @@ fn model_path(app: &AppHandle) -> Option<PathBuf> {
     model_candidates(app).into_iter().find(|p| p.is_file())
 }
 
-#[cfg(feature = "onnx")]
+#[cfg(any(feature = "onnx", feature = "songmatch-dynamic"))]
 fn load_embedder(path: &std::path::Path) -> Result<Arc<dyn Embedder>, String> {
     rhema_songmatch::embedder::OnnxEmbedder::load(path, MODEL_THREADS)
         .map(|e| Arc::new(e) as Arc<dyn Embedder>)
         .map_err(|e| format!("Could not load the song detection model: {e}"))
 }
 
-#[cfg(not(feature = "onnx"))]
+#[cfg(not(any(feature = "onnx", feature = "songmatch-dynamic")))]
 fn load_embedder(_path: &std::path::Path) -> Result<Arc<dyn Embedder>, String> {
     let _ = MODEL_THREADS;
     Err("Song detection is not included in this build.".into())
@@ -213,7 +256,7 @@ fn run_worker(app: AppHandle, embedder: Arc<dyn Embedder>, library: Library, rx:
         match msg {
             Msg::Audio(pcm) => match matcher.push_i16(&pcm, embedder.as_ref()) {
                 Ok(Some(update)) => {
-                    let _ = app.emit(EVENT_SONG_DETECTION, SongDetectionPayload::from(update));
+                    let _ = app.emit(EVENT_SONG_MATCHES, sound_payload(&update));
                 }
                 Ok(None) => {}
                 Err(e) => log::warn!("[SONG] check failed: {e}"),
@@ -281,7 +324,7 @@ pub fn get_song_detection_status(
     songs.sort_unstable();
     songs.dedup();
     Ok(SongDetectionStatus {
-        supported: cfg!(feature = "onnx"),
+        supported: cfg!(any(feature = "onnx", feature = "songmatch-dynamic")),
         model_path: model_path(&app).map(|p| p.display().to_string()),
         loaded: runtime.is_loaded(),
         listening: runtime.listening.load(Ordering::Relaxed),
@@ -409,9 +452,105 @@ pub fn delete_song_fingerprint(
 /// After songs are deleted (their fingerprints go with them).
 pub fn songs_changed(app: &AppHandle) {
     let runtime = app.state::<SongDetectionRuntime>();
-    if let Err(e) = reload(&runtime, &app.state::<DbState>()) {
+    let db = app.state::<DbState>();
+    if let Err(e) = reload(&runtime, &db) {
         log::warn!("[SONG] reload after song change failed: {e}");
     }
+    if runtime.songs_mode.load(Ordering::Relaxed) {
+        match (build_lyrics(&db), runtime.lyrics.lock()) {
+            (Ok(index), Ok(mut slot)) => *slot = Some(index),
+            (Err(e), _) => log::warn!("[SONG] lyrics rebuild failed: {e}"),
+            (_, Err(e)) => log::warn!("[SONG] lyrics rebuild failed: {e}"),
+        }
+    }
+}
+
+// ── Songs mode (lyrics + sound) ─────────────────────────────────────
+
+/// A song's lyrics from its stored JSON (`stanzas`, then `chorus` last).
+pub fn lyrics_of(id: String, title: String, data: &str) -> Option<SongLyrics> {
+    let v: serde_json::Value = serde_json::from_str(data).ok()?;
+    let lines = |s: &serde_json::Value| -> Option<Vec<String>> {
+        let l: Vec<String> = s.get("lines")?.as_array()?.iter().filter_map(|x| x.as_str().map(String::from)).collect();
+        (!l.is_empty()).then_some(l)
+    };
+    let mut stanzas: Vec<Vec<String>> = v.get("stanzas")?.as_array()?.iter().filter_map(lines).collect();
+    if let Some(chorus) = v.get("chorus").and_then(lines) {
+        stanzas.push(chorus);
+    }
+    (!stanzas.is_empty()).then_some(SongLyrics { song_id: id, title, stanzas })
+}
+
+fn build_lyrics(db: &DbState) -> Result<LyricsIndex, String> {
+    let rows = db.lock().map_err(|e| e.to_string())?.list_songs().map_err(|e| e.to_string())?;
+    let songs = rows.into_iter().filter_map(|r| lyrics_of(r.0, r.3, &r.5)).collect();
+    Ok(LyricsIndex::new(songs, LyricsConfig::default()))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SongModeStatus {
+    pub enabled: bool,
+    /// Songs with lyrics being matched against the transcript.
+    pub lyrics_songs: usize,
+    /// Sound matching is running.
+    pub sound: bool,
+    /// Why sound matching is off (no model, not in this build, ...).
+    pub sound_note: Option<String>,
+    /// Songs with a recording (sound fingerprint).
+    pub sound_songs: usize,
+}
+
+/// The operator switched the detections panel to songs (or back). Lyrics
+/// matching always works; sound matching needs the model.
+#[tauri::command]
+pub async fn set_song_mode(app: AppHandle, enabled: bool) -> Result<SongModeStatus, String> {
+    let runtime = app.state::<SongDetectionRuntime>();
+    let db = app.state::<DbState>();
+    if !enabled {
+        runtime.songs_mode.store(false, Ordering::Relaxed);
+        runtime.listening.store(false, Ordering::Relaxed);
+        runtime.send(Msg::Reset);
+        *runtime.lyrics.lock().map_err(|e| e.to_string())? = None;
+        return Ok(SongModeStatus { enabled, lyrics_songs: 0, sound: false, sound_note: None, sound_songs: 0 });
+    }
+    let index = build_lyrics(&db)?;
+    let lyrics_songs = index.len();
+    *runtime.lyrics.lock().map_err(|e| e.to_string())? = Some(index);
+    runtime.window.lock().map_err(|e| e.to_string())?.clear();
+    runtime.songs_mode.store(true, Ordering::Relaxed);
+
+    let sound = ensure_engine(&app).await;
+    if sound.is_ok() {
+        runtime.listening.store(true, Ordering::Relaxed);
+        runtime.send(Msg::Reset);
+    }
+    let sound_songs = load_library(&db).map(|l| l.songs().len()).unwrap_or(0);
+    log::info!("[SONG] songs mode on: {lyrics_songs} songs by lyrics, sound {}", if sound.is_ok() { "on" } else { "off" });
+    Ok(SongModeStatus { enabled, lyrics_songs, sound: sound.is_ok(), sound_note: sound.err(), sound_songs })
+}
+
+/// A final transcript segment: in songs mode, match it (with the previous
+/// few) against every song's lyrics.
+pub fn on_transcript(app: &AppHandle, transcript: &str) {
+    let runtime = app.state::<SongDetectionRuntime>();
+    if !runtime.songs_mode.load(Ordering::Relaxed) {
+        return;
+    }
+    let Some(payload) = lyrics_payload(&runtime, transcript) else { return };
+    let _ = app.emit(EVENT_SONG_MATCHES, payload);
+}
+
+fn lyrics_payload(runtime: &SongDetectionRuntime, transcript: &str) -> Option<SongMatchesPayload> {
+    let text = runtime.window.lock().ok()?.push(transcript);
+    let guard = runtime.lyrics.lock().ok()?;
+    let result = guard.as_ref()?.search(&text);
+    let matches = result
+        .matches
+        .into_iter()
+        .map(|m| SongMatchItem { song_id: m.song_id, score: m.score, stanza: Some(m.stanza), line: Some(m.line) })
+        .collect();
+    Some(SongMatchesPayload { source: "lyrics", matches, confident: result.confident })
 }
 
 #[cfg(test)]
@@ -449,5 +588,44 @@ mod tests {
         let r = Reference { id: "x".into(), song_id: "y".into(), source: Source::Live, embeddings: vec![vec![1.0]] };
         let stored = to_stored(&r);
         assert_eq!((stored.source.as_str(), stored.model.as_str()), ("live", MODEL_ID));
+    }
+
+    #[test]
+    fn lyrics_come_from_stored_song_json() {
+        let data = r#"{"stanzas":[{"id":"1","kind":"verse","lines":["Amazing grace how sweet the sound","That saved a wretch like me"]},{"id":"2","kind":"verse","lines":[]}],"chorus":{"id":"c","kind":"chorus","lines":["Chorus line"]},"autoChorus":true}"#;
+        let l = lyrics_of("ag".into(), "Amazing Grace".into(), data).unwrap();
+        assert_eq!(l.stanzas.len(), 2, "empty stanza dropped, chorus last");
+        assert_eq!(l.stanzas[1], ["Chorus line"]);
+        assert!(lyrics_of("x".into(), "X".into(), "not json").is_none());
+        assert!(lyrics_of("x".into(), "X".into(), r#"{"stanzas":[],"chorus":null}"#).is_none());
+    }
+
+    #[test]
+    fn transcripts_are_matched_only_with_an_index() {
+        let runtime = SongDetectionRuntime::default();
+        assert!(lyrics_payload(&runtime, "amazing grace how sweet the sound").is_none());
+        let song = lyrics_of(
+            "ag".into(),
+            "Amazing Grace".into(),
+            r#"{"stanzas":[{"lines":["Amazing grace how sweet the sound","That saved a wretch like me"]}]}"#,
+        )
+        .unwrap();
+        *runtime.lyrics.lock().unwrap() = Some(LyricsIndex::new(vec![song], LyricsConfig::default()));
+        let p = lyrics_payload(&runtime, "amazing grace how sweet").unwrap();
+        assert_eq!(p.source, "lyrics");
+        assert_eq!(p.matches[0].song_id, "ag");
+        let p = lyrics_payload(&runtime, "the sound that saved a wretch like me").unwrap();
+        assert!(p.confident, "two lines heard across segments");
+    }
+
+    #[test]
+    fn sound_decisions_become_matches() {
+        let c = Candidate { song_id: "s".into(), z: 2.5, similarity: 0.3, in_plan: true };
+        let u = Update { heard_s: 8.0, decision: Decision::Commit { candidate: c }, new_commit: true };
+        let p = sound_payload(&u);
+        assert!(p.confident);
+        assert!((p.matches[0].score - 0.5).abs() < 1e-6);
+        let quiet = Update { heard_s: 0.0, decision: Decision::Listening, new_commit: false };
+        assert!(sound_payload(&quiet).matches.is_empty());
     }
 }

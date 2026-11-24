@@ -394,6 +394,9 @@ pub async fn start_transcription(
                             },
                         );
 
+                        // Songs mode: match the sung words against song lyrics
+                        crate::commands::song_detection::on_transcript(&event_app, &transcript);
+
                         // Check for translation commands: "read in NIV", "switch to ESV"
                         check_translation_command(&event_app, &transcript);
 
