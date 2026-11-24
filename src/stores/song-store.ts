@@ -1,6 +1,13 @@
 import { invoke } from "@tauri-apps/api/core"
 import { create } from "zustand"
-import type { GeniusHit, LineMode, LrclibHit, OnlineHit, Song, SongSource } from "@/types"
+import type {
+  GeniusHit,
+  LineMode,
+  LrclibHit,
+  OnlineHit,
+  Song,
+  SongSource,
+} from "@/types"
 
 interface SongRowRpc {
   id: string

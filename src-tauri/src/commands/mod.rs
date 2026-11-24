@@ -11,6 +11,7 @@ pub mod remote;
 pub mod service_plan;
 pub mod session;
 pub mod songs;
+pub mod content_import;
 pub mod storage;
 pub mod stt;
 pub mod summarize;

@@ -242,6 +242,14 @@ pub fn run() {
     }
     let context = tauri::generate_context!();
     let application_identifier = context.config().identifier.clone();
+    // Bibles imported from other software live next to manna.db; the bundled
+    // rhema.db stays read-only. Package checks use no on-disk user data.
+    let user_bibles_path = (!checking_package).then(|| {
+        dirs::data_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("."))
+            .join(&application_identifier)
+            .join("user-bibles.db")
+    });
     tauri::Builder::default()
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -426,6 +434,8 @@ pub fn run() {
             commands::songs::fetch_genius_lyrics,
             commands::songs::search_lrclib,
             commands::songs::fetch_lrclib_lyrics,
+            commands::content_import::detect_import_sources,
+            commands::content_import::import_content,
             commands::hymnals::seed_hymnal,
             commands::hymnals::delete_hymnal_songs,
             commands::hymnals::list_hymnal_counts,
@@ -484,7 +494,14 @@ pub fn run() {
             let db_path = resolve_resource(app, "data/rhema.db");
 
             if db_path.exists() {
-                match rhema_bible::BibleDb::open(&db_path) {
+                let opened = match &user_bibles_path {
+                    Some(user) => rhema_bible::BibleDb::open_with_user(&db_path, user).or_else(|e| {
+                        log::warn!("Imported Bibles unavailable ({e}); using bundled Bibles only");
+                        rhema_bible::BibleDb::open(&db_path)
+                    }),
+                    None => rhema_bible::BibleDb::open(&db_path),
+                };
+                match opened {
                     Ok(bible_db) => {
                         // Build quotation matching index from all English verses
                         log::info!("Building quotation matching index...");

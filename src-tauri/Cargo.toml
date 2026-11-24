@@ -64,6 +64,7 @@ rhema-api = { path = "crates/api" }
 rhema-notes = { path = "crates/notes" }
 crossbeam-channel = "0.5"
 dirs = "6"
+rusqlite = { version = "0.34", features = ["bundled"] }
 dotenvy = "0.15"
 base64 = "0.22"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
