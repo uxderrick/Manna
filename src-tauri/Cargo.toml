@@ -102,5 +102,10 @@ tauri-plugin-global-shortcut = "2"
 [profile.dev.package.rhema-detection]
 opt-level = 3
 
+# Song matching builds and searches an index of every song's lyrics;
+# unoptimised that takes about 3 s per build instead of 0.3 s.
+[profile.dev.package.rhema-songmatch]
+opt-level = 3
+
 [profile.dev.package.sha2]
 opt-level = 3

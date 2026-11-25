@@ -63,3 +63,16 @@ fn a_fingerprint_needs_an_existing_song() {
     orphan.song_id = "missing".into();
     assert!(db.save_song_fingerprint(&orphan).is_err());
 }
+
+#[test]
+fn songs_stamp_changes_with_the_songs() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = rhema_notes::SessionDb::open(&dir.path().join("t.db")).unwrap();
+    let empty = db.songs_stamp().unwrap();
+    assert_eq!(empty, db.songs_stamp().unwrap(), "stable while nothing changes");
+    db.save_song("a", "custom", None, "A", None, "{}", 0).unwrap();
+    let one = db.songs_stamp().unwrap();
+    assert_ne!(one, empty);
+    db.save_song("a", "custom", None, "A", None, r#"{"stanzas":[]}"#, 0).unwrap();
+    assert_ne!(db.songs_stamp().unwrap(), one, "an edit changes it");
+}

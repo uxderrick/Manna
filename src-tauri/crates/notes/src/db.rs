@@ -773,6 +773,17 @@ impl SessionDb {
 
     // ── Songs ─────────────────────────────────────────────────
 
+    /// Changes whenever a song is added, removed or edited: the count, the
+    /// latest edit time and the total size of the lyrics. Lets callers keep
+    /// work built from every song (search indexes) until the songs change.
+    pub fn songs_stamp(&self) -> Result<String> {
+        Ok(self.conn.query_row(
+            "SELECT count(*) || '|' || coalesce(max(updated_at), '') || '|' || coalesce(sum(length(data)), 0) FROM songs",
+            [],
+            |row| row.get(0),
+        )?)
+    }
+
     #[allow(clippy::type_complexity)]
     #[allow(clippy::type_complexity)]
     pub fn list_songs(

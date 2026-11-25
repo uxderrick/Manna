@@ -85,7 +85,10 @@ pub struct SongDetectionRuntime {
     engine: Mutex<Option<Engine>>,
     /// The operator switched detections to songs.
     songs_mode: AtomicBool,
-    lyrics: Mutex<Option<LyricsIndex>>,
+    /// Every song's lyrics, with the songs' stamp it was built from. Kept
+    /// when songs mode is switched off: rebuilding takes seconds in a
+    /// development build, and is only needed when the songs change.
+    lyrics: Mutex<Option<(String, LyricsIndex)>>,
     window: Mutex<TranscriptWindow>,
     /// Lets only singing and music through to speech recognition in songs
     /// mode (`None` when its model is missing: everything goes through).
@@ -563,10 +566,8 @@ pub fn songs_changed(app: &AppHandle) {
         log::warn!("[SONG] reload after song change failed: {e}");
     }
     if runtime.songs_mode.load(Ordering::Relaxed) {
-        match (build_lyrics(&db), runtime.lyrics.lock()) {
-            (Ok(index), Ok(mut slot)) => *slot = Some(index),
-            (Err(e), _) => log::warn!("[SONG] lyrics rebuild failed: {e}"),
-            (_, Err(e)) => log::warn!("[SONG] lyrics rebuild failed: {e}"),
+        if let Err(e) = ensure_lyrics(&runtime, &db) {
+            log::warn!("[SONG] lyrics rebuild failed: {e}");
         }
     }
 }
@@ -589,6 +590,24 @@ pub fn lyrics_of(id: String, title: String, data: &str) -> Option<SongLyrics> {
 
 /// Songs bundled with Manna; everything else is the church's own.
 const BUNDLED_HYMNALS: [&str; 4] = ["ghs", "mhb", "sankey", "sda"];
+
+/// Make sure the lyrics index matches the songs (rebuilt only when they
+/// changed). Returns how many songs it holds.
+fn ensure_lyrics(runtime: &SongDetectionRuntime, db: &DbState) -> Result<usize, String> {
+    let stamp = db.lock().map_err(|e| e.to_string())?.songs_stamp().map_err(|e| e.to_string())?;
+    let mut slot = runtime.lyrics.lock().map_err(|e| e.to_string())?;
+    if let Some((built, index)) = slot.as_ref() {
+        if *built == stamp {
+            return Ok(index.len());
+        }
+    }
+    let started = std::time::Instant::now();
+    let index = build_lyrics(db)?;
+    let songs = index.len();
+    log::info!("[SONG] lyrics index: {songs} songs in {:.1} s", started.elapsed().as_secs_f32());
+    *slot = Some((stamp, index));
+    Ok(songs)
+}
 
 fn build_lyrics(db: &DbState) -> Result<LyricsIndex, String> {
     let rows = db.lock().map_err(|e| e.to_string())?.list_songs().map_err(|e| e.to_string())?;
@@ -644,7 +663,6 @@ pub async fn set_song_mode(app: AppHandle, enabled: bool) -> Result<SongModeStat
         runtime.songs_mode.store(false, Ordering::Relaxed);
         runtime.listening.store(false, Ordering::Relaxed);
         runtime.send(Msg::Reset);
-        *runtime.lyrics.lock().map_err(|e| e.to_string())? = None;
         return Ok(SongModeStatus {
             enabled,
             lyrics_songs: 0,
@@ -655,9 +673,7 @@ pub async fn set_song_mode(app: AppHandle, enabled: bool) -> Result<SongModeStat
             gate_note: None,
         });
     }
-    let index = build_lyrics(&db)?;
-    let lyrics_songs = index.len();
-    *runtime.lyrics.lock().map_err(|e| e.to_string())? = Some(index);
+    let lyrics_songs = ensure_lyrics(&runtime, &db)?;
     runtime.window.lock().map_err(|e| e.to_string())?.clear();
     *runtime.idle.lock().map_err(|e| e.to_string())? = Idle::default();
     // The gate is ready (or known missing) before songs mode routes audio through it.
@@ -711,7 +727,7 @@ pub fn on_transcript(app: &AppHandle, transcript: &str) {
 fn lyrics_payload(runtime: &SongDetectionRuntime, transcript: &str) -> Option<SongMatchesPayload> {
     let text = runtime.window.lock().ok()?.push(transcript);
     let guard = runtime.lyrics.lock().ok()?;
-    let result = guard.as_ref()?.search(&text);
+    let result = guard.as_ref()?.1.search(&text);
     if let Some(top) = result.matches.first() {
         log::info!(
             "[SONG] lyrics: \"{}\" {:.0}%{} (heard \"{text}\", line \"{}\")",
@@ -786,7 +802,7 @@ mod tests {
             r#"{"stanzas":[{"lines":["Amazing grace how sweet the sound","That saved a wretch like me"]}]}"#,
         )
         .unwrap();
-        *runtime.lyrics.lock().unwrap() = Some(LyricsIndex::new(vec![song], LyricsConfig::default()));
+        *runtime.lyrics.lock().unwrap() = Some((String::new(), LyricsIndex::new(vec![song], LyricsConfig::default())));
         let p = lyrics_payload(&runtime, "amazing grace how sweet").unwrap();
         assert_eq!(p.source, "lyrics");
         assert_eq!(p.matches[0].song_id, "ag");
