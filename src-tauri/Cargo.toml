@@ -8,6 +8,8 @@ members = [
     "crates/broadcast",
     "crates/api",
     "crates/notes",
+    "crates/songmatch",
+    "crates/songpack",
 ]
 resolver = "2"
 
@@ -62,6 +64,7 @@ rhema-broadcast = { path = "crates/broadcast" }
 rhema-detection = { path = "crates/detection", default-features = false, features = ["vector-search"] }
 rhema-api = { path = "crates/api" }
 rhema-notes = { path = "crates/notes" }
+rhema-songmatch = { path = "crates/songmatch" }
 crossbeam-channel = "0.5"
 dirs = "6"
 dotenvy = "0.15"
@@ -83,7 +86,10 @@ rusqlite = { version = "0.34", features = ["bundled"] }
 [features]
 default = ["whisper", "onnx"]
 whisper = ["rhema-stt/whisper"]
-onnx = ["rhema-detection/onnx"]
+onnx = ["rhema-detection/onnx", "rhema-songmatch/onnx"]
+# Local testing on Intel Macs (no current ONNX Runtime build): song detection
+# loads ONNX Runtime >= 1.20 at run time from ORT_DYLIB_PATH.
+songmatch-dynamic = ["rhema-songmatch/onnx-dynamic"]
 # Internal installers can verify the real packaged app without microphone/API use.
 package-check = ["onnx"]
 
@@ -95,6 +101,11 @@ tauri-plugin-global-shortcut = "2"
 
 # Keep live vector scans and resource hashing fast under `bun run tauri dev`.
 [profile.dev.package.rhema-detection]
+opt-level = 3
+
+# Song matching builds and searches an index of every song's lyrics;
+# unoptimised that takes about 3 s per build instead of 0.3 s.
+[profile.dev.package.rhema-songmatch]
 opt-level = 3
 
 [profile.dev.package.sha2]

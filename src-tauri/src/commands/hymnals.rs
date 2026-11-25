@@ -30,13 +30,15 @@ pub fn seed_hymnal(db: State<'_, DbState>, hymnal_id: String) -> Result<usize, S
 }
 
 #[tauri::command]
-pub fn delete_hymnal_songs(db: State<'_, DbState>, hymnal_id: String) -> Result<usize, String> {
+pub fn delete_hymnal_songs(app: tauri::AppHandle, db: State<'_, DbState>, hymnal_id: String) -> Result<usize, String> {
     let def = find_hymnal(&hymnal_id)
         .ok_or_else(|| format!("Unknown hymnal id: {hymnal_id}"))?;
-    let locked = db.lock().map_err(|e| e.to_string())?;
-    let deleted = locked
+    let deleted = db
+        .lock()
+        .map_err(|e| e.to_string())?
         .delete_songs_by_source(def.id)
         .map_err(|e| e.to_string())?;
+    super::song_detection::songs_changed(&app);
     Ok(deleted)
 }
 

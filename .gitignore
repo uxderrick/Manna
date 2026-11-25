@@ -69,3 +69,6 @@ scripts/hymnals/.cache/
 /build-resources/
 /artifacts/
 __pycache__/
+
+# Song-detection research audio (copyrighted; local only, never commit)
+/songs/

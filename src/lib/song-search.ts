@@ -17,7 +17,9 @@ function buildIndex(songs: Song[]): MiniSearch<IndexDoc> {
     searchOptions: {
       boost: { title: 4, firstLines: 2, number: 3, author: 1, lyrics: 0.6 },
       prefix: true,
-      fuzzy: 0.2,
+      // Typo tolerance only on longer words: on one or two letters it matches
+      // nearly every song's lyrics and costs most of the search.
+      fuzzy: (term) => (term.length >= 4 ? 0.2 : false),
       combineWith: "AND",
     },
   })
@@ -33,16 +35,23 @@ function buildIndex(songs: Song[]): MiniSearch<IndexDoc> {
   return ms
 }
 
-// Cache the index per songs[] identity so re-renders on keystrokes don't
-// rebuild MiniSearch over all 2800+ EW songs.
-let cachedSongs: Song[] | null = null
-let cachedIndex: MiniSearch<IndexDoc> | null = null
+// One index per songs[] identity (the local list and the EWC Live list
+// each keep theirs), so keystrokes and tab switches never rebuild it:
+// building takes most of a second for 1,500 songs.
+const indexes = new WeakMap<Song[], { index: MiniSearch<IndexDoc>; byId: Map<string, Song> }>()
 
-function getIndex(songs: Song[]): MiniSearch<IndexDoc> {
-  if (cachedSongs === songs && cachedIndex) return cachedIndex
-  cachedSongs = songs
-  cachedIndex = buildIndex(songs)
-  return cachedIndex
+function getIndex(songs: Song[]) {
+  let entry = indexes.get(songs)
+  if (!entry) {
+    entry = { index: buildIndex(songs), byId: new Map(songs.map((s) => [s.id, s])) }
+    indexes.set(songs, entry)
+  }
+  return entry
+}
+
+/** Build the search index ahead of the first keystroke. */
+export function warmSongIndex(songs: Song[]): void {
+  if (songs.length > 0) getIndex(songs)
 }
 
 const PREFIX_RE = /^(ghs|mhb|sankey|snk|sda)\s+(\d+)$/i
@@ -65,18 +74,18 @@ export function searchSongs(songs: Song[], query: string): Song[] {
     const n = parseInt(q, 10)
     const direct = songs.find((s) => s.source === "ghs" && s.number === n)
     if (direct) {
-      const index = getIndex(songs)
+      const { index, byId } = getIndex(songs)
       const fuzzy = index
         .search(q)
-        .map((r) => songs.find((s) => s.id === r.id))
+        .map((r) => byId.get(r.id as string))
         .filter((s): s is Song => s !== undefined && s.id !== direct.id)
       return [direct, ...fuzzy]
     }
   }
 
-  const index = getIndex(songs)
+  const { index, byId } = getIndex(songs)
   return index
     .search(q)
-    .map((r) => songs.find((s) => s.id === r.id))
+    .map((r) => byId.get(r.id as string))
     .filter((s): s is Song => Boolean(s))
 }

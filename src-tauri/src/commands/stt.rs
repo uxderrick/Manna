@@ -374,7 +374,9 @@ pub async fn start_transcription(
                         // This makes detection feel instant for verbose forms
                         // like "Psalm chapter 2 verse 3" that take longer to
                         // finalize than compact "Psalm 2:3".
-                        run_direct_detection(&event_app, &transcript);
+                        if !crate::commands::song_detection::songs_mode(&event_app) {
+                            run_direct_detection(&event_app, &transcript);
+                        }
                     }
                 }
                 TranscriptEvent::Final {
@@ -393,6 +395,13 @@ pub async fn start_transcription(
                                 confidence,
                             },
                         );
+
+                        // Songs mode: match the sung words against song lyrics
+                        // instead of detecting verses.
+                        if crate::commands::song_detection::songs_mode(&event_app) {
+                            crate::commands::song_detection::on_transcript(&event_app, &transcript);
+                            continue;
+                        }
 
                         // Check for translation commands: "read in NIV", "switch to ESV"
                         check_translation_command(&event_app, &transcript);

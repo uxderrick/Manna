@@ -20,9 +20,115 @@ use crate::types::{TranscriptEvent, Word};
 /// Maximum audio buffer before force-flushing to inference (10 seconds at 16 kHz).
 const MAX_BUFFER_SAMPLES: usize = 16_000 * 10;
 
+/// Songs mode: Whisper is less sure of sung words than spoken ones (sung
+/// lines scored 0.44-0.54, under the usual 0.55 bar) and wraps them in ♪.
+static SINGING: AtomicBool = AtomicBool::new(false);
+
+/// Longest clip while singing (4 s). Singers rarely pause long enough to
+/// end a clip, so without this every clip ran to the 10 s limit and the
+/// first song match took about 15 s; the lyrics matcher joins clips anyway.
+const SINGING_MAX_BUFFER_SAMPLES: usize = 16_000 * 4;
+
+/// Confidence bar while singing. Junk on noise ("the", "and") scored 0.2-0.36.
+const SINGING_MIN_CONFIDENCE: f64 = 0.40;
+
+/// Switch songs mode: keep sung lines and strip Whisper's music marks.
+pub fn set_singing(on: bool) {
+    SINGING.store(on, Ordering::Relaxed);
+}
+
+/// The text without Whisper's music marks (♪ and friends).
+fn strip_music_marks(text: &str) -> String {
+    text.split_whitespace()
+        .map(|w| w.trim_matches(|c| matches!(c, '♪' | '♫' | '♬' | '♩')))
+        .filter(|w| !w.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Samples per VAD frame (64 ms); `VadConfig`'s frame counts assume this.
+const VAD_FRAME_SAMPLES: usize = 1024;
+
 /// Minimum audio buffer for inference (1.0 seconds).
 /// Whisper warns "input is too short" below 1s.
 const MIN_BUFFER_SAMPLES: usize = 16_000;
+
+/// Whether Whisper runs on the processor here. whisper.cpp uses the GPU only
+/// on Apple silicon; Intel Macs fall back to the CPU, and other builds have no
+/// GPU backend.
+const CPU_ONLY: bool = !cfg!(all(target_os = "macos", target_arch = "aarch64"));
+
+/// Encoder slices kept beyond the clip itself when the window is trimmed
+/// (Whisper reads 50 slices per second of audio).
+const TRIM_MARGIN_SLICES: usize = 256;
+
+/// The encoder window for a clip, in slices. Whisper always pads audio to
+/// 30 s (1,500 slices) and encodes all of it, which on a CPU costs 6–15 s even
+/// for a 2 s clip. Encoding only the clip plus a margin is 3–4× faster; the
+/// margin keeps some trailing silence, which tells the decoder the speech
+/// ended (without it, it tends to repeat itself).
+fn trimmed_audio_ctx(samples: usize) -> i32 {
+    let slices = (samples.div_ceil(320) + TRIM_MARGIN_SLICES).min(1500);
+    i32::try_from(slices).unwrap_or(1500)
+}
+
+/// A phrase repeated this many times in a row is a decoding loop.
+const LOOP_REPEATS: usize = 3;
+
+/// Shortest phrase checked for loops. Single words are left alone, so lyrics
+/// such as "holy, holy, holy" survive.
+const MIN_LOOP_WORDS: usize = 2;
+
+/// Indices of the words to keep once phrases Whisper repeated in a loop are
+/// cut back to one copy. A cut-off final copy at the end counts as a repeat.
+fn loop_free(words: &[&str]) -> Vec<usize> {
+    let norm: Vec<String> = words
+        .iter()
+        .map(|w| w.chars().filter(|c| c.is_alphanumeric()).collect::<String>().to_lowercase())
+        .collect();
+    let mut keep = vec![true; norm.len()];
+    let mut i = 0;
+    while i < norm.len() {
+        let mut next = i + 1;
+        for k in (MIN_LOOP_WORDS..=(norm.len() - i) / 2).rev() {
+            let phrase = &norm[i..i + k];
+            let mut end = i + k;
+            let mut reps = 1;
+            while end + k <= norm.len() && norm[end..end + k] == *phrase {
+                end += k;
+                reps += 1;
+            }
+            let tail = norm.len() - end;
+            let partial = (2..k).contains(&tail) && norm[end..] == phrase[..tail];
+            if reps + usize::from(partial) >= LOOP_REPEATS {
+                let stop = if partial { norm.len() } else { end };
+                keep[i + k..stop].fill(false);
+                next = stop;
+                break;
+            }
+        }
+        i = next;
+    }
+    (0..norm.len()).filter(|&j| keep[j]).collect()
+}
+
+/// Remove decoding loops from a transcript, keeping text and words in step.
+fn drop_loops(text: String, words: Vec<Word>) -> (String, Vec<Word>) {
+    let shown: Vec<&str> = words.iter().map(|w| w.punctuated_word.as_deref().unwrap_or(&w.text)).collect();
+    let kept = loop_free(&shown);
+    if kept.len() == words.len() {
+        return (text, words);
+    }
+    let text = kept.iter().map(|&j| shown[j]).collect::<Vec<_>>().join(" ");
+    let mut words = words;
+    let mut index = 0;
+    words.retain(|_| {
+        let keep = kept.binary_search(&index).is_ok();
+        index += 1;
+        keep
+    });
+    (text, words)
+}
 
 /// Verify that the local model can create a usable inference state.
 pub fn validate_model(path: &Path) -> Result<(), SttError> {
@@ -138,7 +244,7 @@ const HALLUCINATION_PHRASES: &[&str] = &[
 
 /// Decide whether a Whisper transcript segment is real speech worth emitting.
 /// Filters empty text, low-confidence output, and known hallucination phrases.
-fn is_real_speech(text: &str, confidence: f64) -> bool {
+fn is_real_speech(text: &str, confidence: f64, min_confidence: f64) -> bool {
     let trimmed = text.trim();
     if trimmed.is_empty() {
         return false;
@@ -155,7 +261,7 @@ fn is_real_speech(text: &str, confidence: f64) -> bool {
         // "thank you" can be legitimately spoken.
         return confidence >= 0.80;
     }
-    confidence >= WHISPER_MIN_CONFIDENCE
+    confidence >= min_confidence
 }
 
 /// Local Whisper STT provider.
@@ -231,6 +337,11 @@ impl SttProvider for WhisperProvider {
             };
             let mut vad = Vad::new(vad_config);
             let mut audio_buffer: Vec<i16> = Vec::new();
+            // Capture sends whatever the device delivers (171 samples from a
+            // Mac's built-in mic at 48 kHz). The VAD counts frames and its
+            // timings assume 1,024 each; without regrouping, clips were cut
+            // every 2.6 s instead of 15 s and 128 ms of quiet ended speech.
+            let mut pending: Vec<i16> = Vec::with_capacity(VAD_FRAME_SAMPLES * 2);
 
             loop {
                 if vad_cancelled.load(Ordering::SeqCst) {
@@ -242,32 +353,40 @@ impl SttProvider for WhisperProvider {
 
                 match audio_rx.recv_timeout(Duration::from_millis(50)) {
                     Ok(samples) => {
-                        let frame = AudioFrame { samples, timestamp_ms: 0 };
-                        let result = vad.process(&frame);
+                        pending.extend_from_slice(&samples);
+                        while pending.len() >= VAD_FRAME_SAMPLES {
+                            let frame = AudioFrame { samples: pending.drain(..VAD_FRAME_SAMPLES).collect(), timestamp_ms: 0 };
+                            let result = vad.process(&frame);
 
-                        if let Some(transition) = result.transition {
-                            match transition {
-                                VadTransition::SpeechStarted => {
-                                    let _ = vad_event_tx
-                                        .blocking_send(TranscriptEvent::SpeechStarted);
-                                }
-                                VadTransition::SpeechEnded => {
-                                    if audio_buffer.len() >= MIN_BUFFER_SAMPLES {
-                                        let _ = inference_tx
-                                            .blocking_send(std::mem::take(&mut audio_buffer));
-                                    } else {
-                                        audio_buffer.clear();
+                            if let Some(transition) = result.transition {
+                                match transition {
+                                    VadTransition::SpeechStarted => {
+                                        let _ = vad_event_tx
+                                            .blocking_send(TranscriptEvent::SpeechStarted);
+                                    }
+                                    VadTransition::SpeechEnded => {
+                                        if audio_buffer.len() >= MIN_BUFFER_SAMPLES {
+                                            let _ = inference_tx
+                                                .blocking_send(std::mem::take(&mut audio_buffer));
+                                        } else {
+                                            audio_buffer.clear();
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        for frame in result.frames {
-                            audio_buffer.extend_from_slice(&frame.samples);
-                        }
+                            for frame in result.frames {
+                                audio_buffer.extend_from_slice(&frame.samples);
+                            }
 
-                        if audio_buffer.len() >= MAX_BUFFER_SAMPLES {
-                            let _ = inference_tx.blocking_send(std::mem::take(&mut audio_buffer));
+                            let max_buffer = if SINGING.load(Ordering::Relaxed) {
+                                SINGING_MAX_BUFFER_SAMPLES
+                            } else {
+                                MAX_BUFFER_SAMPLES
+                            };
+                            if audio_buffer.len() >= max_buffer {
+                                let _ = inference_tx.blocking_send(std::mem::take(&mut audio_buffer));
+                            }
                         }
                     }
                     Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
@@ -311,6 +430,9 @@ impl SttProvider for WhisperProvider {
             };
 
             log::info!("[Whisper] Model loaded, ready for inference");
+            if CPU_ONLY {
+                log::info!("[Whisper] Running on the CPU: encoding each clip's length instead of a full 30 s window");
+            }
             let _ = inf_event_tx.blocking_send(TranscriptEvent::Connected);
 
             while let Some(audio_i16) = inference_rx.blocking_recv() {
@@ -333,6 +455,12 @@ impl SttProvider for WhisperProvider {
                 params.set_no_speech_thold(0.4);
                 params.set_suppress_blank(true);
                 params.set_suppress_non_speech_tokens(true);
+                if CPU_ONLY {
+                    params.set_audio_ctx(trimmed_audio_ctx(audio_i16.len()));
+                    // A retry at higher temperature costs another full pass
+                    // (up to 30 s here); loops are removed afterwards instead.
+                    params.set_temperature_inc(0.0);
+                }
 
                 let start = std::time::Instant::now();
                 if let Err(e) = state.full(params, &audio_f32) {
@@ -345,6 +473,14 @@ impl SttProvider for WhisperProvider {
                 let elapsed = start.elapsed();
 
                 let (text, words, confidence) = extract_segments(&state);
+                let (text, mut words) = if CPU_ONLY { drop_loops(text, words) } else { (text, words) };
+                let singing = SINGING.load(Ordering::Relaxed);
+                let (text, min_confidence) = if singing {
+                    words.retain(|w| w.text.chars().any(char::is_alphanumeric));
+                    (strip_music_marks(&text), SINGING_MIN_CONFIDENCE)
+                } else {
+                    (text, WHISPER_MIN_CONFIDENCE)
+                };
 
                 #[expect(clippy::cast_precision_loss, reason = "audio sample count fits in f64")]
                 let audio_duration_s = audio_i16.len() as f64 / 16_000.0;
@@ -352,7 +488,7 @@ impl SttProvider for WhisperProvider {
                     "[Whisper] Transcribed {audio_duration_s:.1}s audio in {elapsed:.1?} (conf {confidence:.2}): \"{text}\""
                 );
 
-                if is_real_speech(&text, confidence) {
+                if is_real_speech(&text, confidence, min_confidence) {
                     let _ = inf_event_tx.blocking_send(TranscriptEvent::Final {
                         transcript: text,
                         words,
@@ -383,5 +519,78 @@ impl SttProvider for WhisperProvider {
 
     fn name(&self) -> &'static str {
         "whisper"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn clean(text: &str) -> String {
+        let words: Vec<&str> = text.split_whitespace().collect();
+        loop_free(&words).iter().map(|&i| words[i]).collect::<Vec<_>>().join(" ")
+    }
+
+    #[test]
+    fn music_marks_are_stripped() {
+        assert_eq!(strip_music_marks("♪ We raise a sound, we raise a sound ♪"), "We raise a sound, we raise a sound");
+        assert_eq!(strip_music_marks("♪♪♪"), "");
+        assert_eq!(strip_music_marks("Good morning. ♪♪"), "Good morning.");
+    }
+
+    #[test]
+    fn singing_keeps_less_certain_lines() {
+        let line = "My, my, I'm in the water";
+        assert!(!is_real_speech(line, 0.46, WHISPER_MIN_CONFIDENCE));
+        assert!(is_real_speech(line, 0.46, SINGING_MIN_CONFIDENCE));
+        assert!(!is_real_speech("the", 0.28, SINGING_MIN_CONFIDENCE));
+        assert!(!is_real_speech("Thank you.", 0.53, SINGING_MIN_CONFIDENCE));
+        assert!(!is_real_speech("", 0.9, SINGING_MIN_CONFIDENCE));
+    }
+
+    #[test]
+    fn trimmed_window_covers_the_clip_plus_margin() {
+        assert_eq!(trimmed_audio_ctx(16_000 * 3), 150 + 256);
+        assert_eq!(trimmed_audio_ctx(16_000 * 3 + 1), 151 + 256);
+        assert_eq!(trimmed_audio_ctx(16_000 * 30), 1500);
+    }
+
+    #[test]
+    fn loops_cut_to_one_copy() {
+        // Loops Whisper produced on a real recording.
+        assert_eq!(
+            clean("I'm very happy to be here. I'm very happy to be here. I'm very happy to be here. I'm very happy to be here."),
+            "I'm very happy to be here."
+        );
+        assert_eq!(
+            clean("It's command. Why it's the drivers? The Wixons? Why it's the drivers? The Wixons? Why it's the drivers?"),
+            "It's command. Why it's the drivers? The Wixons?"
+        );
+        assert_eq!(clean("So he said no. Come in, come in, come in, come in now"), "So he said no. Come in, now");
+    }
+
+    #[test]
+    fn ordinary_repeats_are_kept() {
+        for text in [
+            "Holy, holy, holy! Lord God Almighty",
+            "Thank you. Thank you.",
+            "What is mother? What is mother?",
+            "Hallelujah hallelujah hallelujah hallelujah",
+            "",
+        ] {
+            assert_eq!(clean(text), text);
+        }
+    }
+
+    #[test]
+    fn dropping_loops_keeps_words_in_step() {
+        let words: Vec<Word> = "go on go on go on now"
+            .split(' ')
+            .zip(0_u32..)
+            .map(|(w, i)| Word { text: w.into(), start: f64::from(i), end: f64::from(i) + 1.0, confidence: 0.9, punctuated_word: Some(w.into()) })
+            .collect();
+        let (text, words) = drop_loops("go on go on go on now".into(), words);
+        assert_eq!(text, "go on now");
+        assert_eq!(words.iter().map(|w| w.start).collect::<Vec<_>>(), vec![0.0, 1.0, 6.0]);
     }
 }

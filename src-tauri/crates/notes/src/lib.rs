@@ -17,3 +17,5 @@ pub mod sharing_drafts;
 pub use sharing_drafts::SharingDraft;
 pub mod publications;
 pub use publications::SessionPublication;
+pub mod song_fingerprints;
+pub use song_fingerprints::{SongFingerprint, SongFingerprintInfo};
