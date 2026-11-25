@@ -26,4 +26,19 @@ describe("song match store", () => {
     expect(merged.map((m) => m.songId)).toEqual(["a", "b"])
     expect(merged[0]).toMatchObject({ sources: ["lyrics", "sound"], confident: true, score: 0.5, stanza: 1, line: "Then sings my soul" })
   })
+
+  it("puts the last song aside when singing stops", () => {
+    const s = useSongMatchStore.getState()
+    s.receive({ source: "lyrics", matches: [item("silent-night", 0.54), item("other", 0.3)], confident: true }, 1)
+    s.putAside()
+    let state = useSongMatchStore.getState()
+    expect(mergeSongMatches(state.bySource)).toEqual([])
+    expect(state.earlier.map((m) => m.songId)).toEqual(["silent-night", "other"])
+    // The next song pushes older ones down; nothing to put aside twice.
+    s.receive({ source: "lyrics", matches: [item("no-one-like-the-lord", 0.52)], confident: true }, 2)
+    s.putAside()
+    s.putAside()
+    state = useSongMatchStore.getState()
+    expect(state.earlier.map((m) => m.songId)).toEqual(["no-one-like-the-lord", "silent-night", "other"])
+  })
 })

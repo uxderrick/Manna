@@ -24,6 +24,11 @@ const MAX_BUFFER_SAMPLES: usize = 16_000 * 10;
 /// lines scored 0.44-0.54, under the usual 0.55 bar) and wraps them in ♪.
 static SINGING: AtomicBool = AtomicBool::new(false);
 
+/// Longest clip while singing (4 s). Singers rarely pause long enough to
+/// end a clip, so without this every clip ran to the 10 s limit and the
+/// first song match took about 15 s; the lyrics matcher joins clips anyway.
+const SINGING_MAX_BUFFER_SAMPLES: usize = 16_000 * 4;
+
 /// Confidence bar while singing. Junk on noise ("the", "and") scored 0.2-0.36.
 const SINGING_MIN_CONFIDENCE: f64 = 0.40;
 
@@ -374,7 +379,12 @@ impl SttProvider for WhisperProvider {
                                 audio_buffer.extend_from_slice(&frame.samples);
                             }
 
-                            if audio_buffer.len() >= MAX_BUFFER_SAMPLES {
+                            let max_buffer = if SINGING.load(Ordering::Relaxed) {
+                                SINGING_MAX_BUFFER_SAMPLES
+                            } else {
+                                MAX_BUFFER_SAMPLES
+                            };
+                            if audio_buffer.len() >= max_buffer {
                                 let _ = inference_tx.blocking_send(std::mem::take(&mut audio_buffer));
                             }
                         }

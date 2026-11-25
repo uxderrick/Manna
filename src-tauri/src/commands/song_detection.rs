@@ -58,6 +58,11 @@ pub const EVENT_SONG_MATCHES: &str = "song_matches";
 /// Transcript words kept for lyrics matching (about two sung lines).
 const LYRICS_WINDOW_WORDS: usize = 24;
 pub const EVENT_SONG_FINGERPRINTS_CHANGED: &str = "song_fingerprints_changed";
+/// No singing for [`IDLE_AFTER`]: the panel puts its matches aside as "earlier".
+pub const EVENT_SONG_IDLE: &str = "song_matches_idle";
+/// Quiet (no singing) this long ends a song: the lyrics window is cleared so
+/// the next song starts fresh, and the panel is told.
+const IDLE_AFTER: std::time::Duration = std::time::Duration::from_secs(30);
 
 type DbState = Mutex<SessionDb>;
 
@@ -85,6 +90,15 @@ pub struct SongDetectionRuntime {
     /// Lets only singing and music through to speech recognition in songs
     /// mode (`None` when its model is missing: everything goes through).
     gate: Mutex<Option<SingingGate>>,
+    idle: Mutex<Idle>,
+}
+
+/// When singing (or, without the gate, any transcript) was last heard.
+#[derive(Default)]
+struct Idle {
+    last_heard: Option<std::time::Instant>,
+    /// The panel was told; wait for singing before telling it again.
+    told: bool,
 }
 
 impl Default for SongDetectionRuntime {
@@ -96,6 +110,7 @@ impl Default for SongDetectionRuntime {
             lyrics: Mutex::new(None),
             window: Mutex::new(TranscriptWindow::new(LYRICS_WINDOW_WORDS)),
             gate: Mutex::new(None),
+            idle: Mutex::new(Idle::default()),
         }
     }
 }
@@ -121,7 +136,7 @@ impl SongDetectionRuntime {
     /// talk and noise are replaced with silence and the audio runs about a
     /// second behind (so the gate can open just before a line starts).
     /// Called from the capture thread for every frame.
-    pub fn gate_for_speech(&self, pcm: Vec<i16>) -> Vec<i16> {
+    pub fn gate_for_speech(&self, app: &AppHandle, pcm: Vec<i16>) -> Vec<i16> {
         if !self.songs_mode.load(Ordering::Relaxed) {
             return pcm;
         }
@@ -129,10 +144,42 @@ impl SongDetectionRuntime {
         let Some(gate) = guard.as_mut() else { return pcm };
         let was_open = gate.is_open();
         let out = gate.push(&pcm);
-        if gate.is_open() != was_open {
-            log::info!("[SONG] singing gate {}", if gate.is_open() { "open" } else { "closed" });
+        let open = gate.is_open();
+        drop(guard);
+        if open != was_open {
+            log::info!("[SONG] singing gate {}", if open { "open" } else { "closed" });
+        }
+        if open {
+            self.heard();
+        } else if self.quiet_for(IDLE_AFTER) {
+            self.put_aside(app);
         }
         out
+    }
+
+    fn heard(&self) {
+        if let Ok(mut idle) = self.idle.lock() {
+            idle.last_heard = Some(std::time::Instant::now());
+            idle.told = false;
+        }
+    }
+
+    /// Whether singing was heard, then nothing for `quiet`, and the panel
+    /// has not been told yet.
+    fn quiet_for(&self, quiet: std::time::Duration) -> bool {
+        self.idle.lock().is_ok_and(|idle| !idle.told && idle.last_heard.is_some_and(|t| t.elapsed() >= quiet))
+    }
+
+    /// The song is over: forget its words and tell the panel.
+    fn put_aside(&self, app: &AppHandle) {
+        if let Ok(mut idle) = self.idle.lock() {
+            idle.told = true;
+        }
+        if let Ok(mut window) = self.window.lock() {
+            window.clear();
+        }
+        log::info!("[SONG] no singing for {} s: matches put aside", IDLE_AFTER.as_secs());
+        let _ = app.emit(EVENT_SONG_IDLE, ());
     }
 
     fn send(&self, msg: Msg) -> bool {
@@ -537,12 +584,21 @@ pub fn lyrics_of(id: String, title: String, data: &str) -> Option<SongLyrics> {
     if let Some(chorus) = v.get("chorus").and_then(lines) {
         stanzas.push(chorus);
     }
-    (!stanzas.is_empty()).then_some(SongLyrics { song_id: id, title, stanzas })
+    (!stanzas.is_empty()).then_some(SongLyrics { song_id: id, title, stanzas, preferred: false })
 }
+
+/// Songs bundled with Manna; everything else is the church's own.
+const BUNDLED_HYMNALS: [&str; 4] = ["ghs", "mhb", "sankey", "sda"];
 
 fn build_lyrics(db: &DbState) -> Result<LyricsIndex, String> {
     let rows = db.lock().map_err(|e| e.to_string())?.list_songs().map_err(|e| e.to_string())?;
-    let songs = rows.into_iter().filter_map(|r| lyrics_of(r.0, r.3, &r.5)).collect();
+    let songs = rows
+        .into_iter()
+        .filter_map(|r| {
+            let own = !BUNDLED_HYMNALS.contains(&r.1.as_str());
+            lyrics_of(r.0, r.3, &r.5).map(|l| SongLyrics { preferred: own, ..l })
+        })
+        .collect();
     Ok(LyricsIndex::new(songs, LyricsConfig::default()))
 }
 
@@ -603,6 +659,7 @@ pub async fn set_song_mode(app: AppHandle, enabled: bool) -> Result<SongModeStat
     let lyrics_songs = index.len();
     *runtime.lyrics.lock().map_err(|e| e.to_string())? = Some(index);
     runtime.window.lock().map_err(|e| e.to_string())?.clear();
+    *runtime.idle.lock().map_err(|e| e.to_string())? = Idle::default();
     // The gate is ready (or known missing) before songs mode routes audio through it.
     let gate = ensure_gate(&app).await;
     if let Err(e) = &gate {
@@ -638,6 +695,14 @@ pub fn on_transcript(app: &AppHandle, transcript: &str) {
     let runtime = app.state::<SongDetectionRuntime>();
     if !runtime.songs_mode.load(Ordering::Relaxed) {
         return;
+    }
+    // Without the singing gate, a long gap between transcripts ends the song.
+    let gated = runtime.gate.lock().is_ok_and(|g| g.is_some());
+    if !gated {
+        if runtime.quiet_for(IDLE_AFTER) {
+            runtime.put_aside(app);
+        }
+        runtime.heard();
     }
     let Some(payload) = lyrics_payload(&runtime, transcript) else { return };
     let _ = app.emit(EVENT_SONG_MATCHES, payload);

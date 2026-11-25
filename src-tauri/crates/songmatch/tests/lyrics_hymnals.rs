@@ -21,6 +21,7 @@ fn hymnals() -> Vec<SongLyrics> {
                 song_id: format!("{name}-{}", h["number"]),
                 title: h["title"].as_str().unwrap_or_default().to_string(),
                 stanzas,
+                preferred: false,
             });
         }
     }
@@ -72,7 +73,11 @@ fn hymnal_lyrics_survive_recognition_errors() {
             let Some(text) = sung(song, &mut rng, &vocab, error_pct) else { continue };
             n += 1;
             let r = idx.search(&text);
-            let rank = r.matches.iter().position(|m| m.song_id == song.song_id);
+            // The same hymn from the other hymnal is the right answer too.
+            let rank = r.matches.iter().position(|m| idx.are_copies(&m.song_id, &song.song_id));
+            if r.confident && rank != Some(0) && std::env::var_os("SHOW_WRONG").is_some() {
+                println!("  WRONG: sang {:?} [{}], got {:?} [{}]: {text}", song.title, song.song_id, r.matches[0].title, r.matches[0].song_id);
+            }
             top1 += i32::from(rank == Some(0));
             top3 += i32::from(rank.is_some());
             if r.confident {

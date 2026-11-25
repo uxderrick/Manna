@@ -258,7 +258,7 @@ pub(super) fn spawn(config: CaptureConfig) -> std::io::Result<std::thread::JoinH
 
                         // (c) Forward audio to the STT provider (in songs mode,
                         // only singing and music: talk is silenced)
-                        let samples = song_detection.gate_for_speech(frame.samples);
+                        let samples = song_detection.gate_for_speech(&fan_app, frame.samples);
                         if !samples.is_empty() {
                             let _ = audio_send_tx.try_send(samples);
                         }

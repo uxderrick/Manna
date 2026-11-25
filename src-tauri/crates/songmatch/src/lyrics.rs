@@ -27,7 +27,16 @@ pub struct SongLyrics {
     pub song_id: String,
     pub title: String,
     pub stanzas: Vec<Vec<String>>,
+    /// The church's own copy (imported or added), shown instead of a bundled
+    /// hymnal's copy of the same song.
+    pub preferred: bool,
 }
+
+/// Share of the shorter song's phrases two songs must share to be copies
+/// of one song (the same hymn in two hymnals, an older export).
+const SAME_SONG_SHARED: f32 = 0.6;
+/// A preferred copy wins when it matches this nearly as well.
+const PREFERRED_MARGIN: f32 = 0.1;
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -181,6 +190,7 @@ impl LyricsIndex {
             .filter(|(_, score)| *score >= self.cfg.min_score)
             .collect();
         scored.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| self.songs[a.0].lyrics.title.cmp(&self.songs[b.0].lyrics.title)));
+        let scored = self.one_per_song(scored);
         let enough = query_words.len() >= self.cfg.confident_min_words;
         let confident = enough && match scored.as_slice() {
             [] => false,
@@ -208,6 +218,48 @@ impl LyricsIndex {
             })
             .collect();
         LyricsResult { matches, confident }
+    }
+}
+
+impl LyricsIndex {
+    /// Copies of one song count once (the best-scoring copy's score, the
+    /// preferred copy shown), so two hymnals' copies neither show twice nor
+    /// tie each other out of a confident lead. Keeps one past
+    /// `max_results`, for the lead.
+    fn one_per_song(&self, scored: Vec<(usize, f32)>) -> Vec<(usize, f32)> {
+        let mut distinct: Vec<(usize, f32)> = Vec::new();
+        for (i, score) in scored {
+            if let Some(k) = distinct.iter().position(|&(j, _)| self.same_song(i, j)) {
+                let (j, best) = distinct[k];
+                if self.songs[i].lyrics.preferred && !self.songs[j].lyrics.preferred && score >= best - PREFERRED_MARGIN {
+                    distinct[k] = (i, best);
+                }
+            } else if distinct.len() <= self.cfg.max_results {
+                distinct.push((i, score));
+            }
+        }
+        distinct
+    }
+
+    /// Whether two songs (by id) are copies of one song.
+    pub fn are_copies(&self, a: &str, b: &str) -> bool {
+        let find = |id: &str| self.songs.iter().position(|s| s.lyrics.song_id == id);
+        match (find(a), find(b)) {
+            (Some(a), Some(b)) => a == b || self.same_song(a, b),
+            _ => false,
+        }
+    }
+
+    fn same_song(&self, a: usize, b: usize) -> bool {
+        let (a, b) = (&self.songs[a].grams, &self.songs[b].grams);
+        let (small, large) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+        if small.is_empty() {
+            return false;
+        }
+        let shared = small.iter().filter(|g| large.contains(g)).count();
+        #[expect(clippy::cast_precision_loss, reason = "phrase counts are small")]
+        let share = shared as f32 / small.len() as f32;
+        share >= SAME_SONG_SHARED
     }
 }
 
@@ -330,6 +382,7 @@ mod tests {
             song_id: id.into(),
             title: id.replace('-', " "),
             stanzas: stanzas.iter().map(|s| s.iter().map(|l| (*l).to_string()).collect()).collect(),
+            preferred: false,
         }
     }
 
@@ -380,6 +433,24 @@ mod tests {
     fn speech_matches_nothing() {
         let r = library().search("please turn with me to the book of romans chapter eight");
         assert!(r.matches.is_empty(), "{r:?}");
+    }
+
+    #[test]
+    fn copies_of_one_song_show_once_and_still_lead() {
+        let verse = &["Silent night, holy night", "All is calm, all is bright", "Round yon virgin mother and child"][..];
+        let mut own = song("ew-silent-night", &[verse, &["Sleep in heavenly peace"]]);
+        own.preferred = true;
+        let index = LyricsIndex::new(
+            vec![
+                song("sda-silent-night", &[verse, &["Sleep in heavenly peace", "Sleep in heavenly peace"]]),
+                own,
+                song("amazing-grace", &[&["Amazing grace, how sweet the sound", "That saved a wretch like me"]]),
+            ],
+            LyricsConfig::default(),
+        );
+        let r = index.search("silent night holy night all is calm all is bright round yon virgin");
+        assert_eq!(r.matches.iter().map(|m| m.song_id.as_str()).collect::<Vec<_>>(), ["ew-silent-night"], "{r:?}");
+        assert!(r.confident, "copies no longer tie: {r:?}");
     }
 
     #[test]

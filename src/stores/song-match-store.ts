@@ -53,16 +53,24 @@ interface SongMatchState {
   mode: DetectionMode
   status: SongModeStatus | null
   bySource: Partial<Record<SongMatchSource, SourceState>>
+  /** The last song's matches, put aside when singing stopped. */
+  earlier: MergedSongMatch[]
   setMode: (mode: DetectionMode) => void
   setStatus: (status: SongModeStatus | null) => void
   receive: (payload: SongMatchesPayload, now?: number) => void
+  /** Singing stopped: current matches become "earlier". */
+  putAside: () => void
   clear: () => void
 }
+
+/** Songs kept in the "earlier" list. */
+const EARLIER_MAX = 3
 
 export const useSongMatchStore = create<SongMatchState>((set) => ({
   mode: "verses",
   status: null,
   bySource: {},
+  earlier: [],
   setMode: (mode) => set({ mode }),
   setStatus: (status) => set({ status }),
   receive: (payload, now = Date.now()) =>
@@ -77,7 +85,15 @@ export const useSongMatchStore = create<SongMatchState>((set) => ({
         },
       }
     }),
-  clear: () => set({ bySource: {} }),
+  putAside: () =>
+    set((state) => {
+      const current = mergeSongMatches(state.bySource)
+      if (current.length === 0) return state
+      const ids = new Set(current.map((m) => m.songId))
+      const earlier = [...current, ...state.earlier.filter((m) => !ids.has(m.songId))].slice(0, EARLIER_MAX)
+      return { bySource: {}, earlier }
+    }),
+  clear: () => set({ bySource: {}, earlier: [] }),
 }))
 
 /** Lyrics and sound results per song, confident and best first. */

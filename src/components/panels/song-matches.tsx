@@ -17,7 +17,7 @@ const SOURCE_STYLE: Record<SongMatchSource, { className: string; label: string; 
   sound: { className: "bg-amber-500/15 text-amber-600", label: "Sound", title: "Matched from the music itself" },
 }
 
-function SongMatchCard({ match }: { match: MergedSongMatch }) {
+function SongMatchCard({ match, earlier = false }: { match: MergedSongMatch; earlier?: boolean }) {
   const song = useSongStore((s) => s.songs.find((x) => x.id === match.songId))
   const presentSongLive = useQueueStore((s) => s.presentSongLive)
   const enqueueSong = useQueueStore((s) => s.enqueueSong)
@@ -36,7 +36,7 @@ function SongMatchCard({ match }: { match: MergedSongMatch }) {
       <div
         onDoubleClick={goLive}
         title="Double-click to go live"
-        className={`select-none rounded-xl border p-3 transition-colors hover:border-primary/40 ${match.confident ? "border-primary/50 bg-primary/5" : "border-border bg-surface-elevated"}`}
+        className={`select-none rounded-xl border p-3 transition-colors hover:border-primary/40 ${earlier ? "border-border bg-surface-elevated opacity-60 hover:opacity-100" : match.confident ? "border-primary/50 bg-primary/5" : "border-border bg-surface-elevated"}`}
       >
         <div className="flex items-center gap-2">
           <ConfidenceDot confidence={match.confident ? 0.95 : Math.min(0.79, 0.4 + match.score)} />
@@ -51,7 +51,7 @@ function SongMatchCard({ match }: { match: MergedSongMatch }) {
           ))}
           <span className="min-w-0 truncate text-sm font-semibold text-foreground">{song.title}</span>
           <span className="text-[0.625rem] tabular-nums text-muted-foreground">{Math.round(match.score * 100)}%</span>
-          {match.confident && (
+          {match.confident && !earlier && (
             <span className="ml-auto rounded-full bg-primary px-1.5 py-0.5 text-[0.5625rem] font-semibold uppercase tracking-wider text-primary-foreground">
               Likely
             </span>
@@ -117,11 +117,18 @@ function StatusLine() {
 /** The detections panel's songs view: best matches from lyrics and sound. */
 export function SongMatches() {
   const bySource = useSongMatchStore((s) => s.bySource)
+  const earlierAll = useSongMatchStore((s) => s.earlier)
   const isTranscribing = useTranscriptStore((s) => s.isTranscribing)
   useTauriEvent<SongMatchesPayload>("song_matches", (payload) => {
     useSongMatchStore.getState().receive(payload)
   })
+  // No singing for a while: the backend has started fresh for the next song.
+  useTauriEvent<null>("song_matches_idle", () => {
+    useSongMatchStore.getState().putAside()
+  })
   const matches = mergeSongMatches(bySource)
+  const current = new Set(matches.map((m) => m.songId))
+  const earlier = earlierAll.filter((m) => !current.has(m.songId))
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -146,6 +153,14 @@ export function SongMatches() {
         {matches.map((m) => (
           <SongMatchCard key={m.songId} match={m} />
         ))}
+        {earlier.length > 0 && (
+          <>
+            <p className="px-3 pt-3 text-[0.625rem] font-medium uppercase tracking-wider text-muted-foreground">Earlier</p>
+            {earlier.map((m) => (
+              <SongMatchCard key={`earlier-${m.songId}`} match={m} earlier />
+            ))}
+          </>
+        )}
       </div>
       {matches.some((m) => m.confident) && (
         <div className="flex items-center gap-1.5 border-t border-border px-3 py-1.5 text-[0.625rem] text-muted-foreground">
