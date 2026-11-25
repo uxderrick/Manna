@@ -1,4 +1,6 @@
 import { invoke } from "@tauri-apps/api/core"
+import { open } from "@tauri-apps/plugin-dialog"
+import { toast } from "sonner"
 import { MusicIcon, PlayIcon, PlusIcon, RadioIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ConfidenceDot } from "@/components/ui/confidence-dot"
@@ -165,6 +167,32 @@ function FollowBar() {
   )
 }
 
+interface PackImportReport {
+  matched: Array<{ title: string; songTitle: string; recordings: number }>
+  unmatched: string[]
+  soundSongs: number
+}
+
+/** Pick a song pack (made with manna-songpack) and attach its recordings to the songs. */
+async function importSongPack() {
+  const path = await open({ multiple: false, filters: [{ name: "Song pack", extensions: ["mannasongs"] }] })
+  if (typeof path !== "string") return
+  try {
+    const report = await invoke<PackImportReport>("import_song_pack", { path })
+    const store = useSongMatchStore.getState()
+    if (store.status) store.setStatus({ ...store.status, soundSongs: report.soundSongs })
+    const recordings = report.matched.reduce((n, m) => n + m.recordings, 0)
+    const missing = report.unmatched.length
+    toast.success(`Song pack: ${report.matched.length} songs recognised by sound (${recordings} recordings)`, {
+      description: missing
+        ? `${missing} not in your library: ${report.unmatched.slice(0, 5).join(", ")}${missing > 5 ? "…" : ""}. Add them, then import again.`
+        : undefined,
+    })
+  } catch (error) {
+    toast.error("Could not import the song pack", { description: String(error) })
+  }
+}
+
 function StatusLine() {
   const status = useSongMatchStore((s) => s.status)
   if (!status) return null
@@ -185,6 +213,14 @@ function StatusLine() {
       ) : (
         <span title={status.gateNote ?? undefined}>all audio</span>
       )}
+      {" · "}
+      <button
+        className="underline decoration-dotted underline-offset-2 transition-colors hover:text-foreground"
+        title="Add recordings of whole songs (a .mannasongs file made with manna-songpack) so they are recognised by sound"
+        onClick={() => void importSongPack()}
+      >
+        Import song pack
+      </button>
     </div>
   )
 }

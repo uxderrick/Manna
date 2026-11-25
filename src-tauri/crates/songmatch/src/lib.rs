@@ -16,6 +16,8 @@
 //!   2 s, resets on silence, and learns from confirmed songs.
 //! - [`lyrics::LyricsIndex`] finds songs from the live transcript (the words
 //!   being sung), with no recordings needed.
+//! - [`pack::SongPack`] carries whole songs' fingerprints between installs
+//!   (made by the `manna-songpack` tool, imported in the app).
 //! - [`gate::SingingGate`] lets only singing and music through to speech
 //!   recognition in songs mode, so talk never reaches the lyrics matcher.
 
@@ -25,6 +27,7 @@ pub mod gate;
 pub mod library;
 pub mod listener;
 pub mod lyrics;
+pub mod pack;
 pub mod policy;
 
 /// Audio sample rate the model expects (and Manna captures at).

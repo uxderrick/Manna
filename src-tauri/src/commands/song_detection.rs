@@ -36,6 +36,7 @@ use rhema_songmatch::embedder::{embed_reference, Embedder};
 use rhema_songmatch::gate::{GateConfig, SingingGate, SoundClassifier};
 use rhema_songmatch::library::{Library, Reference, Source};
 use rhema_songmatch::listener::{Learned, ListenerConfig, Matcher, Update};
+use rhema_songmatch::pack::{loose_title_key, title_key, SongPack};
 use rhema_songmatch::lyrics::{LyricsConfig, LyricsIndex, Position, SongLyrics, TranscriptWindow};
 use rhema_songmatch::policy::{Candidate, Decision, PolicyConfig};
 use rhema_songmatch::{EMBED_DIM, SAMPLE_RATE_HZ};
@@ -555,6 +556,139 @@ pub async fn enroll_song_audio(app: AppHandle, request: tauri::ipc::Request<'_>)
     info.into_iter().find(|i| i.id == fp.id).ok_or_else(|| "Fingerprint was not saved.".into())
 }
 
+/// Which of this install's songs (`(id, source, title)`) a pack's song is:
+/// the same title, then the same without bracketed parts ("(Live)"), then
+/// one title starting with the other ("Oceans" and "Oceans ...Spirit lead
+/// me", when only one song fits). The church's own copy is preferred over a
+/// bundled hymnal's.
+pub fn match_pack_title(title: &str, songs: &[(String, String, String)]) -> Option<String> {
+    /// Shorter titles are too common to match by their start.
+    const MIN_PREFIX: usize = 5;
+    let pick = |found: &[&(String, String, String)]| {
+        found.iter().find(|s| !BUNDLED_HYMNALS.contains(&s.1.as_str())).or(found.first()).map(|s| s.0.clone())
+    };
+    let key = title_key(title);
+    if key.is_empty() {
+        return None;
+    }
+    let exact: Vec<_> = songs.iter().filter(|s| title_key(&s.2) == key).collect();
+    if !exact.is_empty() {
+        return pick(&exact);
+    }
+    let loose = loose_title_key(title);
+    let near: Vec<_> = songs.iter().filter(|s| !loose.is_empty() && loose_title_key(&s.2) == loose).collect();
+    if !near.is_empty() {
+        return pick(&near);
+    }
+    if key.len() < MIN_PREFIX {
+        return None;
+    }
+    // A shortened title first ("Oceans" for "Oceans ...Spirit lead me"),
+    // if it fits one song only.
+    let longer: Vec<_> = songs.iter().filter(|s| title_key(&s.2).starts_with(&key)).collect();
+    let distinct: std::collections::HashSet<String> = longer.iter().map(|s| title_key(&s.2)).collect();
+    if distinct.len() == 1 {
+        return pick(&longer);
+    }
+    if !longer.is_empty() {
+        return None;
+    }
+    // Then the longest library title the pack's title continues
+    // ("Holy Spirit (Bethel version)" → "Holy Spirit").
+    let shorter: Vec<_> = songs
+        .iter()
+        .filter(|s| {
+            let k = title_key(&s.2);
+            k.len() >= MIN_PREFIX && key.starts_with(&k)
+        })
+        .collect();
+    let longest = shorter.iter().map(|s| title_key(&s.2).len()).max()?;
+    let best: Vec<_> = shorter.into_iter().filter(|s| title_key(&s.2).len() == longest).collect();
+    pick(&best)
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackMatch {
+    /// Title in the pack.
+    pub title: String,
+    /// The song it was attached to.
+    pub song_title: String,
+    pub recordings: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackImportReport {
+    pub matched: Vec<PackMatch>,
+    /// Pack songs not in this library (add them, then import again).
+    pub unmatched: Vec<String>,
+    /// Songs with a recording now.
+    pub sound_songs: usize,
+}
+
+/// Import a song pack (`manna-songpack build`): each song's recordings are
+/// attached to the song with that title. Importing again replaces them.
+#[tauri::command]
+pub async fn import_song_pack(app: AppHandle, path: String) -> Result<PackImportReport, String> {
+    let worker = app.clone();
+    tauri::async_runtime::spawn_blocking(move || import_pack_file(&worker, std::path::Path::new(&path)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn import_pack_file(app: &AppHandle, path: &std::path::Path) -> Result<PackImportReport, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("Could not read {}: {e}", path.display()))?;
+    let pack = SongPack::from_json(&text).map_err(|e| e.to_string())?;
+    if pack.model != MODEL_ID {
+        return Err(format!("This song pack was made for another version of song detection ({}).", pack.model));
+    }
+    let db = app.state::<DbState>();
+    let songs: Vec<(String, String, String)> = db
+        .lock()
+        .map_err(|e| e.to_string())?
+        .list_songs()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|r| (r.0, r.1, r.3))
+        .collect();
+    let mut report = PackImportReport { matched: Vec::new(), unmatched: Vec::new(), sound_songs: 0 };
+    for song in &pack.songs {
+        let Some(song_id) = match_pack_title(&song.title, &songs) else {
+            report.unmatched.push(song.title.clone());
+            continue;
+        };
+        let song_title = songs.iter().find(|s| s.0 == song_id).map(|s| s.2.clone()).unwrap_or_default();
+        let guard = db.lock().map_err(|e| e.to_string())?;
+        for recording in &song.recordings {
+            let embeddings = recording.embeddings().map_err(|e| e.to_string())?;
+            guard
+                .save_song_fingerprint(&SongFingerprint {
+                    // Stable, so importing the pack again replaces, not adds.
+                    id: format!("pack-{song_id}-{}", title_key(&recording.name)),
+                    song_id: song_id.clone(),
+                    source: "library".into(),
+                    model: MODEL_ID.into(),
+                    embeddings,
+                })
+                .map_err(|e| e.to_string())?;
+        }
+        drop(guard);
+        report.matched.push(PackMatch { title: song.title.clone(), song_title, recordings: song.recordings.len() });
+    }
+    let runtime = app.state::<SongDetectionRuntime>();
+    reload(&runtime, &db)?;
+    changed(app);
+    report.sound_songs = load_library(&db).map_or(0, |l| l.songs().len());
+    log::info!(
+        "[SONG] song pack {}: {} songs attached, {} not in the library",
+        path.display(),
+        report.matched.len(),
+        report.unmatched.len()
+    );
+    Ok(report)
+}
+
 #[tauri::command]
 pub fn list_song_fingerprints(db: State<'_, DbState>, song_id: Option<String>) -> Result<Vec<SongFingerprintInfo>, String> {
     db.lock().map_err(|e| e.to_string())?.song_fingerprint_info(song_id.as_deref()).map_err(|e| e.to_string())
@@ -886,6 +1020,29 @@ mod tests {
         let json = serde_json::to_value(&p).unwrap();
         assert_eq!(json["songId"], "ag");
         assert_eq!(json["stanza"], 1, "position fields sit beside the song id");
+    }
+
+    #[test]
+    fn pack_titles_find_the_right_song() {
+        let song = |id: &str, source: &str, title: &str| (id.to_string(), source.to_string(), title.to_string());
+        let songs = vec![
+            song("sda-100", "sda", "Great Is Thy Faithfulness"),
+            song("ew-9", "easyworship", "Great is thy faithfulness"),
+            song("ew09-476", "easyworship", "Oceans ...Spirit lead me where my trust is without"),
+            song("ew09-466", "easyworship", "What a beautiful Name it is"),
+            song("ew09-1", "easyworship", "Holy Spirit"),
+            song("ew09-2", "easyworship", "Holy Spirit You Are Welcome Here"),
+            song("ew09-3", "easyworship", "Holy Spirit Come"),
+        ];
+        assert_eq!(match_pack_title("Great Is Thy Faithfulness", &songs).as_deref(), Some("ew-9"), "the church's own copy");
+        assert_eq!(match_pack_title("Oceans", &songs).as_deref(), Some("ew09-476"));
+        assert_eq!(match_pack_title("What a Beautiful Name", &songs).as_deref(), Some("ew09-466"));
+        assert_eq!(match_pack_title("Holy Spirit (Live)", &songs).as_deref(), Some("ew09-1"));
+        assert_eq!(match_pack_title("Holy Spirit You", &songs).as_deref(), Some("ew09-2"));
+        assert_eq!(match_pack_title("Holy Spirit Bethel Version", &songs).as_deref(), Some("ew09-1"));
+        assert_eq!(match_pack_title("Holy Spirit Co", &songs).as_deref(), Some("ew09-3"));
+        assert_eq!(match_pack_title("Holy", &songs), None, "too short to guess");
+        assert_eq!(match_pack_title("Man of Your Word", &songs), None);
     }
 
     #[test]

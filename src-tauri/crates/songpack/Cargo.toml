@@ -1,0 +1,24 @@
+[package]
+name = "manna-songpack"
+version = "0.1.0"
+edition = "2021"
+description = "Build song packs (sound fingerprints of whole songs) from MP3/M4A files, for import into Manna"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "manna-songpack"
+path = "src/main.rs"
+
+[dependencies]
+rhema-songmatch = { path = "../songmatch" }
+symphonia = { version = "0.5.4", default-features = false, features = ["mp3", "aac", "isomp4", "wav", "pcm", "flac", "alac"] }
+rubato = "0.15"
+
+[features]
+default = []
+# Same choices as the app: ONNX Runtime linked as usual, or (Intel Macs)
+# loaded at run time from ORT_DYLIB_PATH.
+onnx = ["rhema-songmatch/onnx"]
+onnx-dynamic = ["rhema-songmatch/onnx-dynamic"]

@@ -11,6 +11,8 @@ workspace = true
 serde = { workspace = true, features = ["derive"] }
 log.workspace = true
 thiserror.workspace = true
+serde_json.workspace = true
+base64 = "0.22"
 ort = { version = "2.0.0-rc.12", optional = true, default-features = false, features = ["std"] }
 
 [features]
@@ -24,5 +26,3 @@ onnx-dynamic = ["onnx-core", "ort/load-dynamic", "ort/api-20"]
 onnx-core = ["dep:ort"]
 
 [dev-dependencies]
-serde_json.workspace = true
-base64 = "0.22"
