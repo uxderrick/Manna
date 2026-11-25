@@ -3,9 +3,13 @@
 //!
 //! ```text
 //! manna-songpack build <audio files or folders>... --out church.mannasongs
-//!                      [--titles titles.csv] [--model clews_int8.onnx]
+//!                      [--stems] [--titles titles.csv] [--model clews_int8.onnx]
 //! manna-songpack list church.mannasongs
 //! ```
+//!
+//! `--stems` also splits each song into vocals, bass and guitars & keys
+//! (Demucs) and keeps a reference for each, so a song is recognised from
+//! a leader singing alone or a lone instrument, not only the full band.
 //!
 //! Each file is one song; its title is the file name ("No One Like the
 //! Lord.m4a"), leading track numbers and underscores aside, or a line of
@@ -13,6 +17,7 @@
 //! adds to it, so a library can grow a few songs at a time.
 
 mod audio;
+mod stems;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -24,10 +29,16 @@ const MODEL_ID: &str = "clews-dvi-int8-v1";
 const MODEL_RELATIVE: &str = "models/songmatch/clews_int8.onnx";
 /// Shorter recordings say too little about a song.
 const MIN_SECONDS: f32 = 10.0;
+/// A window this much quieter than the part's typical loudness (a bass
+/// before it comes in, vocals in an instrumental) is left out: silence
+/// would "match" any quiet room.
+const QUIET_SHARE: f32 = 0.15;
+/// Below this a window is silent whatever the recording level.
+const SILENT_RMS: f32 = 0.002;
 
 fn usage() -> ExitCode {
     eprintln!(
-        "usage:\n  manna-songpack build <audio files or folders>... --out FILE.{PACK_EXTENSION} [--titles titles.csv] [--model clews_int8.onnx]\n  manna-songpack list FILE.{PACK_EXTENSION}"
+        "usage:\n  manna-songpack build <audio files or folders>... --out FILE.{PACK_EXTENSION} [--stems] [--titles titles.csv] [--model clews_int8.onnx]\n                       [--demucs-python PATH] [--demucs-device cpu|mps|cuda]\n  manna-songpack list FILE.{PACK_EXTENSION}"
     );
     ExitCode::from(2)
 }
@@ -119,12 +130,16 @@ fn model_path(given: Option<PathBuf>) -> Result<PathBuf, String> {
 fn build(args: &[String]) -> Result<(), String> {
     let mut inputs = Vec::new();
     let (mut out, mut titles, mut model) = (None, None, None);
+    let (mut split, mut demucs_python, mut demucs_device) = (false, None, None);
     let mut it = args.iter();
     while let Some(arg) = it.next() {
         match arg.as_str() {
             "--out" => out = it.next().map(PathBuf::from),
             "--titles" => titles = it.next().map(PathBuf::from),
             "--model" => model = it.next().map(PathBuf::from),
+            "--stems" => split = true,
+            "--demucs-python" => demucs_python = it.next().map(PathBuf::from),
+            "--demucs-device" => demucs_device = it.next().cloned(),
             other => inputs.push(PathBuf::from(other)),
         }
     }
@@ -144,6 +159,7 @@ fn build(args: &[String]) -> Result<(), String> {
     } else {
         SongPack::new(MODEL_ID)
     };
+    let separator = split.then(|| stems::Separator::find(demucs_python, demucs_device)).transpose()?;
     let embedder = load_embedder(&model_path(model)?)?;
 
     let (mut added, mut failed) = (0, 0);
@@ -154,13 +170,24 @@ fn build(args: &[String]) -> Result<(), String> {
             .find(|(f, ..)| f.eq_ignore_ascii_case(&name))
             .map_or_else(|| (title_from_file(file), None), |(_, t, a)| (t.clone(), a.clone()));
         let started = std::time::Instant::now();
-        match fingerprint(embedder.as_ref(), file, &name) {
-            Ok(recording) => {
-                let seconds = recording.seconds;
-                let windows = recording.windows;
-                pack.add(&title, artist.as_deref(), recording);
+        match fingerprint_file(embedder.as_ref(), separator.as_ref(), file, &name) {
+            Ok(recordings) => {
+                let parts: Vec<String> = recordings
+                    .iter()
+                    .map(|r| r.part.as_deref().map_or_else(|| "mix".to_string(), |p| stems::part_label(p).to_string()))
+                    .collect();
+                let seconds = recordings.first().map_or(0.0, |r| r.seconds);
+                let windows: usize = recordings.iter().map(|r| r.windows).sum();
+                for recording in recordings {
+                    pack.add(&title, artist.as_deref(), recording);
+                }
                 added += 1;
-                println!("  ok  {title}  ({}, {windows} windows, {:.1} s)", clock(seconds), started.elapsed().as_secs_f32());
+                println!(
+                    "  ok  {title}  ({}, {}, {windows} windows, {:.0} s)",
+                    clock(seconds),
+                    parts.join(" + "),
+                    started.elapsed().as_secs_f32()
+                );
             }
             Err(e) => {
                 failed += 1;
@@ -202,18 +229,66 @@ fn clock(seconds: f32) -> String {
 }
 
 #[expect(clippy::cast_precision_loss, reason = "sample counts")]
-fn fingerprint(
+fn rms(samples: &[f32]) -> f32 {
+    (samples.iter().map(|x| x * x).sum::<f32>() / samples.len().max(1) as f32).sqrt()
+}
+
+/// Reference embeddings of 16 kHz audio (20 s windows every 10 s), leaving
+/// out windows that are quiet for this recording. `None` if all are.
+fn reference(embedder: &dyn rhema_songmatch::embedder::Embedder, samples: &[f32]) -> Result<Option<Vec<Vec<f32>>>, String> {
+    let windows = rhema_songmatch::embedder::windows(samples, 20.0, 10.0);
+    let levels: Vec<f32> = windows.iter().map(|w| rms(w)).collect();
+    let mut sorted = levels.clone();
+    sorted.sort_by(f32::total_cmp);
+    let typical = sorted.get(sorted.len() * 9 / 10).copied().unwrap_or(0.0);
+    let floor = (typical * QUIET_SHARE).max(SILENT_RMS);
+    let kept: Vec<Vec<f32>> = windows.into_iter().zip(levels).filter(|(_, l)| *l >= floor).map(|(w, _)| w).collect();
+    if kept.is_empty() {
+        return Ok(None);
+    }
+    let mut out = Vec::with_capacity(kept.len());
+    for batch in kept.chunks(8) {
+        out.extend(embedder.embed_windows(batch).map_err(|e| e.to_string())?);
+    }
+    Ok(Some(out))
+}
+
+/// The pack recordings for one song file: the full mix, and with a
+/// separator its parts too.
+#[expect(clippy::cast_precision_loss, reason = "sample counts")]
+fn fingerprint_file(
     embedder: &dyn rhema_songmatch::embedder::Embedder,
+    separator: Option<&stems::Separator>,
     file: &Path,
     name: &str,
-) -> Result<rhema_songmatch::pack::PackRecording, String> {
-    let samples = audio::load(file)?;
-    let seconds = samples.len() as f32 / audio::TARGET_RATE as f32;
+) -> Result<Vec<rhema_songmatch::pack::PackRecording>, String> {
+    let (decoded, rate) = audio::decode_mono(file)?;
+    let mix = audio::resample(&decoded, rate, audio::TARGET_RATE)?;
+    let seconds = mix.len() as f32 / audio::TARGET_RATE as f32;
     if seconds < MIN_SECONDS {
         return Err(format!("only {seconds:.0} s long"));
     }
-    let embeddings = rhema_songmatch::embedder::embed_reference(embedder, &samples).map_err(|e| e.to_string())?;
-    rhema_songmatch::pack::PackRecording::encode(name, seconds, &embeddings).map_err(|e| e.to_string())
+    let encode = |label: &str, embeddings: &[Vec<f32>]| {
+        rhema_songmatch::pack::PackRecording::encode(label, seconds, embeddings).map_err(|e| e.to_string())
+    };
+    let mut out = Vec::new();
+    if let Some(embeddings) = reference(embedder, &mix)? {
+        out.push(encode(name, &embeddings)?);
+    }
+    if let Some(separator) = separator {
+        for (part, audio_part, part_rate) in separator.split(&decoded, rate)? {
+            let part16 = audio::resample(&audio_part, part_rate, audio::TARGET_RATE)?;
+            if let Some(embeddings) = reference(embedder, &part16)? {
+                let mut recording = encode(&format!("{name} ({part})"), &embeddings)?;
+                recording.part = Some(part.to_string());
+                out.push(recording);
+            }
+        }
+    }
+    if out.is_empty() {
+        return Err("silent".into());
+    }
+    Ok(out)
 }
 
 fn list(path: &Path) -> Result<(), String> {
@@ -235,6 +310,22 @@ fn list(path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn quiet_stretches_are_left_out_of_references() {
+        struct Count;
+        impl rhema_songmatch::embedder::Embedder for Count {
+            fn embed_windows(&self, w: &[Vec<f32>]) -> rhema_songmatch::Result<Vec<Vec<f32>>> {
+                Ok(w.iter().map(|_| vec![1.0]).collect())
+            }
+        }
+        // 30 s silent, then 60 s playing: windows start every 10 s.
+        let mut audio = vec![0.0001; 30 * 16_000];
+        audio.extend((0..60 * 16_000).map(|i| if i % 2 == 0 { 0.2 } else { -0.2 }));
+        let kept = reference(&Count, &audio).unwrap().unwrap();
+        assert_eq!(kept.len(), 6, "of 8 windows, those starting at 0 and 10 s are silent");
+        assert!(reference(&Count, &vec![0.0; 40 * 16_000]).unwrap().is_none());
+    }
 
     #[test]
     fn titles_come_from_file_names() {

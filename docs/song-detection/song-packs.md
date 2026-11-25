@@ -37,6 +37,35 @@ Runtime from Python; see `scripts/dev-intel-mac.sh`).
 ./scripts/build-song-pack.sh list church.mannasongs
 ```
 
+### Parts: solo voice, bass, guitar (`--stems`)
+
+A recording of the full band matches the full band best. A leader singing
+alone before the band comes in, or a bass or guitar starting a song, sounds
+very different. With `--stems`, each song is also split into **vocals**,
+**bass** and **guitars & keys** (Demucs, open source), and each part is kept
+as another reference for the song, so any of them can be recognised.
+
+On a test with one voice singing Oceans into a laptop, against studio
+recordings: the full mix picked Oceans in 6 of 8 checks, barely ahead of
+Goodness of God; the vocals part picked it in 8 of 8, clearly ahead.
+
+```sh
+./scripts/build-song-pack.sh ~/Music/church-songs --stems --out church.mannasongs
+```
+
+Demucs runs in Python. Install it once:
+
+```sh
+python3 -m venv ~/.manna-demucs
+~/.manna-demucs/bin/pip install demucs==4.0.1 torchaudio soundfile "numpy<2"
+```
+
+(or point `--demucs-python` at a Python that has it). Splitting is slow
+without a graphics chip: about a minute per minute of song on an Intel i5.
+On Apple silicon try `--demucs-device mps`. Packs with parts are about four
+times larger. Stretches where a part is silent (the bass before it comes
+in) are left out.
+
 Folders are searched recursively. Building into an existing pack adds to it;
 a file with the same name replaces its earlier recording. On an Intel i5 a
 4-minute song takes about 10 s.

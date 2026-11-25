@@ -48,6 +48,10 @@ pub struct PackRecording {
     pub seconds: f32,
     pub windows: usize,
     pub embeddings: String,
+    /// Which part of the song this is, when it was split ("vocals",
+    /// "bass", "other"); absent for the full mix.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part: Option<String>,
 }
 
 fn bad(what: impl Into<String>) -> SongMatchError {
@@ -142,6 +146,7 @@ impl PackRecording {
             seconds,
             windows: embeddings.len(),
             embeddings: base64::engine::general_purpose::STANDARD.encode(bytes),
+            part: None,
         })
     }
 
@@ -207,9 +212,14 @@ mod tests {
         pack.add("Silent Night", Some("Gruber"), rec("c.mp3"));
         assert_eq!(pack.songs.len(), 2);
         assert_eq!(pack.songs[0].recordings.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(), ["b.m4a", "a.mp3"]);
-        let again = SongPack::from_json(&pack.to_json().unwrap()).unwrap();
+        let mut vocals = rec("a.mp3 (vocals)");
+        vocals.part = Some("vocals".into());
+        pack.add("Silent Night", None, vocals);
+        let json = pack.to_json().unwrap();
+        assert_eq!(json.matches("\"part\"").count(), 1, "only split parts say which part they are");
+        let again = SongPack::from_json(&json).unwrap();
         assert_eq!(again, pack);
-        assert_eq!(again.recordings(), 3);
+        assert_eq!(again.recordings(), 4);
     }
 
     #[test]
@@ -218,7 +228,7 @@ mod tests {
         assert!(SongPack::from_json(r#"{"format":"x","version":1,"model":"m","dim":1024,"songs":[]}"#).is_err());
         assert!(SongPack::from_json(r#"{"format":"manna-song-pack","version":9,"model":"m","dim":1024,"songs":[]}"#).is_err());
         assert!(SongPack::from_json(r#"{"format":"manna-song-pack","version":1,"model":"m","dim":8,"songs":[]}"#).is_err());
-        let broken = PackRecording { name: "x".into(), seconds: 1.0, windows: 2, embeddings: "AAAA".into() };
+        let broken = PackRecording { name: "x".into(), seconds: 1.0, windows: 2, embeddings: "AAAA".into(), part: None };
         assert!(broken.embeddings().is_err());
     }
 

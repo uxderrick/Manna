@@ -31,7 +31,7 @@ pub fn decode_mono(path: &Path) -> Result<(Vec<f32>, u32), String> {
     }
 }
 
-/// Length of a leading ID3v2 tag (header, size, optional footer).
+/// Length of a leading `ID3v2` tag (header, size, optional footer).
 fn id3_len(bytes: &[u8]) -> Option<usize> {
     if bytes.len() < 10 || &bytes[..3] != b"ID3" {
         return None;
@@ -134,12 +134,6 @@ pub fn resample(input: &[f32], from: u32, to: u32) -> Result<Vec<f32>, String> {
     #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss, reason = "sample counts")]
     let expected = (input.len() as f64 * ratio).round() as usize;
     Ok(out.into_iter().skip(resampler.output_delay()).take(expected).collect())
-}
-
-/// A whole file as 16 kHz mono.
-pub fn load(path: &Path) -> Result<Vec<f32>, String> {
-    let (samples, rate) = decode_mono(path)?;
-    resample(&samples, rate, TARGET_RATE)
 }
 
 #[cfg(test)]
