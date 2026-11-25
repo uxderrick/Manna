@@ -11,6 +11,11 @@
 //! lord". Recognition of singing is noisy, so a song's score is the share
 //! of the transcript's weighted phrases found in it (0 to 1), and the best
 //! stanza is reported so the operator lands on the verse being sung.
+//!
+//! The transcript window mixes singing with whatever was said around it
+//! ("let's stand and sing..."), so each song is scored on its best stretch
+//! of the window (at least [`LyricsConfig::span_words`] words): talk before
+//! or after the singing no longer drags the score down.
 
 use std::collections::{HashMap, HashSet};
 
@@ -41,6 +46,8 @@ pub struct LyricsMatch {
 pub struct LyricsConfig {
     /// Fewer transcript words than this give no matches.
     pub min_words: usize,
+    /// Shortest stretch of the transcript a song is scored on.
+    pub span_words: usize,
     /// Least score worth suggesting.
     pub min_score: f32,
     /// Transcript words needed before any match is confident.
@@ -54,7 +61,7 @@ pub struct LyricsConfig {
 
 impl Default for LyricsConfig {
     fn default() -> Self {
-        Self { min_words: 4, min_score: 0.2, confident_min_words: 8, confident_score: 0.45, confident_lead: 0.2, max_results: 3 }
+        Self { min_words: 4, span_words: 8, min_score: 0.2, confident_min_words: 8, confident_score: 0.45, confident_lead: 0.2, max_results: 3 }
     }
 }
 
@@ -163,43 +170,111 @@ impl LyricsIndex {
         if query_words.len() < self.cfg.min_words {
             return none;
         }
-        let query = grams(&query_words);
-        let total: f32 = query.iter().map(|g| self.weight(*g)).sum();
-        if total <= 0.0 {
-            return none;
-        }
-        let score_of = |set: &HashSet<Gram>| query.iter().filter(|g| set.contains(g)).map(|g| self.weight(*g)).sum::<f32>() / total;
+        let query = Query::new(&query_words, |g| self.weight(g));
+        let span_words = self.cfg.span_words.min(query_words.len());
 
         let mut scored: Vec<(usize, f32)> = self
             .songs
             .iter()
             .enumerate()
-            .map(|(i, s)| (i, score_of(&s.grams)))
-            .filter(|(_, s)| *s >= self.cfg.min_score)
+            .filter_map(|(i, s)| query.best_span(|g| s.grams.contains(&g), span_words).map(|score| (i, score)))
+            .filter(|(_, score)| *score >= self.cfg.min_score)
             .collect();
         scored.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| self.songs[a.0].lyrics.title.cmp(&self.songs[b.0].lyrics.title)));
         let enough = query_words.len() >= self.cfg.confident_min_words;
         let confident = enough && match scored.as_slice() {
             [] => false,
             [(_, best)] => *best >= self.cfg.confident_score,
-            [(_, best), (_, second), ..] => *best >= self.cfg.confident_score && best - second >= self.cfg.confident_lead,
+            [(_, best), (_, second), ..] => {
+                *best >= self.cfg.confident_score && best - second >= self.cfg.confident_lead
+            }
         };
         let matches = scored
             .into_iter()
             .take(self.cfg.max_results)
             .map(|(i, score)| {
                 let song = &self.songs[i];
+                // Stanza and line from everything heard (talk matches no line).
+                let heard = query.all_grams();
+                let score_of = |set: &HashSet<Gram>| heard.iter().filter(|g| set.contains(g)).map(|g| self.weight(*g)).sum::<f32>();
                 let stanza = song
                     .stanza_grams
                     .iter()
                     .enumerate()
                     .max_by(|a, b| score_of(a.1).total_cmp(&score_of(b.1)).then(b.0.cmp(&a.0)))
                     .map_or(0, |(k, _)| k);
-                let line = song.lyrics.stanzas.get(stanza).and_then(|lines| best_line(lines, &query, &|g| self.weight(g))).unwrap_or_default();
+                let line = song.lyrics.stanzas.get(stanza).and_then(|lines| best_line(lines, &heard, &|g| self.weight(g))).unwrap_or_default();
                 LyricsMatch { song_id: song.lyrics.song_id.clone(), title: song.lyrics.title.clone(), score, stanza, line }
             })
             .collect();
         LyricsResult { matches, confident }
+    }
+}
+
+/// The transcript's phrases by position, for scoring stretches of it.
+struct Query {
+    n_words: usize,
+    /// (start word, length 2 or 3, phrase, weight)
+    grams: Vec<(usize, usize, Gram, f32)>,
+}
+
+impl Query {
+    fn new(words: &[String], weight: impl Fn(Gram) -> f32) -> Self {
+        let mut grams = Vec::new();
+        for n in [2, 3] {
+            for (start, w) in words.windows(n).enumerate() {
+                let g = hash_words(w);
+                grams.push((start, n, g, weight(g)));
+            }
+        }
+        Self { n_words: words.len(), grams }
+    }
+
+    fn all_grams(&self) -> HashSet<Gram> {
+        self.grams.iter().map(|(_, _, g, _)| *g).collect()
+    }
+
+    /// The song's score on its best stretch of at least `min_words` words:
+    /// the largest share of weight its phrases make up, or `None` if none match.
+    fn best_span(&self, song_has: impl Fn(Gram) -> bool, min_words: usize) -> Option<f32> {
+        // Prefix sums of weight (all, and found in the song) by start word,
+        // separately for pairs and triples: a stretch from..to holds the
+        // pairs starting in from..=to-2 and the triples in from..=to-3.
+        let w = self.n_words;
+        let mut total = [vec![0.0_f32; w + 1], vec![0.0_f32; w + 1]];
+        let mut found = [vec![0.0_f32; w + 1], vec![0.0_f32; w + 1]];
+        let mut any = false;
+        for &(start, n, g, weight) in &self.grams {
+            total[n - 2][start + 1] += weight;
+            if song_has(g) {
+                found[n - 2][start + 1] += weight;
+                any = true;
+            }
+        }
+        if !any {
+            return None;
+        }
+        for k in 0..2 {
+            for i in 1..=w {
+                total[k][i] += total[k][i - 1];
+                found[k][i] += found[k][i - 1];
+            }
+        }
+        let sum = |p: &[f32], from: usize, to: usize, n: usize| if to >= from + n { p[to - n + 1] - p[from] } else { 0.0 };
+        let mut best: Option<f32> = None;
+        for from in 0..w {
+            for to in (from + min_words.max(2))..=w {
+                let t = sum(&total[0], from, to, 2) + sum(&total[1], from, to, 3);
+                if t <= 0.0 {
+                    continue;
+                }
+                let score = (sum(&found[0], from, to, 2) + sum(&found[1], from, to, 3)) / t;
+                if best.is_none_or(|b| score > b) {
+                    best = Some(score);
+                }
+            }
+        }
+        best
     }
 }
 
@@ -305,6 +380,17 @@ mod tests {
     fn speech_matches_nothing() {
         let r = library().search("please turn with me to the book of romans chapter eight");
         assert!(r.matches.is_empty(), "{r:?}");
+    }
+
+    #[test]
+    fn talk_around_the_singing_does_not_lower_the_score() {
+        let sung = "then sings my soul my saviour god to thee how great thou art";
+        let alone = library().search(sung);
+        let with_talk = library().search(&format!("okay everyone please stand up thank you {sung} that was lovely okay"));
+        assert_eq!(with_talk.matches[0].song_id, "how-great-thou-art");
+        assert!(with_talk.matches[0].score >= alone.matches[0].score - 1e-4, "{with_talk:?} vs {alone:?}");
+        assert!(with_talk.confident, "{with_talk:?}");
+        assert_eq!(with_talk.matches[0].line, "Then sings my soul, my Saviour God, to Thee");
     }
 
     #[test]

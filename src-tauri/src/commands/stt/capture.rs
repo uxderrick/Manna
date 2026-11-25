@@ -256,8 +256,12 @@ pub(super) fn spawn(config: CaptureConfig) -> std::io::Result<std::thread::JoinH
                         // (b) Song detection (drops the frame if it is not listening)
                         song_detection.feed(&frame.samples);
 
-                        // (c) Forward all audio to STT provider
-                        let _ = audio_send_tx.try_send(frame.samples);
+                        // (c) Forward audio to the STT provider (in songs mode,
+                        // only singing and music: talk is silenced)
+                        let samples = song_detection.gate_for_speech(frame.samples);
+                        if !samples.is_empty() {
+                            let _ = audio_send_tx.try_send(samples);
+                        }
                     }
                     Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
                     Err(crossbeam_channel::RecvTimeoutError::Disconnected) => {

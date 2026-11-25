@@ -13,9 +13,14 @@
 //!   against every song's lyrics ([`on_transcript`]). Both emit
 //!   [`EVENT_SONG_MATCHES`] with the best candidates.
 //!
-//! The CLEWS model (`clews_int8.onnx`, about 208 MB) is not bundled yet. It
-//! is looked for in the app data folder, then the resources, then (in
-//! development) the checkout, under `models/songmatch/`.
+//! In songs mode a singing gate ([`SongDetectionRuntime::gate_for_speech`])
+//! sits between the microphone and speech recognition: only singing and
+//! music get through, talk is replaced with silence.
+//!
+//! The models (CLEWS `clews_int8.onnx`, about 208 MB; `YAMNet`
+//! `yamnet.onnx`, 16 MB, for the gate) are not bundled yet. They are looked
+//! for in the app data folder, then the resources, then (in development)
+//! the checkout, under `models/songmatch/`.
 #![expect(
     clippy::needless_pass_by_value,
     reason = "Tauri command extractors require pass-by-value"
@@ -28,6 +33,7 @@ use std::sync::{Arc, Mutex};
 use crossbeam_channel::{Receiver, Sender, TrySendError};
 use rhema_notes::{SessionDb, SongFingerprint, SongFingerprintInfo};
 use rhema_songmatch::embedder::{embed_reference, Embedder};
+use rhema_songmatch::gate::{GateConfig, SingingGate, SoundClassifier};
 use rhema_songmatch::library::{Library, Reference, Source};
 use rhema_songmatch::listener::{Learned, ListenerConfig, Matcher, Update};
 use rhema_songmatch::lyrics::{LyricsConfig, LyricsIndex, SongLyrics, TranscriptWindow};
@@ -39,6 +45,8 @@ use tauri::{AppHandle, Emitter, Manager, State};
 /// Fingerprints made by another model are ignored, never compared.
 pub const MODEL_ID: &str = "clews-dvi-int8-v1";
 const MODEL_RELATIVE: &str = "models/songmatch/clews_int8.onnx";
+/// The singing gate's sound classifier.
+const GATE_MODEL_RELATIVE: &str = "models/songmatch/yamnet.onnx";
 /// Intra-op threads for the model; leaves room for speech recognition.
 const MODEL_THREADS: usize = 2;
 /// About 50 s of 1024-sample frames: plenty while a check runs.
@@ -74,6 +82,9 @@ pub struct SongDetectionRuntime {
     songs_mode: AtomicBool,
     lyrics: Mutex<Option<LyricsIndex>>,
     window: Mutex<TranscriptWindow>,
+    /// Lets only singing and music through to speech recognition in songs
+    /// mode (`None` when its model is missing: everything goes through).
+    gate: Mutex<Option<SingingGate>>,
 }
 
 impl Default for SongDetectionRuntime {
@@ -84,6 +95,7 @@ impl Default for SongDetectionRuntime {
             songs_mode: AtomicBool::new(false),
             lyrics: Mutex::new(None),
             window: Mutex::new(TranscriptWindow::new(LYRICS_WINDOW_WORDS)),
+            gate: Mutex::new(None),
         }
     }
 }
@@ -102,6 +114,25 @@ impl SongDetectionRuntime {
                 }
             }
         }
+    }
+
+    /// The audio speech recognition should hear. Outside songs mode, or
+    /// without the gate's model, that is `pcm` unchanged. In songs mode,
+    /// talk and noise are replaced with silence and the audio runs about a
+    /// second behind (so the gate can open just before a line starts).
+    /// Called from the capture thread for every frame.
+    pub fn gate_for_speech(&self, pcm: Vec<i16>) -> Vec<i16> {
+        if !self.songs_mode.load(Ordering::Relaxed) {
+            return pcm;
+        }
+        let Ok(mut guard) = self.gate.lock() else { return pcm };
+        let Some(gate) = guard.as_mut() else { return pcm };
+        let was_open = gate.is_open();
+        let out = gate.push(&pcm);
+        if gate.is_open() != was_open {
+            log::info!("[SONG] singing gate {}", if gate.is_open() { "open" } else { "closed" });
+        }
+        out
     }
 
     fn send(&self, msg: Msg) -> bool {
@@ -172,22 +203,22 @@ pub struct SongDetectionStatus {
     pub fingerprints: usize,
 }
 
-fn model_candidates(app: &AppHandle) -> Vec<PathBuf> {
+fn model_candidates(app: &AppHandle, relative: &str) -> Vec<PathBuf> {
     let mut out = Vec::new();
     if let Ok(dir) = app.path().app_data_dir() {
-        out.push(dir.join(MODEL_RELATIVE));
+        out.push(dir.join(relative));
     }
     if let Ok(dir) = app.path().resource_dir() {
-        out.push(dir.join(MODEL_RELATIVE));
+        out.push(dir.join(relative));
     }
     if cfg!(debug_assertions) {
-        out.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join(MODEL_RELATIVE));
+        out.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join(relative));
     }
     out
 }
 
-fn model_path(app: &AppHandle) -> Option<PathBuf> {
-    model_candidates(app).into_iter().find(|p| p.is_file())
+fn model_path(app: &AppHandle, relative: &str) -> Option<PathBuf> {
+    model_candidates(app, relative).into_iter().find(|p| p.is_file())
 }
 
 #[cfg(any(feature = "onnx", feature = "songmatch-dynamic"))]
@@ -201,6 +232,34 @@ fn load_embedder(path: &std::path::Path) -> Result<Arc<dyn Embedder>, String> {
 fn load_embedder(_path: &std::path::Path) -> Result<Arc<dyn Embedder>, String> {
     let _ = MODEL_THREADS;
     Err("Song detection is not included in this build.".into())
+}
+
+#[cfg(any(feature = "onnx", feature = "songmatch-dynamic"))]
+fn load_classifier(path: &std::path::Path) -> Result<Box<dyn SoundClassifier>, String> {
+    rhema_songmatch::gate::YamnetClassifier::load(path)
+        .map(|c| Box::new(c) as Box<dyn SoundClassifier>)
+        .map_err(|e| format!("Could not load the singing gate model: {e}"))
+}
+
+#[cfg(not(any(feature = "onnx", feature = "songmatch-dynamic")))]
+fn load_classifier(_path: &std::path::Path) -> Result<Box<dyn SoundClassifier>, String> {
+    Err("The singing gate is not included in this build.".into())
+}
+
+/// Load the singing gate once, and start it fresh. Without its model,
+/// songs mode still works; speech recognition just hears everything.
+async fn ensure_gate(app: &AppHandle) -> Result<(), String> {
+    let runtime = app.state::<SongDetectionRuntime>();
+    if let Some(gate) = runtime.gate.lock().map_err(|e| e.to_string())?.as_mut() {
+        gate.reset();
+        return Ok(());
+    }
+    let path = model_path(app, GATE_MODEL_RELATIVE)
+        .ok_or_else(|| format!("The singing gate model is not installed ({GATE_MODEL_RELATIVE})."))?;
+    let classifier = tauri::async_runtime::spawn_blocking(move || load_classifier(&path)).await.map_err(|e| e.to_string())??;
+    *runtime.gate.lock().map_err(|e| e.to_string())? = Some(SingingGate::new(classifier, GateConfig::default()));
+    log::info!("[SONG] singing gate ready");
+    Ok(())
 }
 
 fn source_of(name: &str) -> Option<Source> {
@@ -279,7 +338,7 @@ async fn ensure_engine(app: &AppHandle) -> Result<(), String> {
     if runtime.is_loaded() {
         return Ok(());
     }
-    let path = model_path(app).ok_or_else(|| {
+    let path = model_path(app, MODEL_RELATIVE).ok_or_else(|| {
         "The song detection model is not installed (models/songmatch/clews_int8.onnx).".to_string()
     })?;
     let embedder = tauri::async_runtime::spawn_blocking(move || load_embedder(&path)).await.map_err(|e| e.to_string())??;
@@ -325,7 +384,7 @@ pub fn get_song_detection_status(
     songs.dedup();
     Ok(SongDetectionStatus {
         supported: cfg!(any(feature = "onnx", feature = "songmatch-dynamic")),
-        model_path: model_path(&app).map(|p| p.display().to_string()),
+        model_path: model_path(&app, MODEL_RELATIVE).map(|p| p.display().to_string()),
         loaded: runtime.is_loaded(),
         listening: runtime.listening.load(Ordering::Relaxed),
         songs: songs.len(),
@@ -499,6 +558,10 @@ pub struct SongModeStatus {
     pub sound_note: Option<String>,
     /// Songs with a recording (sound fingerprint).
     pub sound_songs: usize,
+    /// Only singing and music reach speech recognition.
+    pub gate: bool,
+    /// Why the singing gate is off.
+    pub gate_note: Option<String>,
 }
 
 /// Whether songs mode is on. Verse detection pauses while it is.
@@ -526,12 +589,25 @@ pub async fn set_song_mode(app: AppHandle, enabled: bool) -> Result<SongModeStat
         runtime.listening.store(false, Ordering::Relaxed);
         runtime.send(Msg::Reset);
         *runtime.lyrics.lock().map_err(|e| e.to_string())? = None;
-        return Ok(SongModeStatus { enabled, lyrics_songs: 0, sound: false, sound_note: None, sound_songs: 0 });
+        return Ok(SongModeStatus {
+            enabled,
+            lyrics_songs: 0,
+            sound: false,
+            sound_note: None,
+            sound_songs: 0,
+            gate: false,
+            gate_note: None,
+        });
     }
     let index = build_lyrics(&db)?;
     let lyrics_songs = index.len();
     *runtime.lyrics.lock().map_err(|e| e.to_string())? = Some(index);
     runtime.window.lock().map_err(|e| e.to_string())?.clear();
+    // The gate is ready (or known missing) before songs mode routes audio through it.
+    let gate = ensure_gate(&app).await;
+    if let Err(e) = &gate {
+        log::warn!("[SONG] {e}");
+    }
     runtime.songs_mode.store(true, Ordering::Relaxed);
 
     let sound = ensure_engine(&app).await;
@@ -540,8 +616,20 @@ pub async fn set_song_mode(app: AppHandle, enabled: bool) -> Result<SongModeStat
         runtime.send(Msg::Reset);
     }
     let sound_songs = load_library(&db).map(|l| l.songs().len()).unwrap_or(0);
-    log::info!("[SONG] songs mode on: {lyrics_songs} songs by lyrics, sound {}", if sound.is_ok() { "on" } else { "off" });
-    Ok(SongModeStatus { enabled, lyrics_songs, sound: sound.is_ok(), sound_note: sound.err(), sound_songs })
+    log::info!(
+        "[SONG] songs mode on: {lyrics_songs} songs by lyrics, sound {}, singing gate {}",
+        if sound.is_ok() { "on" } else { "off" },
+        if gate.is_ok() { "on" } else { "off" }
+    );
+    Ok(SongModeStatus {
+        enabled,
+        lyrics_songs,
+        sound: sound.is_ok(),
+        sound_note: sound.err(),
+        sound_songs,
+        gate: gate.is_ok(),
+        gate_note: gate.err(),
+    })
 }
 
 /// A final transcript segment: in songs mode, match it (with the previous

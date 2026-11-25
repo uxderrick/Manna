@@ -104,6 +104,12 @@ function StatusLine() {
       ) : (
         <span title={status.soundNote ?? undefined}>sound off</span>
       )}
+      {" · "}
+      {status.gate ? (
+        <span title="Only singing and music are transcribed; talk is left out">singing only</span>
+      ) : (
+        <span title={status.gateNote ?? undefined}>all audio</span>
+      )}
     </div>
   )
 }

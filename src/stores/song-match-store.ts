@@ -25,6 +25,9 @@ export interface SongModeStatus {
   sound: boolean
   soundNote: string | null
   soundSongs: number
+  /** Only singing and music reach speech recognition. */
+  gate: boolean
+  gateNote: string | null
 }
 
 /** A song as shown in the panel: both sources merged. */
