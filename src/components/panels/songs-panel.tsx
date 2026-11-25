@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react"
+import { useDeferredValue, useEffect, useMemo, useState } from "react"
 import { MusicIcon, PlayIcon, PlusIcon, SearchIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PanelHeader } from "@/components/ui/panel-header"
 import { cn } from "@/lib/utils"
-import { searchSongs } from "@/lib/song-search"
+import { searchSongs, warmSongIndex } from "@/lib/song-search"
 import { useQueueStore, useSongStore, useSettingsStore } from "@/stores"
 import type { Song } from "@/types"
 import { PasteLyricsDialog } from "@/components/songs/paste-lyrics-dialog"
@@ -13,6 +13,9 @@ import { SongDetailDrawer } from "@/components/songs/song-detail-drawer"
 import { SourceBadge } from "@/components/songs/source-badge"
 
 type Tab = "local" | "online" | "ewc"
+
+/** Rows drawn at a time: drawing all 1,500 songs made every keystroke lag. */
+const PAGE = 50
 
 export function SongsPanel() {
   const allSongs = useSongStore((s) => s.songs)
@@ -43,11 +46,26 @@ export function SongsPanel() {
     [songs],
   )
 
+  // Build both search indexes once the songs load, not on the first keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      warmSongIndex(songs)
+      warmSongIndex(ewcSongs)
+    }, 0)
+    return () => clearTimeout(id)
+  }, [songs, ewcSongs])
+
+  // Typing stays responsive; results follow a moment later.
+  const searchQuery = useDeferredValue(query)
   // Local tab searches all local songs; EWC tab searches within EWC-Live songs.
   const filtered = useMemo(
-    () => searchSongs(tab === "ewc" ? ewcSongs : songs, query),
-    [songs, ewcSongs, query, tab],
+    () => searchSongs(tab === "ewc" ? ewcSongs : songs, searchQuery),
+    [songs, ewcSongs, searchQuery, tab],
   )
+  // A new search or tab starts again at the first page.
+  const pageKey = `${tab}\u0000${searchQuery}`
+  const [paging, setPaging] = useState({ key: pageKey, shown: PAGE })
+  const shown = paging.key === pageKey ? paging.shown : PAGE
 
   return (
     <div className="flex h-full flex-col">
@@ -117,17 +135,27 @@ export function SongsPanel() {
             <EmptyLocal onPaste={() => setPasteOpen(true)} onOnline={() => setTab("online")} />
           )
         ) : (
-          <ul className="divide-y divide-border/40">
-            {filtered.map((song) => (
-              <SongRow
-                key={song.id}
-                song={song}
-                onOpen={() => setDetailId(song.id)}
-                onAdd={() => enqueueSong(song.id)}
-                onJump={() => presentSongLive(song.id)}
-              />
-            ))}
-          </ul>
+          <>
+            <ul className="divide-y divide-border/40">
+              {filtered.slice(0, shown).map((song) => (
+                <SongRow
+                  key={song.id}
+                  song={song}
+                  onOpen={() => setDetailId(song.id)}
+                  onAdd={() => enqueueSong(song.id)}
+                  onJump={() => presentSongLive(song.id)}
+                />
+              ))}
+            </ul>
+            {filtered.length > shown && (
+              <button
+                className="w-full py-2 text-[0.6875rem] text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                onClick={() => setPaging({ key: pageKey, shown: shown + PAGE * 4 })}
+              >
+                Show more ({filtered.length - shown} more songs)
+              </button>
+            )}
+          </>
         )}
       </div>
 
