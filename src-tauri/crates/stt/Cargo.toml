@@ -38,3 +38,7 @@ whisper = ["dep:whisper-rs", "rhema-audio"]
 [[example]]
 name = "whisper_benchmark"
 required-features = ["whisper"]
+
+[[example]]
+name = "whisper_tune"
+required-features = ["whisper"]
