@@ -20,6 +20,30 @@ use crate::types::{TranscriptEvent, Word};
 /// Maximum audio buffer before force-flushing to inference (10 seconds at 16 kHz).
 const MAX_BUFFER_SAMPLES: usize = 16_000 * 10;
 
+/// Songs mode: Whisper is less sure of sung words than spoken ones (sung
+/// lines scored 0.44-0.54, under the usual 0.55 bar) and wraps them in ♪.
+static SINGING: AtomicBool = AtomicBool::new(false);
+
+/// Confidence bar while singing. Junk on noise ("the", "and") scored 0.2-0.36.
+const SINGING_MIN_CONFIDENCE: f64 = 0.40;
+
+/// Switch songs mode: keep sung lines and strip Whisper's music marks.
+pub fn set_singing(on: bool) {
+    SINGING.store(on, Ordering::Relaxed);
+}
+
+/// The text without Whisper's music marks (♪ and friends).
+fn strip_music_marks(text: &str) -> String {
+    text.split_whitespace()
+        .map(|w| w.trim_matches(|c| matches!(c, '♪' | '♫' | '♬' | '♩')))
+        .filter(|w| !w.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Samples per VAD frame (64 ms); `VadConfig`'s frame counts assume this.
+const VAD_FRAME_SAMPLES: usize = 1024;
+
 /// Minimum audio buffer for inference (1.0 seconds).
 /// Whisper warns "input is too short" below 1s.
 const MIN_BUFFER_SAMPLES: usize = 16_000;
@@ -215,7 +239,7 @@ const HALLUCINATION_PHRASES: &[&str] = &[
 
 /// Decide whether a Whisper transcript segment is real speech worth emitting.
 /// Filters empty text, low-confidence output, and known hallucination phrases.
-fn is_real_speech(text: &str, confidence: f64) -> bool {
+fn is_real_speech(text: &str, confidence: f64, min_confidence: f64) -> bool {
     let trimmed = text.trim();
     if trimmed.is_empty() {
         return false;
@@ -232,7 +256,7 @@ fn is_real_speech(text: &str, confidence: f64) -> bool {
         // "thank you" can be legitimately spoken.
         return confidence >= 0.80;
     }
-    confidence >= WHISPER_MIN_CONFIDENCE
+    confidence >= min_confidence
 }
 
 /// Local Whisper STT provider.
@@ -308,6 +332,11 @@ impl SttProvider for WhisperProvider {
             };
             let mut vad = Vad::new(vad_config);
             let mut audio_buffer: Vec<i16> = Vec::new();
+            // Capture sends whatever the device delivers (171 samples from a
+            // Mac's built-in mic at 48 kHz). The VAD counts frames and its
+            // timings assume 1,024 each; without regrouping, clips were cut
+            // every 2.6 s instead of 15 s and 128 ms of quiet ended speech.
+            let mut pending: Vec<i16> = Vec::with_capacity(VAD_FRAME_SAMPLES * 2);
 
             loop {
                 if vad_cancelled.load(Ordering::SeqCst) {
@@ -319,32 +348,35 @@ impl SttProvider for WhisperProvider {
 
                 match audio_rx.recv_timeout(Duration::from_millis(50)) {
                     Ok(samples) => {
-                        let frame = AudioFrame { samples, timestamp_ms: 0 };
-                        let result = vad.process(&frame);
+                        pending.extend_from_slice(&samples);
+                        while pending.len() >= VAD_FRAME_SAMPLES {
+                            let frame = AudioFrame { samples: pending.drain(..VAD_FRAME_SAMPLES).collect(), timestamp_ms: 0 };
+                            let result = vad.process(&frame);
 
-                        if let Some(transition) = result.transition {
-                            match transition {
-                                VadTransition::SpeechStarted => {
-                                    let _ = vad_event_tx
-                                        .blocking_send(TranscriptEvent::SpeechStarted);
-                                }
-                                VadTransition::SpeechEnded => {
-                                    if audio_buffer.len() >= MIN_BUFFER_SAMPLES {
-                                        let _ = inference_tx
-                                            .blocking_send(std::mem::take(&mut audio_buffer));
-                                    } else {
-                                        audio_buffer.clear();
+                            if let Some(transition) = result.transition {
+                                match transition {
+                                    VadTransition::SpeechStarted => {
+                                        let _ = vad_event_tx
+                                            .blocking_send(TranscriptEvent::SpeechStarted);
+                                    }
+                                    VadTransition::SpeechEnded => {
+                                        if audio_buffer.len() >= MIN_BUFFER_SAMPLES {
+                                            let _ = inference_tx
+                                                .blocking_send(std::mem::take(&mut audio_buffer));
+                                        } else {
+                                            audio_buffer.clear();
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        for frame in result.frames {
-                            audio_buffer.extend_from_slice(&frame.samples);
-                        }
+                            for frame in result.frames {
+                                audio_buffer.extend_from_slice(&frame.samples);
+                            }
 
-                        if audio_buffer.len() >= MAX_BUFFER_SAMPLES {
-                            let _ = inference_tx.blocking_send(std::mem::take(&mut audio_buffer));
+                            if audio_buffer.len() >= MAX_BUFFER_SAMPLES {
+                                let _ = inference_tx.blocking_send(std::mem::take(&mut audio_buffer));
+                            }
                         }
                     }
                     Err(crossbeam_channel::RecvTimeoutError::Timeout) => {}
@@ -431,7 +463,14 @@ impl SttProvider for WhisperProvider {
                 let elapsed = start.elapsed();
 
                 let (text, words, confidence) = extract_segments(&state);
-                let (text, words) = if CPU_ONLY { drop_loops(text, words) } else { (text, words) };
+                let (text, mut words) = if CPU_ONLY { drop_loops(text, words) } else { (text, words) };
+                let singing = SINGING.load(Ordering::Relaxed);
+                let (text, min_confidence) = if singing {
+                    words.retain(|w| w.text.chars().any(char::is_alphanumeric));
+                    (strip_music_marks(&text), SINGING_MIN_CONFIDENCE)
+                } else {
+                    (text, WHISPER_MIN_CONFIDENCE)
+                };
 
                 #[expect(clippy::cast_precision_loss, reason = "audio sample count fits in f64")]
                 let audio_duration_s = audio_i16.len() as f64 / 16_000.0;
@@ -439,7 +478,7 @@ impl SttProvider for WhisperProvider {
                     "[Whisper] Transcribed {audio_duration_s:.1}s audio in {elapsed:.1?} (conf {confidence:.2}): \"{text}\""
                 );
 
-                if is_real_speech(&text, confidence) {
+                if is_real_speech(&text, confidence, min_confidence) {
                     let _ = inf_event_tx.blocking_send(TranscriptEvent::Final {
                         transcript: text,
                         words,
@@ -480,6 +519,23 @@ mod tests {
     fn clean(text: &str) -> String {
         let words: Vec<&str> = text.split_whitespace().collect();
         loop_free(&words).iter().map(|&i| words[i]).collect::<Vec<_>>().join(" ")
+    }
+
+    #[test]
+    fn music_marks_are_stripped() {
+        assert_eq!(strip_music_marks("♪ We raise a sound, we raise a sound ♪"), "We raise a sound, we raise a sound");
+        assert_eq!(strip_music_marks("♪♪♪"), "");
+        assert_eq!(strip_music_marks("Good morning. ♪♪"), "Good morning.");
+    }
+
+    #[test]
+    fn singing_keeps_less_certain_lines() {
+        let line = "My, my, I'm in the water";
+        assert!(!is_real_speech(line, 0.46, WHISPER_MIN_CONFIDENCE));
+        assert!(is_real_speech(line, 0.46, SINGING_MIN_CONFIDENCE));
+        assert!(!is_real_speech("the", 0.28, SINGING_MIN_CONFIDENCE));
+        assert!(!is_real_speech("Thank you.", 0.53, SINGING_MIN_CONFIDENCE));
+        assert!(!is_real_speech("", 0.9, SINGING_MIN_CONFIDENCE));
     }
 
     #[test]

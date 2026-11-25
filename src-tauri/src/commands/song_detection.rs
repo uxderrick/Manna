@@ -501,12 +501,26 @@ pub struct SongModeStatus {
     pub sound_songs: usize,
 }
 
+/// Whether songs mode is on. Verse detection pauses while it is.
+pub fn songs_mode(app: &AppHandle) -> bool {
+    app.state::<SongDetectionRuntime>().songs_mode.load(Ordering::Relaxed)
+}
+
+/// Tell offline speech whether people are singing (keeps sung lines).
+fn set_singing(enabled: bool) {
+    #[cfg(feature = "whisper")]
+    rhema_stt::whisper::set_singing(enabled);
+    #[cfg(not(feature = "whisper"))]
+    let _ = enabled;
+}
+
 /// The operator switched the detections panel to songs (or back). Lyrics
 /// matching always works; sound matching needs the model.
 #[tauri::command]
 pub async fn set_song_mode(app: AppHandle, enabled: bool) -> Result<SongModeStatus, String> {
     let runtime = app.state::<SongDetectionRuntime>();
     let db = app.state::<DbState>();
+    set_singing(enabled);
     if !enabled {
         runtime.songs_mode.store(false, Ordering::Relaxed);
         runtime.listening.store(false, Ordering::Relaxed);
@@ -545,6 +559,15 @@ fn lyrics_payload(runtime: &SongDetectionRuntime, transcript: &str) -> Option<So
     let text = runtime.window.lock().ok()?.push(transcript);
     let guard = runtime.lyrics.lock().ok()?;
     let result = guard.as_ref()?.search(&text);
+    if let Some(top) = result.matches.first() {
+        log::info!(
+            "[SONG] lyrics: \"{}\" {:.0}%{} (heard \"{text}\", line \"{}\")",
+            top.title,
+            top.score * 100.0,
+            if result.confident { " likely" } else { "" },
+            top.line
+        );
+    }
     let matches = result
         .matches
         .into_iter()
