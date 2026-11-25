@@ -1,4 +1,17 @@
 import { create } from "zustand"
+import type { FollowMode, SongPosition } from "@/lib/song-follow"
+
+const FOLLOW_KEY = "manna:song-follow"
+
+function savedFollowMode(): FollowMode {
+  try {
+    const v = localStorage.getItem(FOLLOW_KEY)
+    if (v === "auto" || v === "suggest" || v === "off") return v
+  } catch {
+    // storage unavailable: use the default
+  }
+  return "suggest"
+}
 
 /** One candidate from the backend's `song_matches` event. */
 export interface SongMatchItem {
@@ -55,11 +68,20 @@ interface SongMatchState {
   bySource: Partial<Record<SongMatchSource, SourceState>>
   /** The last song's matches, put aside when singing stopped. */
   earlier: MergedSongMatch[]
+  /** How the song on screen follows the singing. */
+  follow: FollowMode
+  /** Latest sung position in the song on screen. */
+  position: SongPosition | null
+  /** Suggest mode: the queue slide the singing has reached. */
+  suggestion: number | null
+  setFollow: (mode: FollowMode) => void
+  setPosition: (position: SongPosition | null) => void
+  setSuggestion: (index: number | null) => void
   setMode: (mode: DetectionMode) => void
   setStatus: (status: SongModeStatus | null) => void
   receive: (payload: SongMatchesPayload, now?: number) => void
-  /** Singing stopped: current matches become "earlier". */
-  putAside: () => void
+  /** Singing stopped: current matches become "earlier", except the song on screen. */
+  putAside: (keepSongId?: string | null) => void
   clear: () => void
 }
 
@@ -71,6 +93,19 @@ export const useSongMatchStore = create<SongMatchState>((set) => ({
   status: null,
   bySource: {},
   earlier: [],
+  follow: savedFollowMode(),
+  position: null,
+  suggestion: null,
+  setFollow: (follow) => {
+    try {
+      localStorage.setItem(FOLLOW_KEY, follow)
+    } catch {
+      // storage unavailable: the choice lasts until restart
+    }
+    set({ follow, suggestion: null })
+  },
+  setPosition: (position) => set({ position }),
+  setSuggestion: (suggestion) => set({ suggestion }),
   setMode: (mode) => set({ mode }),
   setStatus: (status) => set({ status }),
   receive: (payload, now = Date.now()) =>
@@ -85,13 +120,19 @@ export const useSongMatchStore = create<SongMatchState>((set) => ({
         },
       }
     }),
-  putAside: () =>
+  putAside: (keepSongId = null) =>
     set((state) => {
-      const current = mergeSongMatches(state.bySource)
-      if (current.length === 0) return state
+      const current = mergeSongMatches(state.bySource).filter((m) => m.songId !== keepSongId)
+      // The song on screen stays a current match.
+      const bySource: SongMatchState["bySource"] = {}
+      for (const source of ["lyrics", "sound"] as const) {
+        const kept = state.bySource[source]?.matches.filter((m) => m.songId === keepSongId) ?? []
+        if (kept.length > 0) bySource[source] = { ...state.bySource[source]!, matches: kept }
+      }
+      if (current.length === 0) return { bySource }
       const ids = new Set(current.map((m) => m.songId))
       const earlier = [...current, ...state.earlier.filter((m) => !ids.has(m.songId))].slice(0, EARLIER_MAX)
-      return { bySource: {}, earlier }
+      return { bySource, earlier }
     }),
   clear: () => set({ bySource: {}, earlier: [] }),
 }))

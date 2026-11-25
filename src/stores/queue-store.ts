@@ -36,7 +36,8 @@ interface QueueState {
   enqueueSongStanza: (songId: string, stanzaId: string) => void
   jumpLiveSong: (songId: string) => void
   jumpToSongNumber: (num: number) => void
-  presentSongLive: (songId: string) => void
+  /** Queue the song and show it live, from its first slide or `startSlide` (an index into its slides). */
+  presentSongLive: (songId: string, startSlide?: number) => void
   enqueueImage: (input: { url: string; label: string; thumbnailUrl?: string; provider: Extract<QueueItem, { kind: "image" }>["provider"] }) => void
   presentImageLive: (input: { url: string; label: string; thumbnailUrl?: string; provider: Extract<QueueItem, { kind: "image" }>["provider"] }) => void
 }
@@ -207,15 +208,16 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     })
   },
 
-  presentSongLive: (songId) => {
+  presentSongLive: (songId, startSlide = 0) => {
     const startLen = get().items.length
     get().enqueueSong(songId)
     const after = get().items.length
     if (after === startLen) return
-    set({ activeIndex: startLen })
+    const start = startLen + Math.min(Math.max(0, startSlide), after - startLen - 1)
+    set({ activeIndex: start })
 
-    // Render first stanza straight to live output.
-    const firstItem = get().items[startLen]
+    // Render the starting stanza straight to live output.
+    const firstItem = get().items[start]
     if (!firstItem || firstItem.kind !== "song-stanza") return
     void (async () => {
       const [{ useBroadcastStore }, { songStanzaToRenderData }] = await Promise.all([

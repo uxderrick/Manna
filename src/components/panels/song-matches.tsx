@@ -3,6 +3,11 @@ import { MusicIcon, PlayIcon, PlusIcon, RadioIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ConfidenceDot } from "@/components/ui/confidence-dot"
 import { useTauriEvent } from "@/hooks/use-tauri-event"
+import { presentSongSlide, useSongFollow } from "@/hooks/use-song-follow"
+import { expandSong } from "@/lib/song-expand"
+import { activeSongId, positionStanzas, slideFor, stanzaLabel, type FollowMode } from "@/lib/song-follow"
+import { useBroadcastStore } from "@/stores/broadcast-store"
+import type { QueueItem, Song } from "@/types"
 import { useQueueStore, useSongStore, useTranscriptStore } from "@/stores"
 import {
   mergeSongMatches,
@@ -25,7 +30,7 @@ function SongMatchCard({ match, earlier = false }: { match: MergedSongMatch; ear
   if (!song) return null
 
   const goLive = () => {
-    presentSongLive(song.id)
+    presentSongLive(song.id, startSlide(song, match))
     // The operator confirmed it: learn from what was just heard so this
     // song is recognised sooner next time.
     if (soundOn) void invoke("confirm_detected_song", { songId: song.id }).catch(() => {})
@@ -90,6 +95,76 @@ function SongMatchCard({ match, earlier = false }: { match: MergedSongMatch; ear
   )
 }
 
+/** The slide of `song` the match points at (its stanza and line), from the song's start. */
+function startSlide(song: Song, match: MergedSongMatch): number {
+  if (match.stanza === null) return 0
+  const stanza = positionStanzas(song)[match.stanza]
+  if (!stanza) return 0
+  const line = Math.max(0, stanza.lines.indexOf(match.line ?? ""))
+  // The song's slides as presenting it will queue them.
+  const slides = expandSong(song).map(
+    (e, i) => ({ kind: "song-stanza", id: String(i), songId: song.id, stanzaId: e.stanzaRefId, expandedIndex: i }) as QueueItem,
+  )
+  return slideFor(slides, 0, song, { stanza: match.stanza, line }, false) ?? 0
+}
+
+const FOLLOW_MODES: Array<{ mode: FollowMode; label: string; title: string }> = [
+  { mode: "auto", label: "Auto", title: "Move the slides as the song is sung" },
+  { mode: "suggest", label: "Suggest", title: "Offer the next slide; you press to show it" },
+  { mode: "off", label: "Off", title: "Do not follow the singing" },
+]
+
+/** The song on screen, where the singing is in it, and how slides follow it. */
+function FollowBar() {
+  const isLive = useBroadcastStore((s) => s.isLive)
+  const songId = useQueueStore((s) => activeSongId(s.items, s.activeIndex))
+  const song = useSongStore((s) => (songId ? s.songs.find((x) => x.id === songId) : undefined))
+  const follow = useSongMatchStore((s) => s.follow)
+  const position = useSongMatchStore((s) => s.position)
+  const suggestion = useSongMatchStore((s) => s.suggestion)
+  const suggested = useQueueStore((s) => (suggestion === null ? undefined : s.items[suggestion]))
+  if (!isLive || !song) return null
+  const sung = position?.songId === song.id ? positionStanzas(song)[position.stanza] : undefined
+  return (
+    <div className="flex flex-col gap-1.5 border-b border-border bg-primary/5 px-3 py-2 text-[0.625rem]">
+      <div className="flex items-center gap-2">
+        <RadioIcon className="size-3 shrink-0 text-primary" />
+        <span className="min-w-0 flex-1 truncate">
+          Following <span className="font-medium text-foreground">{song.title}</span>
+          {sung && <> · singing {stanzaLabel(song, sung.id)}</>}
+        </span>
+        <div className="flex shrink-0 rounded-full border border-border p-0.5" role="radiogroup" aria-label="Follow the singing">
+          {FOLLOW_MODES.map(({ mode, label, title }) => (
+            <button
+              key={mode}
+              role="radio"
+              aria-checked={follow === mode}
+              title={title}
+              onClick={() => useSongMatchStore.getState().setFollow(mode)}
+              className={`rounded-full px-1.5 py-0.5 font-medium transition-colors ${follow === mode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {follow === "suggest" && suggestion !== null && suggested?.kind === "song-stanza" && (
+        <Button
+          size="xs"
+          className="gap-1 self-start rounded-full px-2.5 text-[10px]"
+          onClick={() => {
+            presentSongSlide(suggestion)
+            useSongMatchStore.getState().setSuggestion(null)
+          }}
+        >
+          <PlayIcon className="size-2.5" />
+          Show {stanzaLabel(song, suggested.stanzaId)}
+        </Button>
+      )}
+    </div>
+  )
+}
+
 function StatusLine() {
   const status = useSongMatchStore((s) => s.status)
   if (!status) return null
@@ -122,10 +197,14 @@ export function SongMatches() {
   useTauriEvent<SongMatchesPayload>("song_matches", (payload) => {
     useSongMatchStore.getState().receive(payload)
   })
-  // No singing for a while: the backend has started fresh for the next song.
+  // No singing for a while: the backend has started fresh for the next
+  // song. The song on screen stays current.
   useTauriEvent<null>("song_matches_idle", () => {
-    useSongMatchStore.getState().putAside()
+    const { items, activeIndex } = useQueueStore.getState()
+    const live = useBroadcastStore.getState().isLive ? activeSongId(items, activeIndex) : null
+    useSongMatchStore.getState().putAside(live)
   })
+  useSongFollow()
   const matches = mergeSongMatches(bySource)
   const current = new Set(matches.map((m) => m.songId))
   const earlier = earlierAll.filter((m) => !current.has(m.songId))
@@ -133,6 +212,7 @@ export function SongMatches() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <StatusLine />
+      <FollowBar />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {matches.length === 0 && (
           <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">

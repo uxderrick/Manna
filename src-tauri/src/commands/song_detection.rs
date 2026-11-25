@@ -36,7 +36,7 @@ use rhema_songmatch::embedder::{embed_reference, Embedder};
 use rhema_songmatch::gate::{GateConfig, SingingGate, SoundClassifier};
 use rhema_songmatch::library::{Library, Reference, Source};
 use rhema_songmatch::listener::{Learned, ListenerConfig, Matcher, Update};
-use rhema_songmatch::lyrics::{LyricsConfig, LyricsIndex, SongLyrics, TranscriptWindow};
+use rhema_songmatch::lyrics::{LyricsConfig, LyricsIndex, Position, SongLyrics, TranscriptWindow};
 use rhema_songmatch::policy::{Candidate, Decision, PolicyConfig};
 use rhema_songmatch::{EMBED_DIM, SAMPLE_RATE_HZ};
 use serde::Serialize;
@@ -58,6 +58,12 @@ pub const EVENT_SONG_MATCHES: &str = "song_matches";
 /// Transcript words kept for lyrics matching (about two sung lines).
 const LYRICS_WINDOW_WORDS: usize = 24;
 pub const EVENT_SONG_FINGERPRINTS_CHANGED: &str = "song_fingerprints_changed";
+/// Where the singing is in the song on screen (see [`set_followed_song`]).
+pub const EVENT_SONG_POSITION: &str = "song_position";
+/// Recent words used to place the singing within the song on screen
+/// (about one sung line; older words describe where it was).
+const FOLLOW_WINDOW_WORDS: usize = 10;
+
 /// No singing for [`IDLE_AFTER`]: the panel puts its matches aside as "earlier".
 pub const EVENT_SONG_IDLE: &str = "song_matches_idle";
 /// Quiet (no singing) this long ends a song: the lyrics window is cleared so
@@ -94,6 +100,9 @@ pub struct SongDetectionRuntime {
     /// mode (`None` when its model is missing: everything goes through).
     gate: Mutex<Option<SingingGate>>,
     idle: Mutex<Idle>,
+    /// The song on screen, followed verse by verse.
+    followed: Mutex<Option<String>>,
+    follow_window: Mutex<TranscriptWindow>,
 }
 
 /// When singing (or, without the gate, any transcript) was last heard.
@@ -114,6 +123,8 @@ impl Default for SongDetectionRuntime {
             window: Mutex::new(TranscriptWindow::new(LYRICS_WINDOW_WORDS)),
             gate: Mutex::new(None),
             idle: Mutex::new(Idle::default()),
+            followed: Mutex::new(None),
+            follow_window: Mutex::new(TranscriptWindow::new(FOLLOW_WINDOW_WORDS)),
         }
     }
 }
@@ -181,6 +192,9 @@ impl SongDetectionRuntime {
         if let Ok(mut window) = self.window.lock() {
             window.clear();
         }
+        if let Ok(mut window) = self.follow_window.lock() {
+            window.clear();
+        }
         log::info!("[SONG] no singing for {} s: matches put aside", IDLE_AFTER.as_secs());
         let _ = app.emit(EVENT_SONG_IDLE, ());
     }
@@ -230,14 +244,13 @@ fn sound_score(c: &Candidate) -> f32 {
     (c.z / (2.0 * PolicyConfig::default().margin)).clamp(0.0, 1.0)
 }
 
-fn sound_payload(update: &Update) -> SongMatchesPayload {
-    let item = |c: &Candidate| SongMatchItem { song_id: c.song_id.clone(), score: sound_score(c), stanza: None, line: None };
-    let (matches, confident) = match &update.decision {
-        Decision::Listening => (Vec::new(), false),
-        Decision::Suggest { candidates } => (candidates.iter().map(item).collect(), false),
-        Decision::Commit { candidate } => (vec![item(candidate)], true),
-    };
-    SongMatchesPayload { source: "sound", matches, confident }
+/// A sound result worth showing: only a confident one. Its suggestions
+/// rank whatever songs have recordings, so with a handful of them every
+/// piece of music (or talk) "suggests" one of those few songs.
+fn sound_payload(update: &Update) -> Option<SongMatchesPayload> {
+    let Decision::Commit { candidate } = &update.decision else { return None };
+    let item = SongMatchItem { song_id: candidate.song_id.clone(), score: sound_score(candidate), stanza: None, line: None };
+    Some(SongMatchesPayload { source: "sound", matches: vec![item], confident: true })
 }
 
 #[derive(Serialize)]
@@ -365,7 +378,9 @@ fn run_worker(app: AppHandle, embedder: Arc<dyn Embedder>, library: Library, rx:
         match msg {
             Msg::Audio(pcm) => match matcher.push_i16(&pcm, embedder.as_ref()) {
                 Ok(Some(update)) => {
-                    let _ = app.emit(EVENT_SONG_MATCHES, sound_payload(&update));
+                    if let Some(payload) = sound_payload(&update) {
+                        let _ = app.emit(EVENT_SONG_MATCHES, payload);
+                    }
                 }
                 Ok(None) => {}
                 Err(e) => log::warn!("[SONG] check failed: {e}"),
@@ -720,8 +735,50 @@ pub fn on_transcript(app: &AppHandle, transcript: &str) {
         }
         runtime.heard();
     }
+    if let Some(position) = follow_position(&runtime, transcript) {
+        let _ = app.emit(EVENT_SONG_POSITION, position);
+    }
     let Some(payload) = lyrics_payload(&runtime, transcript) else { return };
     let _ = app.emit(EVENT_SONG_MATCHES, payload);
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SongPositionPayload {
+    pub song_id: String,
+    #[serde(flatten)]
+    pub position: Position,
+}
+
+/// Where the singing is in the followed song, if one is on screen.
+fn follow_position(runtime: &SongDetectionRuntime, transcript: &str) -> Option<SongPositionPayload> {
+    let song_id = runtime.followed.lock().ok()?.clone()?;
+    let recent = runtime.follow_window.lock().ok()?.push(transcript);
+    let guard = runtime.lyrics.lock().ok()?;
+    let position = guard.as_ref()?.1.locate(&song_id, &recent)?;
+    log::info!(
+        "[SONG] following: stanza {} line {}/{} {:.0}%{} (heard \"{recent}\")",
+        position.stanza + 1,
+        position.line + 1,
+        position.lines,
+        position.score * 100.0,
+        if position.confident { " sure" } else { "" }
+    );
+    Some(SongPositionPayload { song_id, position })
+}
+
+/// The song now on screen (or none): its verses are followed as they are
+/// sung, reported as [`EVENT_SONG_POSITION`].
+#[tauri::command]
+pub fn set_followed_song(app: AppHandle, song_id: Option<String>) -> Result<(), String> {
+    let runtime = app.state::<SongDetectionRuntime>();
+    let mut followed = runtime.followed.lock().map_err(|e| e.to_string())?;
+    if *followed != song_id {
+        runtime.follow_window.lock().map_err(|e| e.to_string())?.clear();
+        log::info!("[SONG] following {}", song_id.as_deref().unwrap_or("no song"));
+        *followed = song_id;
+    }
+    Ok(())
 }
 
 fn lyrics_payload(runtime: &SongDetectionRuntime, transcript: &str) -> Option<SongMatchesPayload> {
@@ -811,13 +868,37 @@ mod tests {
     }
 
     #[test]
-    fn sound_decisions_become_matches() {
+    fn the_followed_song_reports_where_the_singing_is() {
+        let runtime = SongDetectionRuntime::default();
+        let song = lyrics_of(
+            "ag".into(),
+            "Amazing Grace".into(),
+            r#"{"stanzas":[{"lines":["Amazing grace how sweet the sound","That saved a wretch like me"]},
+                {"lines":["Twas grace that taught my heart to fear","And grace my fears relieved"]}]}"#,
+        )
+        .unwrap();
+        *runtime.lyrics.lock().unwrap() = Some((String::new(), LyricsIndex::new(vec![song], LyricsConfig::default())));
+        assert!(follow_position(&runtime, "twas grace that taught my heart").is_none(), "no song followed");
+        *runtime.followed.lock().unwrap() = Some("ag".into());
+        let p = follow_position(&runtime, "twas grace that taught my heart to fear").unwrap();
+        assert_eq!((p.song_id.as_str(), p.position.stanza, p.position.line), ("ag", 1, 0));
+        assert!(p.position.confident);
+        let json = serde_json::to_value(&p).unwrap();
+        assert_eq!(json["songId"], "ag");
+        assert_eq!(json["stanza"], 1, "position fields sit beside the song id");
+    }
+
+    #[test]
+    fn only_confident_sound_decisions_become_matches() {
         let c = Candidate { song_id: "s".into(), z: 2.5, similarity: 0.3, in_plan: true };
-        let u = Update { heard_s: 8.0, decision: Decision::Commit { candidate: c }, new_commit: true };
-        let p = sound_payload(&u);
+        let u = Update { heard_s: 8.0, decision: Decision::Commit { candidate: c.clone() }, new_commit: true };
+        let p = sound_payload(&u).unwrap();
         assert!(p.confident);
         assert!((p.matches[0].score - 0.5).abs() < 1e-6);
         let quiet = Update { heard_s: 0.0, decision: Decision::Listening, new_commit: false };
-        assert!(sound_payload(&quiet).matches.is_empty());
+        assert!(sound_payload(&quiet).is_none());
+        // With two songs recorded, any music "suggests" one of them: not shown.
+        let guess = Update { heard_s: 8.0, decision: Decision::Suggest { candidates: vec![c] }, new_commit: false };
+        assert!(sound_payload(&guess).is_none());
     }
 }

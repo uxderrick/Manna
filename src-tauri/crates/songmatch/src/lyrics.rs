@@ -123,6 +123,31 @@ pub struct LyricsIndex {
     cfg: LyricsConfig,
 }
 
+/// Where in a known song the singing is (for following it on screen).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Position {
+    /// Index into [`SongLyrics::stanzas`].
+    pub stanza: usize,
+    /// The line of that stanza most like the last words heard.
+    pub line: usize,
+    /// Lines in that stanza.
+    pub lines: usize,
+    /// Share of the recent words' weighted phrases found in the stanza.
+    pub score: f32,
+    /// Clear enough to move the slides.
+    pub confident: bool,
+}
+
+/// Words needed before a position is reported.
+const LOCATE_MIN_WORDS: usize = 4;
+/// Score a stanza needs to be confident...
+const LOCATE_SCORE: f32 = 0.3;
+/// ...and its lead over the next different stanza.
+const LOCATE_LEAD: f32 = 0.15;
+/// The last few words decide the line (they are the line being sung now).
+const LOCATE_TAIL_WORDS: usize = 6;
+
 /// The transcript's best matches, and whether the top one is confident.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -160,6 +185,55 @@ impl LyricsIndex {
         self.songs.len()
     }
 
+    /// Where in `song_id` the recent words are: which stanza, and which
+    /// line of it. Only that song's stanzas compete, so a few words are
+    /// enough. `None` when too little was heard or nothing matches.
+    pub fn locate(&self, song_id: &str, recent: &str) -> Option<Position> {
+        let song = self.songs.iter().find(|s| s.lyrics.song_id == song_id)?;
+        let heard = words(recent);
+        if heard.len() < LOCATE_MIN_WORDS {
+            return None;
+        }
+        let query = grams(&heard);
+        let total: f32 = query.iter().map(|g| self.weight(*g)).sum();
+        if total <= 0.0 {
+            return None;
+        }
+        let share = |set: &HashSet<Gram>| query.iter().filter(|g| set.contains(g)).map(|g| self.weight(*g)).sum::<f32>() / total;
+        let mut scored: Vec<(usize, f32)> = song.stanza_grams.iter().map(share).enumerate().collect();
+        scored.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
+        let (stanza, score) = *scored.first().filter(|(_, s)| *s > 0.0)?;
+        // A stanza repeated word for word (a chorus written out twice) is no rival.
+        let rival = scored
+            .iter()
+            .skip(1)
+            .find(|(k, _)| song.stanza_grams[*k] != song.stanza_grams[stanza])
+            .map_or(0.0, |(_, s)| *s);
+        let lines = &song.lyrics.stanzas[stanza];
+        let tail = grams(&heard[heard.len().saturating_sub(LOCATE_TAIL_WORDS)..]);
+        let line_score = |line: &String, q: &HashSet<Gram>| {
+            grams(&words(line)).iter().filter(|g| q.contains(g)).map(|g| self.weight(*g)).sum::<f32>()
+        };
+        let best_line = |q: &HashSet<Gram>| {
+            lines
+                .iter()
+                .enumerate()
+                .map(|(i, l)| (i, line_score(l, q)))
+                .filter(|(_, s)| *s > 0.0)
+                // On a tie the later line: the singing moves forward.
+                .max_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)))
+                .map(|(i, _)| i)
+        };
+        let line = best_line(&tail).or_else(|| best_line(&query)).unwrap_or(0);
+        Some(Position {
+            stanza,
+            line,
+            lines: lines.len(),
+            score,
+            confident: score >= LOCATE_SCORE && score - rival >= LOCATE_LEAD,
+        })
+    }
+
     pub fn is_empty(&self) -> bool {
         self.songs.is_empty()
     }
@@ -181,12 +255,16 @@ impl LyricsIndex {
         }
         let query = Query::new(&query_words, |g| self.weight(g));
         let span_words = self.cfg.span_words.min(query_words.len());
+        // A few common words ("I need to see") are found in some song or
+        // other: until a full stretch is heard, scores count for less.
+        #[expect(clippy::cast_precision_loss, reason = "word counts are small")]
+        let shortness = (query_words.len() as f32 / self.cfg.span_words.max(1) as f32).min(1.0);
 
         let mut scored: Vec<(usize, f32)> = self
             .songs
             .iter()
             .enumerate()
-            .filter_map(|(i, s)| query.best_span(|g| s.grams.contains(&g), span_words).map(|score| (i, score)))
+            .filter_map(|(i, s)| query.best_span(|g| s.grams.contains(&g), span_words).map(|score| (i, score * shortness)))
             .filter(|(_, score)| *score >= self.cfg.min_score)
             .collect();
         scored.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| self.songs[a.0].lyrics.title.cmp(&self.songs[b.0].lyrics.title)));
@@ -462,6 +540,35 @@ mod tests {
         assert!(with_talk.matches[0].score >= alone.matches[0].score - 1e-4, "{with_talk:?} vs {alone:?}");
         assert!(with_talk.confident, "{with_talk:?}");
         assert_eq!(with_talk.matches[0].line, "Then sings my soul, my Saviour God, to Thee");
+    }
+
+    #[test]
+    fn locates_the_stanza_and_line_being_sung() {
+        let lib = library();
+        // Misheard as usual: "south" for "soul".
+        let p = lib.locate("how-great-thou-art", "then sings my south my saviour god to thee").unwrap();
+        assert_eq!((p.stanza, p.line, p.lines), (1, 0, 2));
+        assert!(p.confident, "{p:?}");
+        let p = lib.locate("how-great-thou-art", "to thee how great thou art how great thou art").unwrap();
+        assert_eq!((p.stanza, p.line), (1, 1), "the last words decide the line");
+        let p = lib.locate("how-great-thou-art", "o lord my god when i in awesome wonder").unwrap();
+        assert_eq!(p.stanza, 0);
+        assert!(lib.locate("how-great-thou-art", "thank you").is_none(), "too few words");
+        assert!(lib.locate("no-such-song", "then sings my soul my saviour").is_none());
+    }
+
+    #[test]
+    fn unrelated_words_are_not_a_confident_position() {
+        let lib = library();
+        let p = lib.locate("how-great-thou-art", "please be seated we will now read from the gospel");
+        assert!(p.is_none_or(|p| !p.confident), "{p:?}");
+    }
+
+    #[test]
+    fn a_few_common_words_do_not_look_certain() {
+        // Four words, all in one song: found, but not as a strong match.
+        let r = library().search("o god my father");
+        assert!(r.matches[0].score <= 0.5 + 1e-6, "{r:?}");
     }
 
     #[test]

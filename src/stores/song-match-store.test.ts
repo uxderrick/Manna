@@ -41,4 +41,13 @@ describe("song match store", () => {
     state = useSongMatchStore.getState()
     expect(state.earlier.map((m) => m.songId)).toEqual(["no-one-like-the-lord", "silent-night", "other"])
   })
+
+  it("keeps the song on screen current when singing stops", () => {
+    const s = useSongMatchStore.getState()
+    s.receive({ source: "lyrics", matches: [item("live", 0.6), item("other", 0.3)], confident: true }, 1)
+    s.putAside("live")
+    const state = useSongMatchStore.getState()
+    expect(mergeSongMatches(state.bySource).map((m) => m.songId)).toEqual(["live"])
+    expect(state.earlier.map((m) => m.songId)).toEqual(["other"])
+  })
 })

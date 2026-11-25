@@ -425,6 +425,7 @@ pub fn run() {
             commands::songs::delete_song,
             commands::song_detection::get_song_detection_status,
             commands::song_detection::set_song_mode,
+            commands::song_detection::set_followed_song,
             commands::song_detection::set_song_detection_listening,
             commands::song_detection::set_song_detection_plan,
             commands::song_detection::reset_song_detection,
